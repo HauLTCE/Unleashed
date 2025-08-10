@@ -28,7 +28,7 @@ public class Sale {
     @JoinColumn(name = "sale_status_id")
     private SaleStatus saleStatus;
 
-    @Column(name = "sale_value", precision = 3, scale = 2)
+    @Column(name = "sale_value", precision = 10, scale = 2)
     private BigDecimal saleValue;
 
     @Column(name = "sale_start_date")
