@@ -1,6 +1,7 @@
 package com.unleashed.rest;
 
 
+import com.unleashed.dto.RegisterDTO;
 import com.unleashed.dto.ResetPasswordDTO;
 import com.unleashed.dto.ResponseDTO;
 import com.unleashed.dto.UserDTO;
@@ -61,36 +62,41 @@ public class AuthRestController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<ResponseDTO> register(@RequestBody User user) {
+    public ResponseEntity<ResponseDTO> register(@RequestBody RegisterDTO registerDTO) {
         ResponseDTO responseDTO = new ResponseDTO();
         try {
-            if (userService.existsByUsername(user.getUsername())) {
-                throw new CustomException(user.getUsername() + " already exists", HttpStatus.CONFLICT);
+            if (userService.existsByUsername(registerDTO.getUserUsername())) {
+                throw new CustomException(registerDTO.getUserUsername() + " already exists", HttpStatus.CONFLICT);
             }
-            if (userService.existsByEmail(user.getUserEmail())) {
-                throw new CustomException(user.getUserEmail() + " already exists", HttpStatus.CONFLICT);
+            if (userService.existsByEmail(registerDTO.getUserEmail())) {
+                throw new CustomException(registerDTO.getUserEmail() + " already exists", HttpStatus.CONFLICT);
             }
 
+            User newUser = new User();
+            newUser.setUserUsername(registerDTO.getUserUsername());
+            newUser.setUserPassword(registerDTO.getUserPassword());
+            newUser.setUserEmail(registerDTO.getUserEmail());
+            newUser.setUserFullname(registerDTO.getUserFullname());
+            newUser.setUserPhone(registerDTO.getUserPhone());
 
-            user.setRole(userRoleService.findById(2));
-            user.setIsUserEnabled(false);
-            User savedUser = userService.create(user);
+            // Set default values
+            newUser.setRole(userRoleService.findById(2));
+            newUser.setIsUserEnabled(false);
 
-            // Gọi hàm assignNewUserDiscount để gán mã giảm giá cho người dùng mới
-//            discountService.assignNewUserDiscount(savedUser.getUserId());
+            // Pass the fully populated User object to the service
+            User savedUser = userService.create(newUser);
 
-            // Generate JWT Token with user ID and expiration
+            // Generate JWT Token with user ID and expiration for email confirmation
             String jwtToken = jwtUtil.generateStringToken(savedUser.getUserId() + "registration", 7 * 24 * 60 * 60 * 1000);
 
-
             String confirmationLink = "http://localhost:8080/api/auth/confirm-registration/" + savedUser.getUserUsername() + "?token=" + jwtToken;
-
 
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
             SimpleDateFormat yearFormat = new SimpleDateFormat("yyyy");
             String currentDateTime = dateFormat.format(new Date());
             String currentYear = yearFormat.format(new Date());
 
+            // Use data from the savedUser object for the email content
             String htmlContent = "<!DOCTYPE html>"
                     + "<html lang=\"en\">"
                     + "<head>"
@@ -106,7 +112,7 @@ public class AuthRestController {
                     + "<tr>"
                     + "<td align=\"center\" style=\"padding: 30px;\">"
                     + "<h2 style=\"color: #4CAF50; margin-bottom: 20px;\">Registration Confirmation</h2>"
-                    + "<p style=\"color: #555; font-size: 16px; line-height: 1.5;\">Hello " + user.getUserFullname() + ",</p>"
+                    + "<p style=\"color: #555; font-size: 16px; line-height: 1.5;\">Hello " + savedUser.getUserFullname() + ",</p>"
                     + "<p style=\"color: #555; font-size: 16px; line-height: 1.5; margin-bottom: 30px;\">Thank you for registering! Please click the button below to confirm your registration:</p>"
                     + "<a href=\"" + confirmationLink + "\" style=\"display: inline-block; padding: 12px 24px; font-size: 16px; color: white; background-color: #4CAF50; text-decoration: none; border-radius: 5px; font-weight: bold;\">Confirm Registration</a>"
                     + "<p style=\"color: #555; font-size: 14px; margin-top: 30px; line-height: 1.5;\">If you didn't register, please ignore this email.</p>"
@@ -125,7 +131,7 @@ public class AuthRestController {
                     + "</body>"
                     + "</html>";
 
-            emailService.sendHtmlMessage(user.getUserEmail(), "Confirm Your Registration", htmlContent);
+            emailService.sendHtmlMessage(savedUser.getUserEmail(), "Confirm Your Registration", htmlContent);
 
             responseDTO.setStatusCode(HttpStatus.CREATED.value());
             responseDTO.setMessage("We have sent an email to your email for confirmation, please check it!");
@@ -144,7 +150,7 @@ public class AuthRestController {
             @RequestParam String token,
             HttpServletResponse response) throws IOException {
 
-        String userId = userService.findByUsername(username).getUserId();
+        String userId = userService.findByUsername(username).getUserId().toString();
 
         // Parse the token
         String parsedUserId = jwtUtil.extractSubject(token);

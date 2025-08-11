@@ -11,9 +11,10 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
-public interface UserRepository extends JpaRepository<User, String> {
+public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByUserEmail(String userEmail);
 
     Optional<User> findByUserUsername(String username);
@@ -26,7 +27,7 @@ public interface UserRepository extends JpaRepository<User, String> {
 
     boolean existsByUserEmail(String username);
 
-    Optional<User> findById(String userId);
+    Optional<User> findById(UUID userId);
 
     Page<User> findByUserUsernameContainingOrUserEmailContaining(String username, String userEmail, Pageable pageable);
 
@@ -38,7 +39,6 @@ public interface UserRepository extends JpaRepository<User, String> {
             @Param("search") String search,
             Pageable pageable);
 
-    // Optional query for role filtering only (used when no search term is provided)
     @Query("SELECT u FROM User u WHERE u.role IN :roles")
     Page<User> findByRolesOnly(@Param("roles") List<Role> roles, Pageable pageable);
 

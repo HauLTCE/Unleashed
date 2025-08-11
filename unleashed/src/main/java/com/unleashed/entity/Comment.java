@@ -4,28 +4,28 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.Nationalized;
 
 import java.time.OffsetDateTime;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "comment", schema = "public")
+@Table(name = "comment", schema = "dbo")
 public class Comment {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "comment_id_gen")
-    // **Cấu hình ID generation strategy**
-    @SequenceGenerator(name = "comment_id_gen", sequenceName = "comment_comment_id_seq", allocationSize = 1)
-    // **Khai báo SequenceGenerator**
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "comment_id", nullable = false)
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "review_id")
     @JsonIgnore
-    private com.unleashed.entity.Review review;
+    private Review review;
 
-    @Column(name = "comment_content", columnDefinition = "TEXT") // Thêm columnDefinition = "TEXT" cho kiểu text
+    @Nationalized
+    @Lob
+    @Column(name = "comment_content")
     private String commentContent;
 
     @Column(name = "comment_created_at")

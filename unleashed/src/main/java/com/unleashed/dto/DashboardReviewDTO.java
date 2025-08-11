@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Data
 @AllArgsConstructor
@@ -12,7 +13,7 @@ import java.time.OffsetDateTime;
 public class DashboardReviewDTO {
     private Integer commentId;
     private Integer reviewId;
-    private String productId;
+    private UUID productId;
     private String fullName;
     private String userImage;
     private OffsetDateTime createdAt;

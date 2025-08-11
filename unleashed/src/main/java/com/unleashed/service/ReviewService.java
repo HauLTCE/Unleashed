@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -46,14 +47,14 @@ public class ReviewService {
     }
 
     public List<Object[]> getReviewsByProductId(String productId) {
-        return reviewRepository.findReviewByProductId(productId);
+        return reviewRepository.findReviewByProductId(UUID.fromString(productId));
     }
 
     public List<ProductReviewDTO> getAllReviewsByProductId(String productId) {
         List<ProductReviewDTO> productReviewDTOList = new ArrayList<>();
 
         // 1 Lấy tất cả review theo productId
-        List<Review> allReviews = reviewRepository.findAllReviewsByProductId(productId);
+        List<Review> allReviews = reviewRepository.findAllReviewsByProductId(UUID.fromString(productId));
         if (allReviews.isEmpty()) return productReviewDTOList; // Trả về danh sách rỗng nếu không có review nào
 
         // 2 Lấy danh sách reviewId để tìm comment
@@ -139,7 +140,7 @@ public class ReviewService {
         }
 
         // Kiểm tra productId có tồn tại không
-        Product product = productRepository.findById(review.getProductId()).orElseThrow(() ->
+        Product product = productRepository.findById(UUID.fromString(review.getProductId())).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
 
         // Kiểm tra orderId có tồn tại không
@@ -147,7 +148,7 @@ public class ReviewService {
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found."));
 
         // Kiểm tra userId có tồn tại không
-        User user = userRepository.findById(review.getUserId()).orElseThrow(() ->
+        User user = userRepository.findById(UUID.fromString(review.getUserId())).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
 
         if (review.getReviewRating() < 1 || review.getReviewRating() > 5) {
@@ -206,7 +207,7 @@ public class ReviewService {
     }
 
     public boolean checkReviewExists(String productId, String orderId, String userId) {
-        return reviewRepository.existsByProduct_ProductIdAndOrder_OrderIdAndUser_UserId(productId, orderId, userId);
+        return reviewRepository.existsByProduct_ProductIdAndOrder_OrderIdAndUser_UserId(UUID.fromString(productId), orderId, UUID.fromString(userId));
     }
 
     public Page<DashboardReviewDTO> getAllDashboardReviews(Pageable pageable) {

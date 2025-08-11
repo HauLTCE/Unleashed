@@ -7,7 +7,7 @@ import com.unleashed.dto.PayOsLinkRequestBodyDTO;
 import com.unleashed.dto.mapper.OrderDetailMapper;
 import com.unleashed.dto.mapper.OrderMapper;
 import com.unleashed.dto.mapper.ProductVariationMapper;
-import com.unleashed.entity.ComposeKey.OrderVariationSingleId;
+import com.unleashed.entity.composite.OrderVariationSingleId;
 import com.unleashed.entity.*;
 import com.unleashed.repo.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -234,7 +234,7 @@ public class OrderService {
         Sort sort = Sort.by("orderUpdatedAt").descending();
         Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
 
-        Page<Order> ordersPage = orderRepository.findByUserId(userId, sortedPageable);
+        Page<Order> ordersPage = orderRepository.findByUserId(UUID.fromString(userId), sortedPageable);
 
         List<Map<String, Object>> ordersList = ordersPage.stream().map(order -> {
             Map<String, Object> orderJson = new HashMap<>();
@@ -411,7 +411,7 @@ public class OrderService {
         if (userId == null || userId.trim().isEmpty()) {
             ordersPage = orderRepository.findAll(sortedPageable);
         } else {
-            ordersPage = orderRepository.findByUserId(userId, sortedPageable);
+            ordersPage = orderRepository.findByUserId(UUID.fromString(userId), sortedPageable);
         }
 
         List<Map<String, Object>> ordersList = ordersPage.getContent().stream()
@@ -549,7 +549,7 @@ public class OrderService {
 
         // 1. Khởi tạo Order từ DTO và lưu vào database
         Order order = Order.builder()
-                .user(userRepository.findById(orderDTO.getUserId()).orElse(null))
+                .user(userRepository.findById(UUID.fromString(orderDTO.getUserId())).orElse(null))
                 .orderDate(OffsetDateTime.now())
                 .orderNote(orderDTO.getNotes())
                 .discount(orderDTO.getDiscount())
@@ -666,7 +666,7 @@ public class OrderService {
     private void setUser(Order order, String userId) {
         if (userId != null) {
             User user = new User();
-            user.setUserId(userId);
+            user.setUserId(UUID.fromString(userId));
             order.setUser(user);
         }
     }
@@ -727,7 +727,7 @@ public class OrderService {
                 }
             });
 //            System.out.println("finish");
-            cartService.removeAllFromCart(order.getUser().getUserId());
+            cartService.removeAllFromCart(order.getUser().getUserId().toString());
         } catch (Exception e) {
             System.err.println("Failed to save order details: " + e.getMessage());
         }
@@ -1337,7 +1337,7 @@ public class OrderService {
 //            detailJson.put("discountAmount", detail.getDiscount());
             detailJson.put("productImage", variation.getVariationImage());
 
-            List<Map<String, Object>> reviews = reviewRepository.findReviewByProductId(variation.getProduct().getProductId())
+            List<Map<String, Object>> reviews = reviewRepository.findReviewByProductId(UUID.fromString(variation.getProduct().getProductId().toString()))
                     .stream()
                     .map(reviewData -> {
                         Map<String, Object> reviewJson = new HashMap<>();

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.Nationalized;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashSet;
@@ -12,15 +13,16 @@ import java.util.Set;
 @Getter
 @Setter
 @Entity
-@Table(name = "rank", schema = "public")
+@Table(name = "rank", schema = "dbo")
 public class Rank {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "rank_id_gen")
-    @SequenceGenerator(name = "rank_id_gen", sequenceName = "rank_rank_id_seq", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "rank_id", nullable = false)
     private Integer id;
 
-    @Column(name = "rank_name", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Lob
+    @Column(name = "rank_name")
     private String rankName;
 
     @Column(name = "rank_num")
@@ -35,6 +37,5 @@ public class Rank {
     @JsonIgnore
     @OneToMany(mappedBy = "discountRankRequirement")
     private Set<Discount> discounts = new LinkedHashSet<>();
-
 
 }

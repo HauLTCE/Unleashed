@@ -1,11 +1,11 @@
 package com.unleashed.service;
 
 import com.unleashed.dto.ResponseDTO;
-import com.unleashed.entity.ComposeKey.SaleProductId;
 import com.unleashed.entity.Product;
 import com.unleashed.entity.Sale;
 import com.unleashed.entity.SaleProduct;
 import com.unleashed.entity.SaleStatus;
+import com.unleashed.entity.composite.SaleProductId;
 import com.unleashed.repo.ProductRepository;
 import com.unleashed.repo.SaleProductRepository;
 import com.unleashed.repo.SaleRepository;
@@ -19,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -46,10 +48,8 @@ public class SaleService {
         saleList.forEach(sale -> {
             if (sale.getSaleEndDate().isBefore(nowDate)) {
                 sale.setSaleStatus(expiredeStaus);
-            } else if (sale.getSaleStatus().getId() == (expiredeStaus.getId())) {
-                //System.out.println("ttttt");
+            } else if (sale.getSaleStatus().getId().equals(expiredeStaus.getId())) {
                 sale.setSaleStatus(inactiveStatus);
-                //System.out.println(sale.getSaleStatus().getId());
                 saleRepository.save(sale);
             }
         });
@@ -72,7 +72,6 @@ public class SaleService {
         responseDTO.setMessage("Updated sale Successfully");
         Sale existingSale = saleRepository.findById(saleId).orElse(null);
 
-        // Update the sale properties
         if (existingSale == null) {
             responseDTO.setMessage("Sale not found");
             responseDTO.setStatusCode(HttpStatus.NOT_FOUND.value());
@@ -94,9 +93,9 @@ public class SaleService {
         ResponseDTO responseDTO = new ResponseDTO();
         Sale sale = saleRepository.findById(saleId).orElse(null);
 
-//        System.out.println(sale.getSaleStatus().getId());
-        if (!saleRepository.existsById(saleId)) {
+        if (sale == null || !saleRepository.existsById(saleId)) {
             responseDTO.setMessage("Sale not found");
+
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
         }
 
@@ -105,6 +104,7 @@ public class SaleService {
 
         sale.setSaleStatus(defaultStatus);
         saleRepository.save(sale);
+        responseDTO.setMessage("Sale status set to inactive.");
         return ResponseEntity.status(HttpStatus.OK).body(responseDTO);
     }
 
@@ -122,20 +122,21 @@ public class SaleService {
 
     @Transactional
     public ResponseEntity<?> addProductsToSale(Integer saleId, List<String> productIds) {
-        ResponseDTO responseDTO = new ResponseDTO();
-        Optional<Sale> saleOptional = saleRepository.findById(saleId);
-//        System.out.println("saleOptional: "+saleOptional);
-        if (saleOptional.isEmpty()) {
-            return ResponseEntity.status(404).body("Sale not found");
-        }
+        Sale sale = saleRepository.findById(saleId)
+                .orElseThrow(() -> new EntityNotFoundException("Sale not found"));
 
         List<SaleProduct> saleProductsToSave = new ArrayList<>();
-        for (String productId : productIds) {
-            Optional<Product> productOptional = productRepository.findById(productId);
-            if (productOptional.isEmpty()) continue;
+        for (String productIdStr : productIds) {
+            UUID productId = UUID.fromString(productIdStr);
+            Product product = productRepository.findById(productId).orElse(null);
+            if (product == null) continue;
 
             SaleProductId id = new SaleProductId(saleId, productId);
-            SaleProduct saleProduct = new SaleProduct(id);
+            SaleProduct saleProduct = SaleProduct.builder()
+                    .id(id)
+                    .sale(sale)
+                    .product(product)
+                    .build();
             saleProductsToSave.add(saleProduct);
         }
 
@@ -147,19 +148,17 @@ public class SaleService {
     }
 
     @Transactional
-    public ResponseEntity<ResponseDTO> removeProductFromSale(int saleId, String productId) {
+    public ResponseEntity<ResponseDTO> removeProductFromSale(int saleId, String productIdStr) {
         ResponseDTO responseDTO = new ResponseDTO();
         try {
-            Sale sale = saleRepository.findById(saleId)
+            UUID productId = UUID.fromString(productIdStr);
+            saleRepository.findById(saleId)
                     .orElseThrow(() -> new RuntimeException("Sale not found"));
 
-            Product product = productRepository.findById(productId)
+            productRepository.findById(productId)
                     .orElseThrow(() -> new RuntimeException("Product not found"));
 
-            SaleProductId id = new SaleProductId();
-            id.setSaleId(saleId);
-            id.setProductId(productId);
-
+            SaleProductId id = new SaleProductId(saleId, productId);
             Optional<SaleProduct> existingSaleProductOpt = saleProductRepository.findById(id);
 
             if (existingSaleProductOpt.isPresent()) {
@@ -177,21 +176,22 @@ public class SaleService {
         return ResponseEntity.status(responseDTO.getStatusCode()).body(responseDTO);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public ResponseEntity<List<Product>> getProductsInSale(int saleId) {
         try {
-            Sale sale = saleRepository.findById(saleId)
+            saleRepository.findById(saleId)
                     .orElseThrow(() -> new RuntimeException("Sale not found"));
 
             List<SaleProduct> saleProducts = saleProductRepository.findByIdSaleId(saleId);
 
             List<Product> products = saleProducts.stream()
                     .map(sp -> productRepository.findById(sp.getId().getProductId()).orElse(null))
+                    .filter(Objects::nonNull)
                     .collect(Collectors.toList());
 
             return ResponseEntity.ok(products);
         } catch (RuntimeException e) {
-            return ResponseEntity.status(404).body(null);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         }
     }
 

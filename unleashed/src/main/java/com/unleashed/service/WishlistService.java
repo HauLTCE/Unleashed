@@ -1,7 +1,7 @@
 package com.unleashed.service;
 
 import com.unleashed.dto.WishlistDTO;
-import com.unleashed.entity.ComposeKey.WishlistId;
+import com.unleashed.entity.composite.WishlistId;
 import com.unleashed.entity.User;
 import com.unleashed.entity.Wishlist;
 import com.unleashed.repo.ProductRepository;
@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class WishlistService {
@@ -35,9 +36,7 @@ public class WishlistService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
 
-        String userId = user.getUserId(); // Lấy userId từ User entity
-
-        return wishlistRepository.findWishlistByUserId(userId);
+        return wishlistRepository.findWishlistByUserId(user.getUserId());
     }
 
     public Wishlist addToWishlist(String username, String productId) {
@@ -48,19 +47,19 @@ public class WishlistService {
         if (!user.getRole().getId().equals(2)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
-        if (!productRepository.existsById(productId)) {
+        if (!productRepository.existsById(UUID.fromString(productId))) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found");
         }
         if (isProductInWishlist(username, productId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product already exists in Wishlist");
         }
 
-        String userId = user.getUserId(); // Lấy userId từ User entity
+        UUID userId = user.getUserId(); // Lấy userId từ User entity
 
         // 2. Tạo WishlistId và Wishlist entity như cũ, nhưng sử dụng userId vừa lấy
         WishlistId wishlistId = new WishlistId();
         wishlistId.setUserId(userId); // Sử dụng userId đã lấy được
-        wishlistId.setProductId(productId);
+        wishlistId.setProductId(UUID.fromString(productId));
 
         Wishlist wishlist = new Wishlist();
         wishlist.setId(wishlistId);
@@ -76,18 +75,18 @@ public class WishlistService {
         if (!user.getRole().getId().equals(2)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
-        if (!productRepository.existsById(productId)) {
+        if (!productRepository.existsById(UUID.fromString(productId))) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found");
         }
         if (!isProductInWishlist(username, productId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found in Wishlist");
         }
 
-        String userId = user.getUserId();
+        UUID userId = user.getUserId();
 
         WishlistId wishlistId = new WishlistId();
         wishlistId.setUserId(userId);
-        wishlistId.setProductId(productId);
+        wishlistId.setProductId(UUID.fromString(productId));
 
         wishlistRepository.deleteById(wishlistId);
     }
@@ -95,10 +94,9 @@ public class WishlistService {
     public boolean isProductInWishlist(String username, String productId) {
         User user = userRepository.findByUserUsername(username)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-        String userId = user.getUserId();
         WishlistId wishlistId = new WishlistId();
-        wishlistId.setUserId(userId);
-        wishlistId.setProductId(productId);
+        wishlistId.setUserId(user.getUserId());
+        wishlistId.setProductId(UUID.fromString(productId));
         return wishlistRepository.existsById(wishlistId);
     }
 }

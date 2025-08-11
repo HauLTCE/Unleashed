@@ -1,27 +1,30 @@
-package com.unleashed.entity.ComposeKey;
+package com.unleashed.entity.composite;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import jakarta.validation.constraints.NotNull;
+import lombok.*;
 import org.hibernate.Hibernate;
 
+import java.io.Serializable;
 import java.util.Objects;
+import java.util.UUID;
 
 @Getter
 @Setter
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @Embeddable
-public class UserDiscountId implements java.io.Serializable {
-    private static final long serialVersionUID = 7028597374736487727L;
-    @Column(name = "user_id", length = Integer.MAX_VALUE)
-    private String userId;
-
-    @Column(name = "discount_id")
+public class UserDiscountId implements Serializable {
+    private static final long serialVersionUID = -3576877749600329910L;
+    @NotNull
+    @Column(name = "discount_id", nullable = false)
     private Integer discountId;
+
+    @NotNull
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @Override
     public boolean equals(Object o) {

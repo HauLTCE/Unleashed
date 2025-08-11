@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public interface SaleRepository extends JpaRepository<Sale, Integer> {
@@ -17,5 +18,5 @@ public interface SaleRepository extends JpaRepository<Sale, Integer> {
             "JOIN SaleProduct sp ON s.id = sp.id.saleId " +
             "JOIN Product  p ON p.productId = sp.id.productId " +
             "WHERE sp.id.productId = :productId AND s.saleStatus.id = 2")
-    Optional<Sale> findSaleByProductId(@Param("productId") String productId);
+    Optional<Sale> findSaleByProductId(@Param("productId") UUID productId);
 }

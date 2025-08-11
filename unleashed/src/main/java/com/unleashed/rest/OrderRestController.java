@@ -106,7 +106,7 @@ public class OrderRestController {
         }
 
         Pageable pageable = PageRequest.of(page, size);
-        Map<String, Object> ordersResponse = orderService.getOrdersByUserIdWithValidation(currentUser.getUserId(), pageable);
+        Map<String, Object> ordersResponse = orderService.getOrdersByUserIdWithValidation(currentUser.getUserId().toString(), pageable);
 
         return ResponseEntity.ok(ordersResponse);
     }
@@ -120,7 +120,7 @@ public class OrderRestController {
         if (authentication != null && authentication.getPrincipal() instanceof UserDetails) {
             currentUsername = ((UserDetails) authentication.getPrincipal()).getUsername();
         }
-        String userId = userService.findByUsername(currentUsername).getUserId();
+        String userId = userService.findByUsername(currentUsername).getUserId().toString();
         orderDTO.setUserId(userId);
         try {
             Map<String, Object> jsonResponse = orderService.createOrder(orderDTO, request);

@@ -81,7 +81,7 @@ public class StatisticsService {
         List<BestSellingProductDTO> bestSellingProductDTOs = new ArrayList<>();
         for (Object[] data : bestSellingProductsData) {
             String productName = (String) data[0];
-            Long totalSold = (Long) data[1]; // Sửa đổi ở đây: Ép kiểu sang Long
+            Long totalSold = ((Number) data[1]).longValue();
 
             bestSellingProductDTOs.add(new BestSellingProductDTO(productName, totalSold));
         }
@@ -93,7 +93,7 @@ public class StatisticsService {
         List<BestSellingProductDTO> bestSellingProductDTOs = new ArrayList<>();
         for (Object[] data : bestSellingProductsData) {
             String productName = (String) data[0];
-            Long totalSold = (Long) data[1];
+            Long totalSold = ((Number) data[1]).longValue();
 
             bestSellingProductDTOs.add(new BestSellingProductDTO(productName, totalSold));
         }

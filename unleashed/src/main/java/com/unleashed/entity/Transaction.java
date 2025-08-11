@@ -12,11 +12,10 @@ import java.time.LocalDate;
 @Getter
 @Setter
 @Entity
-@Table(name = "transaction", schema = "public")
+@Table(name = "\"transaction\"", schema = "dbo")
 public class Transaction {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "transaction_id_gen")
-    @SequenceGenerator(name = "transaction_id_gen", sequenceName = "transaction_transaction_id_seq", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "transaction_id", nullable = false)
     @JsonView(Views.TransactionView.class)
     private Integer id;
@@ -29,7 +28,7 @@ public class Transaction {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "variation_id")
     @JsonView(Views.TransactionView.class)
-    private com.unleashed.entity.Variation variation;
+    private Variation variation;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "provider_id")
@@ -39,12 +38,12 @@ public class Transaction {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "incharge_employee_id")
     @JsonView(Views.TransactionView.class)
-    private com.unleashed.entity.User inchargeEmployee;
+    private User inchargeEmployee;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "transaction_type_id")
     @JsonView(Views.TransactionView.class)
-    private com.unleashed.entity.TransactionType transactionType;
+    private TransactionType transactionType;
 
     @Column(name = "transaction_quantity")
     @JsonView(Views.TransactionView.class)

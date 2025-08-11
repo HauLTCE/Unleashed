@@ -2,7 +2,7 @@ package com.unleashed.rest;
 
 import com.unleashed.dto.ProductDTO;
 import com.unleashed.dto.ResponseDTO;
-import com.unleashed.entity.ComposeKey.StockVariationId;
+import com.unleashed.entity.composite.StockVariationId;
 import com.unleashed.entity.StockVariation;
 import com.unleashed.entity.Variation;
 import com.unleashed.repo.StockVariationRepository;

@@ -35,7 +35,7 @@ public class AdminService {
 
     private UserDTO convertToUserDTO(User user) {
         return new UserDTO(
-                user.getUserId(),
+                user.getUserId().toString(),
                 user.getUserUsername(),
                 null, // Không trả về password vì bảo mật
                 user.getUserEmail(),

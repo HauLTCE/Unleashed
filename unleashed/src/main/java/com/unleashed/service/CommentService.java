@@ -2,13 +2,14 @@ package com.unleashed.service;
 
 import com.unleashed.dto.CommentDTO;
 import com.unleashed.entity.*;
-import com.unleashed.entity.ComposeKey.CommentParentId;
+import com.unleashed.entity.composite.CommentParentId;
 import com.unleashed.repo.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class CommentService {
@@ -42,8 +43,8 @@ public class CommentService {
         }
         User user = userOptional.get();
         // 2. Check if the user has created a review
-        List<Review> reviewOptional = reviewRepository.findByUserAndProduct_ProductId(user, commentDTO.productId);
-        Optional<Product> reProduct = productRepository.findById(commentDTO.productId);
+        List<Review> reviewOptional = reviewRepository.findByUserAndProduct_ProductId(user, UUID.fromString(commentDTO.productId));
+        Optional<Product> reProduct = productRepository.findById(UUID.fromString(commentDTO.productId));
         if (reProduct.isEmpty()) {
             throw new RuntimeException("Product not found with id: " + commentDTO.productId);
         }

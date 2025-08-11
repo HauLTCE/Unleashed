@@ -2,7 +2,7 @@ package com.unleashed.service;
 
 import com.unleashed.dto.NotificationDTO;
 import com.unleashed.dto.ResponseDTO;
-import com.unleashed.entity.ComposeKey.NotificationUserId;
+import com.unleashed.entity.composite.NotificationUserId;
 import com.unleashed.entity.Notification;
 import com.unleashed.entity.NotificationUser;
 import com.unleashed.entity.User;

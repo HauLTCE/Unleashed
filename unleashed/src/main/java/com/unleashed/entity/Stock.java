@@ -5,22 +5,26 @@ import com.unleashed.util.Views;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.Nationalized;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "stock", schema = "public")
+@Table(name = "stock", schema = "dbo")
 @JsonView(Views.ListView.class)
 public class Stock {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "stock_id_gen")
-    @SequenceGenerator(name = "stock_id_gen", sequenceName = "stock_stock_id_seq", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "stock_id", nullable = false)
     private Integer id;
 
-    @Column(name = "stock_name", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Lob
+    @Column(name = "stock_name")
     private String stockName;
 
-    @Column(name = "stock_address", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Lob
+    @Column(name = "stock_address")
     private String stockAddress;
 }

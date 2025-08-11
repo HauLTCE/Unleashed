@@ -1,19 +1,20 @@
 package com.unleashed.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.Nationalized;
 
 import java.time.OffsetDateTime;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "message", schema = "public")
+@Table(name = "message", schema = "dbo")
 public class Message {
     @Id
-    @ColumnDefault("nextval('message_message_id_seq')")
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "message_id", nullable = false)
     private Integer id;
 
@@ -23,14 +24,17 @@ public class Message {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sender_id")
-    private com.unleashed.entity.User sender;
+    private User sender;
 
-    @Column(name = "message_text", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Column(name = "message_text")
     private String messageText;
 
     @Column(name = "message_send_at")
     private OffsetDateTime messageSendAt;
 
+    @Size(max = 255)
+    @Nationalized
     @Column(name = "message_image_url")
     private String messageImageUrl;
 
@@ -44,5 +48,4 @@ public class Message {
     protected void onCreate() {
         setMessageSendAt(OffsetDateTime.now());
     }
-
 }

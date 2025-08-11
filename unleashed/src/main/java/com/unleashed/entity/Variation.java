@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.unleashed.util.Views;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Nationalized;
 
 import java.math.BigDecimal;
 
@@ -13,18 +14,16 @@ import java.math.BigDecimal;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "variation", schema = "public")
+@Table(name = "variation", schema = "dbo")
 public class Variation {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "variation_id_gen")
-    @SequenceGenerator(name = "variation_id_gen", sequenceName = "variation_variation_id_seq", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "variation_id", nullable = false)
     @JsonView(Views.ProductView.class)
     private Integer id;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "product_id")
-    //@JsonView(Views.ProductView.class)
     private Product product;
 
     @ManyToOne(fetch = FetchType.EAGER)
@@ -37,7 +36,9 @@ public class Variation {
     @JsonView(Views.ProductView.class)
     private Color color;
 
-    @Column(name = "variation_image", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Lob
+    @Column(name = "variation_image")
     @JsonView(Views.ProductView.class)
     private String variationImage;
 

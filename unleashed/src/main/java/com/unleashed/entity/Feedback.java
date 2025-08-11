@@ -3,28 +3,32 @@ package com.unleashed.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.Nationalized;
 
 import java.time.OffsetDateTime;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "feedback", schema = "public")
+@Table(name = "feedback", schema = "dbo")
 public class Feedback {
     @Id
-    @ColumnDefault("nextval('feedback_feedback_id_seq')")
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "feedback_id", nullable = false)
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "topic_id")
-    private com.unleashed.entity.Topic topic;
+    private Topic topic;
 
-    @Column(name = "feedback_email", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Lob
+    @Column(name = "feedback_email")
     private String feedbackEmail;
 
-    @Column(name = "feedback_content", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Lob
+    @Column(name = "feedback_content")
     private String feedbackContent;
 
     @Column(name = "feedback_created_at")

@@ -65,7 +65,8 @@ public class ProductRecommendationService {
 
     @Transactional(readOnly = true)
     public List<ProductDTO> getRecommendedProducts(String username,
-                                                   String currentProductId) {
+                                                   String currentProductIdStr) {
+        UUID currentProductId = UUID.fromString(currentProductIdStr);
 
         Product currentProduct = productRepository.findById(currentProductId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + currentProductId));
@@ -80,14 +81,14 @@ public class ProductRecommendationService {
         if (user == null) {
             throw new ResourceNotFoundException("User not found with username: " + username);
         }
-        String userId = user.getUserId();
+        UUID userId = user.getUserId();
 
         List<Product> allProducts = productRepository.findAll();
-        Map<String, Product> productMap = allProducts.stream().collect(Collectors.toMap(Product::getProductId, Function.identity()));
+        Map<UUID, Product> productMap = allProducts.stream().collect(Collectors.toMap(p -> p.getProductId(), Function.identity()));
 
         allProducts.removeIf(p -> p.getProductId().equals(currentProductId));
 
-        List<String> recentPurchaseProductIds = getRecentPurchaseProductIds(userId);
+        List<UUID> recentPurchaseProductIds = getRecentPurchaseProductIds(userId);
 
         if (recentPurchaseProductIds.isEmpty()) {
             return getSimilarProducts(currentProductId);
@@ -97,25 +98,27 @@ public class ProductRecommendationService {
         CartAnalysisDTO cartAnalysis = analyzeCarts(userId, productMap);
 
         List<SaleProduct> saleProducts = saleProductRepository.findAll();
-        Set<String> saleProductIds = saleProducts.stream()
+        Set<UUID> saleProductIds = saleProducts.stream()
                 .map(saleProduct -> saleProduct.getId().getProductId())
                 .collect(Collectors.toSet());
 
-        Map<String, Long> productStockMap = allProducts.stream()
+        Map<UUID, Long> productStockMap = allProducts.stream()
                 .collect(Collectors.toMap(
-                        Product::getProductId,
-                        product -> Long.valueOf(Optional.ofNullable(stockVariationRepository.getTotalStockQuantityForProduct(product.getProductId())).orElse(0))
+                        p -> p.getProductId(),
+                        product -> (long) Optional.ofNullable(stockVariationRepository.getTotalStockQuantityForProduct(product.getProductId())).orElse(0)
                 ));
 
         List<UserDiscount> allUserDiscounts = userDiscountRepository.findAll();
-        Map<String, List<UserDiscount>> userDiscountsMap = allUserDiscounts.stream()
+        Map<UUID, List<UserDiscount>> userDiscountsMap = allUserDiscounts.stream()
                 .collect(Collectors.groupingBy(ud -> ud.getId().getUserId()));
 
         List<Discount> allDiscounts = discountRepository.findAll();
         Map<Integer, Discount> discountMap = allDiscounts.stream()
                 .collect(Collectors.toMap(Discount::getDiscountId, Function.identity()));
 
-        List<String> topSoldProductIds = orderRepository.findTopSoldProductIds(RecommendationConfig.TRENDING_DAYS_WINDOW, RecommendationConfig.MAX_TRENDING_PRODUCTS);
+        List<String> topSoldProductIdsStr = orderRepository.findTopSoldProductIds(RecommendationConfig.TRENDING_DAYS_WINDOW, RecommendationConfig.MAX_TRENDING_PRODUCTS);
+        List<UUID> topSoldProductIds = topSoldProductIdsStr.stream().map(UUID::fromString).collect(Collectors.toList());
+
 
         List<ScoredProductDTO> scoredProducts = allProducts.stream()
                 .map(product -> {
@@ -145,7 +148,7 @@ public class ProductRecommendationService {
 
     }
 
-    private List<String> getRecentPurchaseProductIds(String userId) {
+    private List<UUID> getRecentPurchaseProductIds(UUID userId) {
         Pageable recentOrdersPageable = PageRequest.of(0, RecommendationConfig.MAX_RECENT_ORDERS_TO_CONSIDER);
         List<Order> recentOrders = orderRepository.findRecentOrdersByUserId(userId, recentOrdersPageable);
 
@@ -161,13 +164,13 @@ public class ProductRecommendationService {
             }
         }
 
-        List<String> fetchedProductIds = productRepository.findIdsByProductCodes(new ArrayList<>(productCodes));
+        List<UUID> fetchedProductIds = productRepository.findIdsByProductCodes(new ArrayList<>(productCodes));
         return new ArrayList<>(new HashSet<>(fetchedProductIds));
     }
 
 
-    private PurchaseAnalysisDTO analyzePurchases(List<String> recentPurchaseProductIds,
-                                                 Map<String, Product> productMap) {
+    private PurchaseAnalysisDTO analyzePurchases(List<UUID> recentPurchaseProductIds,
+                                                 Map<UUID, Product> productMap) {
         PurchaseAnalysisDTO analysis = new PurchaseAnalysisDTO();
         Map<String, Integer> sizeCounts = new HashMap<>();
         Map<String, Integer> brandCounts = new HashMap<>();
@@ -229,17 +232,19 @@ public class ProductRecommendationService {
         analysis.setMostFrequentSize(sizeCounts.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null));
         analysis.setMostFrequentBrand(brandCounts.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null));
         analysis.setMostFrequentCategory(categoryCounts.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null));
-        analysis.setAveragePrice(totalPrice / purchasedProducts.stream()
-                .mapToDouble(p -> p.getProductVariations().size())
-                .sum());
+        double variationCount = purchasedProducts.stream()
+                .mapToDouble(p -> p.getProductVariations() != null ? p.getProductVariations().size() : 0)
+                .sum();
+        analysis.setAveragePrice(variationCount > 0 ? totalPrice / variationCount : 0);
+
         analysis.setPriceRangeMin(analysis.getMinPrice() * (1 - RecommendationConfig.PRICE_RANGE_EXPANSION_FACTOR));
         analysis.setPriceRangeMax(analysis.getMaxPrice() * (1 + RecommendationConfig.PRICE_RANGE_EXPANSION_FACTOR));
 
         return analysis;
     }
 
-    private CartAnalysisDTO analyzeCarts(String userId,
-                                         Map<String, Product> productMap) {
+    private CartAnalysisDTO analyzeCarts(UUID userId,
+                                         Map<UUID, Product> productMap) {
         CartAnalysisDTO analysis = new CartAnalysisDTO();
         Map<String, Integer> productCounts = new HashMap<>();
         Map<String, Integer> productQuantities = new HashMap<>();
@@ -255,9 +260,9 @@ public class ProductRecommendationService {
                 .collect(Collectors.toList());
 
 
-        List<String> productIds = variationRepository.findProductIdsByVariationIds(variationIds);
+        List<UUID> productIds = variationRepository.findProductIdsByVariationIds(variationIds);
 
-        Map<Integer, String> variationProductMap = new HashMap<>();
+        Map<Integer, UUID> variationProductMap = new HashMap<>();
         for (int i = 0; i < variationIds.size() && i < productIds.size(); i++) {
             variationProductMap.put(variationIds.get(i), productIds.get(i));
         }
@@ -265,7 +270,7 @@ public class ProductRecommendationService {
         for (Cart cart : carts) {
             if (cart != null && cart.getId().getVariationId() != null) {
                 int variationId = cart.getId().getVariationId();
-                String productId = variationProductMap.get(variationId);
+                UUID productId = variationProductMap.get(variationId);
                 Product product = productMap.get(productId);
 
                 if (product != null) {
@@ -302,7 +307,7 @@ public class ProductRecommendationService {
     }
 
     private Product findRandomProductByName(String productName,
-                                            Map<String, Product> productMap) {
+                                            Map<UUID, Product> productMap) {
         return productMap.values().stream()
                 .filter(p -> p.getProductName().equals(productName))
                 .findAny()
@@ -311,13 +316,13 @@ public class ProductRecommendationService {
 
     private double calculateRecommendationScore(Product product,
                                                 PurchaseAnalysisDTO purchaseAnalysis,
-                                                String userId,
+                                                UUID userId,
                                                 CartAnalysisDTO cartAnalysis,
-                                                Set<String> saleProductIds,
-                                                Map<String, Long> productStockMap,
-                                                Map<String, List<UserDiscount>> userDiscountsMap,
+                                                Set<UUID> saleProductIds,
+                                                Map<UUID, Long> productStockMap,
+                                                Map<UUID, List<UserDiscount>> userDiscountsMap,
                                                 Map<Integer, Discount> discountMap,
-                                                List<String> topSoldProductIds,
+                                                List<UUID> topSoldProductIds,
                                                 String currentProductName) {
         double score = 0;
 
@@ -326,12 +331,12 @@ public class ProductRecommendationService {
         }
 
         if (purchaseAnalysis != null) {
-            if (product.getProductVariations().stream()
+            if (purchaseAnalysis.getMostFrequentSize() != null && product.getProductVariations().stream()
                     .anyMatch(variation -> variation.getSize() != null && variation.getSize().getSizeName().equals(purchaseAnalysis.getMostFrequentSize()))) {
                 score += RecommendationConfig.SCORE_WEIGHT_SIZE;
             }
 
-            if (product.getBrand() != null && product.getBrand().getBrandName().equals(purchaseAnalysis.getMostFrequentBrand())) {
+            if (purchaseAnalysis.getMostFrequentBrand() != null && product.getBrand() != null && product.getBrand().getBrandName().equals(purchaseAnalysis.getMostFrequentBrand())) {
                 score += RecommendationConfig.SCORE_WEIGHT_BRAND;
             }
 
@@ -361,7 +366,7 @@ public class ProductRecommendationService {
                 score += RecommendationConfig.SCORE_WEIGHT_SALE;
             }
 
-            if (userId != null) {
+            if (userId != null && userDiscountsMap != null) {
                 List<UserDiscount> userDiscounts = userDiscountsMap.get(userId);
                 if (userDiscounts != null) {
                     long usableDiscountCount = userDiscounts.stream()
@@ -372,7 +377,7 @@ public class ProductRecommendationService {
                             })
                             .filter(userDiscount -> {
                                 Discount discount = discountMap.get(userDiscount.getId().getDiscountId());
-                                return discount != null && discount.getDiscountMinimumOrderValue() != null && discount.getDiscountMinimumOrderValue().compareTo(representativePrice) <= 0;
+                                return representativePrice != null && discount != null && discount.getDiscountMinimumOrderValue() != null && discount.getDiscountMinimumOrderValue().compareTo(representativePrice) <= 0;
                             })
                             .count();
 
@@ -439,19 +444,19 @@ public class ProductRecommendationService {
                 .collect(Collectors.toList());
     }
 
-    private ProductDTO convertToDto(String productId,
-                                    Map<String, List<Variation>> variationsByProductId,
-                                    Map<String, SaleProduct> saleProductMap,
+    private ProductDTO convertToDto(UUID productId,
+                                    Map<UUID, List<Variation>> variationsByProductId,
+                                    Map<UUID, SaleProduct> saleProductMap,
                                     Map<Integer, Sale> saleMap,
-                                    Map<String, Product> productMap) {
+                                    Map<UUID, Product> productMap) {
         Product product = productMap.get(productId);
 
-        if(product == null){
+        if (product == null) {
             return null;
         }
 
         ProductDTO dto = new ProductDTO();
-        dto.setProductId(productId);
+        dto.setProductId(productId.toString());
         dto.setProductName(product.getProductName());
         dto.setProductCode(product.getProductCode());
 
@@ -512,7 +517,7 @@ public class ProductRecommendationService {
                 .divide(BigDecimal.valueOf(product.getProductVariations().size()), 2, RoundingMode.HALF_UP);
     }
 
-    private List<ProductDTO> getSimilarProducts(String currentProductId) {
+    private List<ProductDTO> getSimilarProducts(UUID currentProductId) {
 
         Product currentProduct = productRepository.findById(currentProductId).orElse(null);
 
@@ -523,7 +528,7 @@ public class ProductRecommendationService {
         String currentProductName = currentProduct.getProductName();
 
         List<Product> allProducts = productRepository.findAll();
-        Map<String, Product> productMap = allProducts.stream().collect(Collectors.toMap(Product::getProductId, Function.identity()));
+        Map<UUID, Product> productMap = allProducts.stream().collect(Collectors.toMap(p -> p.getProductId(), Function.identity()));
 
         allProducts.remove(currentProduct);
 
@@ -538,18 +543,20 @@ public class ProductRecommendationService {
             dummyAnalysis.setPriceRangeMax(currentPrice.doubleValue() * (1 + RecommendationConfig.PRICE_RANGE_EXPANSION_FACTOR));
         }
 
-        Map<String, Long> productStockMap = allProducts.stream()
+        Map<UUID, Long> productStockMap = allProducts.stream()
                 .collect(Collectors.toMap(
-                        Product::getProductId,
-                        product -> Long.valueOf(Optional.ofNullable(stockVariationRepository.getTotalStockQuantityForProduct(product.getProductId())).orElse(0))
+                        p -> p.getProductId(),
+                        product -> (long) Optional.ofNullable(stockVariationRepository.getTotalStockQuantityForProduct(product.getProductId())).orElse(0)
                 ));
 
         List<SaleProduct> saleProducts = saleProductRepository.findAll();
-        Set<String> saleProductIds = saleProducts.stream()
+        Set<UUID> saleProductIds = saleProducts.stream()
                 .map(saleProduct -> saleProduct.getId().getProductId())
                 .collect(Collectors.toSet());
 
-        List<String> topSoldProductIds = orderRepository.findTopSoldProductIds(RecommendationConfig.TRENDING_DAYS_WINDOW, RecommendationConfig.MAX_TRENDING_PRODUCTS);
+        List<String> topSoldProductIdsStr = orderRepository.findTopSoldProductIds(RecommendationConfig.TRENDING_DAYS_WINDOW, RecommendationConfig.MAX_TRENDING_PRODUCTS);
+        List<UUID> topSoldProductIds = topSoldProductIdsStr.stream().map(UUID::fromString).collect(Collectors.toList());
+
 
         List<ScoredProductDTO> scoredProducts = allProducts.stream()
                 .map(product -> {
@@ -569,16 +576,16 @@ public class ProductRecommendationService {
     }
 
     private List<ProductDTO> getProductsWithDetails(List<Product> products,
-                                                    Map<String, Product> productMap,
-                                                    Map<String, Long> productStockMap) {
-        List<String> productIds = products.stream().map(Product::getProductId).toList();
+                                                    Map<UUID, Product> productMap,
+                                                    Map<UUID, Long> productStockMap) {
+        List<UUID> productIds = products.stream().map(Product::getProductId).toList();
 
         List<Variation> allVariations = variationRepository.findProductVariationsByProductIds(productIds);
-        Map<String, List<Variation>> variationsByProductId = allVariations.stream()
+        Map<UUID, List<Variation>> variationsByProductId = allVariations.stream()
                 .collect(Collectors.groupingBy(v -> v.getProduct().getProductId()));
 
         List<SaleProduct> allSaleProducts = saleProductRepository.findSaleProductsByProductIds(productIds);
-        Map<String, SaleProduct> saleProductMap = allSaleProducts.stream()
+        Map<UUID, SaleProduct> saleProductMap = allSaleProducts.stream()
                 .collect(Collectors.toMap(sp -> sp.getId().getProductId(), Function.identity()));
 
         Set<Integer> saleIds = allSaleProducts.stream()
@@ -593,7 +600,7 @@ public class ProductRecommendationService {
                 .collect(Collectors.toList());
 
         int needed = RecommendationConfig.MAX_RECOMMENDATIONS - productDTOs.size();
-        Set<String> addedProductIds = new HashSet<>(productIds);
+        Set<UUID> addedProductIds = new HashSet<>(productIds);
 
         if (needed > 0) {
             List<ProductDTO> additionalProducts = productMap.values().stream()

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.Nationalized;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -12,14 +12,16 @@ import java.util.Set;
 @Getter
 @Setter
 @Entity
-@Table(name = "payment_method", schema = "public")
+@Table(name = "payment_method", schema = "dbo")
 public class PaymentMethod {
     @Id
-    @ColumnDefault("nextval('payment_method_payment_method_id_seq')")
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "payment_method_id", nullable = false)
     private Integer id;
 
-    @Column(name = "payment_method_name", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Lob
+    @Column(name = "payment_method_name")
     private String paymentMethodName;
 
     @JsonIgnore

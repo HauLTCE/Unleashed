@@ -68,17 +68,18 @@ public class ProductService {
 
 
 
-        return productRepository.findById(id).orElse(null);
+        return productRepository.findById(UUID.fromString(id)).orElse(null);
     }
 
 
-    public ProductItemDTO findProductItemById(String id) {
+    public ProductItemDTO findProductItemById(String idi) {
+        UUID id = UUID.fromString(idi);
         ProductItemDTO productItemDTO = new ProductItemDTO();
         Optional<Product> productOptional = productRepository.findById(id);
         SaleProduct saleProduct = saleProductRepository.findSaleProductByProductId(id);
 
         // Lấy danh sách review (SỬA ĐỂ LẤY REVIEWS CÓ COMMENT CON)
-        List<ProductReviewDTO> productReviewDTOList = reviewService.getAllReviewsByProductId(id); // **SỬA ĐÂY: Gọi reviewService.getAllReviewsByProductId**
+        List<ProductReviewDTO> productReviewDTOList = reviewService.getAllReviewsByProductId(id.toString()); // **SỬA ĐÂY: Gọi reviewService.getAllReviewsByProductId**
 
         // Lấy tổng rating và trung bình rating
         List<Object[]> totalRating = reviewRepository.countAndAvgRatingByProductId(id);
@@ -132,7 +133,7 @@ public class ProductService {
             }
 
             // Cập nhật thông tin sản phẩm
-            productItemDTO.setProductId(id);
+            productItemDTO.setProductId(id.toString());
             productItemDTO.setProductName(product.getProductName());
             productItemDTO.setDescription(product.getProductDescription());
 
@@ -172,7 +173,7 @@ public class ProductService {
 
     @Transactional
     public void deleteProduct(String id) {
-        productRepository.softDeleteProduct(id);
+        productRepository.softDeleteProduct(UUID.fromString(id));
     }
 
     @Transactional
@@ -190,7 +191,7 @@ public class ProductService {
         product.setBrand(brandRepository.findById(productDTO.getBrandId()).orElse(null));
         product = productRepository.save(product);
         for (Integer categoryId : productDTO.getCategoryIdList()) {
-            productRepository.addProductCategory(product.getProductId(), categoryId);
+            productRepository.addProductCategory(UUID.fromString(product.getProductId().toString()), categoryId);
         }
 //        System.out.println(productRepository);
         List<Variation> variations = new ArrayList<>();
@@ -225,7 +226,7 @@ public class ProductService {
 
     @Transactional
     public Product updateProduct(ProductDTO productDTO, String id) {
-        Optional<Product> existingProduct = productRepository.findById(id);
+        Optional<Product> existingProduct = productRepository.findById(UUID.fromString(id));
 
         if (existingProduct.isPresent()) {
             Product product = existingProduct.get();
@@ -253,7 +254,7 @@ public class ProductService {
 
         for (Product product : result) { // Iterate over Product entities directly
 
-            String productId = product.getProductId();
+            String productId = product.getProductId().toString();
 
             boolean exists = productList.stream()
                     .anyMatch(dto -> dto.getProductId().equals(productId));
@@ -274,7 +275,7 @@ public class ProductService {
                 productListDTO.setCategoryList(new ArrayList<>(product.getCategories())); // Get categories
 
                 // Get first variation for price and image
-                List<Variation> variations = variationRepository.findProductVariationByProductId(productId);
+                List<Variation> variations = variationRepository.findProductVariationByProductId(UUID.fromString(productId));
                 if (!variations.isEmpty()) {
                     Variation firstVariation = variations.get(0);
                     productListDTO.setProductPrice(firstVariation.getVariationPrice());
@@ -282,7 +283,7 @@ public class ProductService {
                 }
 
                 // Get Sale information
-                List<SaleProduct> saleProduct = saleProductRepository.findById_ProductId(productId);
+                List<SaleProduct> saleProduct = saleProductRepository.findById_ProductId(UUID.fromString(productId));
                 if (saleProduct != null && !saleProduct.isEmpty()) {
                     saleProduct.forEach(sp -> {
                         Sale sale = saleRepository.findById(sp.getId().getSaleId()).orElse(null);
@@ -295,7 +296,7 @@ public class ProductService {
                 }
 
                 // Get average rating and total ratings
-                List<Object[]> ratingData = reviewRepository.countAndAvgRatingByProductId(productId);
+                List<Object[]> ratingData = reviewRepository.countAndAvgRatingByProductId(UUID.fromString(productId));
                 if (!ratingData.isEmpty() && ratingData.get(0) != null) { // Check for null and empty
                     Object[] ratingResult = ratingData.get(0);
                     productListDTO.setTotalRatings((Long) ratingResult[0]);
@@ -307,7 +308,7 @@ public class ProductService {
 
 
                 // Calculate total quantity for the product (already implemented)
-                Integer totalQuantity = stockVariationRepository.getTotalStockQuantityForProduct(productId);
+                Integer totalQuantity = stockVariationRepository.getTotalStockQuantityForProduct(UUID.fromString(productId));
                 productListDTO.setQuantity(totalQuantity != null ? totalQuantity : 0);
 
                 productList.add(productListDTO);
@@ -319,7 +320,7 @@ public class ProductService {
 
     @Transactional
     public Product addVariationsToExistingProduct(String productId, List<ProductDTO.ProductVariationDTO> variationDTOs) {
-        Product product = productRepository.findById(productId)
+        Product product = productRepository.findById(UUID.fromString(productId))
                 .orElseThrow(() -> new EntityNotFoundException("Product not found"));
 
         List<Variation> existingVariations = product.getProductVariations(); // Lấy danh sách biến thể hiện có
@@ -365,7 +366,7 @@ public class ProductService {
 
             ProductListDTO productListDTO = new ProductListDTO(); // **Tạo ProductListDTO mới thủ công**
             // Map các fields từ Product entity vào ProductListDTO (bằng tay hoặc dùng mapper)
-            productListDTO.setProductId(product.getProductId());
+            productListDTO.setProductId(product.getProductId().toString());
             productListDTO.setProductName(product.getProductName());
             productListDTO.setProductDescription(product.getProductDescription());
 
@@ -384,11 +385,11 @@ public class ProductService {
 
     public List<ProductDetailDTO> getProductsInStock() {
         List<Product> products = productRepository.findProductsInStock();
-        List<String> productIdsInSale = saleProductRepository.findAllProductIdsInSale(); // Lấy danh sách productId đang trong sale
+        List<UUID> productIdsInSale = saleProductRepository.findAllProductIdsInSale();
         return products.stream()
-                .filter(product -> !productIdsInSale.contains(product.getProductId()))
+                .filter(product -> !productIdsInSale.contains(UUID.fromString(product.getProductId().toString())))
                 .map(product -> ProductDetailDTO.builder()
-                        .productId(product.getProductId())
+                        .productId(product.getProductId().toString())
                         .productName(product.getProductName())
                         .productCode(product.getProductCode())
                         .productDescription(product.getProductDescription())

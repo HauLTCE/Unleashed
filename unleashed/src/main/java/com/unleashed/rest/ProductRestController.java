@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/products")
@@ -58,7 +59,7 @@ public class ProductRestController {
     @GetMapping("/{productId}/detail")
     public ResponseEntity<ProductDetailDTO> getProductsById(@PathVariable String productId) {
         Product products = productService.findById(productId);
-        List<Variation> availableVariations = variationRepository.findProductVariationByProductId(productId);
+        List<Variation> availableVariations = variationRepository.findProductVariationByProductId(UUID.fromString(productId));
         availableVariations.removeIf(variation -> {
             Integer stock = stockVariationRepository.findStockProductByProductVariationId(variation.getId());
             return stock != null && stock < 0;
@@ -66,7 +67,7 @@ public class ProductRestController {
 
 //        availableVariations.removeIf(variation -> stockVariationRepository.findStockProductByProductVariationId(variation.getId()) != null && stockVariationRepository.findStockProductByProductVariationId(variation.getId()) < 0 );
         ProductDetailDTO dto = ProductDetailDTO.builder()
-                .productId(products.getProductId())
+                .productId(products.getProductId().toString())
                 .productName(products.getProductName())
                 .productCode(products.getProductCode())
                 .productDescription(products.getProductDescription())

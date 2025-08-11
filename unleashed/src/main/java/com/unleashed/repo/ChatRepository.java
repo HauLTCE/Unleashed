@@ -8,14 +8,13 @@ import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 public interface ChatRepository extends JpaRepository<Chat, Integer> {
 
-    // Find chats involving a specific user
     @Query("SELECT c FROM Chat c WHERE c.userId.userId = :userId")
-    List<Chat> findChatsByUserId(@Param("userId") String userId);
+    List<Chat> findChatsByUserId(@Param("userId") UUID userId);
 
-    // Find chats created after a specific date/time.
     List<Chat> findByChatCreatedAtAfter(OffsetDateTime dateTime);
 }

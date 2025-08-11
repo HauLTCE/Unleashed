@@ -1,17 +1,20 @@
-package com.unleashed.entity.ComposeKey;
+package com.unleashed.entity.composite;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 import org.hibernate.Hibernate;
 
+import java.io.Serializable;
 import java.util.Objects;
 
 @Getter
 @Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @Embeddable
-public class CommentParentId implements java.io.Serializable {
+public class CommentParentId implements Serializable {
     private static final long serialVersionUID = 1348473216286366455L;
     @Column(name = "comment_id")
     private Integer commentId;

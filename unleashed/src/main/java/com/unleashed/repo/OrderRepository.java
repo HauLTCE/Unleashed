@@ -12,11 +12,10 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 
 @Repository
-
-
 public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecificationExecutor<Order> {
 
     @Query("SELECT o FROM Order o " +
@@ -24,11 +23,11 @@ public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecif
             "WHERE (:status IS NULL OR o.orderStatus = :status) " +
             "AND (:userId IS NULL OR o.user.userId = :userId) " +
             "ORDER BY o.orderDate DESC")
-    Page<Order> findAllByStatusAndUserId(String status, String userId, Pageable pageable);
+    Page<Order> findAllByStatusAndUserId(String status, UUID userId, Pageable pageable);
 
 
     @Query("SELECT o FROM Order o WHERE o.user.userId = :userId ORDER BY o.orderDate DESC")
-    Page<Order> findByUserId(@Param("userId") String userId, Pageable pageable);
+    Page<Order> findByUserId(@Param("userId") UUID userId, Pageable pageable);
 
     @Modifying
     @Query("UPDATE Order o SET o.orderStatus.orderStatusName = 'CANCELLED' WHERE o.orderId = :orderId")
@@ -37,8 +36,6 @@ public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecif
     @Query("SELECT o FROM Order o left join User u on u.userUsername = o.user.userUsername WHERE u.userUsername = :username AND o.orderId = :orderId ")
     Optional<Order> findOrderByUserIdAndOrderId(String username, String orderId);
 
-    //Statistics
-
     @Query("SELECT SUM(o.orderTotalAmount) FROM Order o WHERE o.orderStatus.orderStatusName = 'COMPLETED'")
     Double findTotalRevenue();
 
@@ -46,11 +43,11 @@ public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecif
     List<Object[]> findDailyRevenue();
 
     @Query(value = """
-            SELECT 
+            SELECT
                 YEAR(o.order_date) AS year,
                 MONTH(o.order_date) AS month,
                 SUM(o.total_amount) AS totalAmount
-            FROM `order` o
+            FROM [order] o
             WHERE o.order_status = 'COMPLETED'
             GROUP BY YEAR(o.order_date), MONTH(o.order_date)
             ORDER BY year, month
@@ -62,8 +59,8 @@ public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecif
     List<Object[]> findOrderStatusStatistics();
 
     @Query(value = """
-            SELECT 
-                pv.product_id AS productId,
+            SELECT
+                v.product_id AS productId,
                 p.product_name AS productName,
                 SUM(od.order_quantity) AS totalSold
             FROM order_variation_single od
@@ -75,44 +72,44 @@ public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecif
     List<Object[]> findBestSellingProducts();
 
     @Query(value = """
-            SELECT 
-                p.product_id AS productId, 
-                p.product_name AS productName, 
+            SELECT
+                p.product_id AS productId,
+                p.product_name AS productName,
                 SUM(od.order_quantity) AS totalQuantitySold
-            FROM 
-                `order` o
-            JOIN 
+            FROM
+                [order] o
+            JOIN
                 order_detail od ON o.order_id = od.order_id
-            JOIN 
-                product_variation pv ON od.variation_id = pv.variation_id    
-            JOIN 
+            JOIN
+                product_variation pv ON od.variation_id = pv.variation_id
+            JOIN
                 product p ON pv.product_id = p.product_id
-            WHERE 
-                o.order_status = 'COMPLETED' AND DATE_FORMAT(o.order_date, '%Y-%m') = :month
-            GROUP BY 
+            WHERE
+                o.order_status = 'COMPLETED' AND FORMAT(o.order_date, 'yyyy-MM') = :month
+            GROUP BY
                 p.product_id, p.product_name
-            ORDER BY 
+            ORDER BY
                 totalQuantitySold DESC
             """, nativeQuery = true)
     List<Object[]> findBestSellingByMonth(@Param("month") String month);
 
     @Query(value = """
-            SELECT 
-                o.order_status AS orderStatus, 
+            SELECT
+                o.order_status AS orderStatus,
                 COUNT(o.order_id) AS totalOrders
-            FROM 
-                `order` o
-            WHERE 
-                DATE_FORMAT(o.order_date, '%Y-%m') = :month
-            GROUP BY 
+            FROM
+                [order] o
+            WHERE
+                FORMAT(o.order_date, 'yyyy-MM') = :month
+            GROUP BY
                 o.order_status
-            ORDER BY 
+            ORDER BY
                 totalOrders DESC
             """, nativeQuery = true)
     List<Object[]> findOrderStatusByMonth(@Param("month") String month);
 
     @Query("SELECT o FROM Order o WHERE o.user.userId = :userId ORDER BY o.orderCreatedAt DESC")
-    List<Order> findRecentOrdersByUserId(@Param("userId") String userId, Pageable pageable);
+    List<Order> findRecentOrdersByUserId(@Param("userId") UUID userId, Pageable pageable);
 
     @Query(value = """
             WITH ProductSales AS (
@@ -130,18 +127,17 @@ public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecif
                 JOIN
                     "order" o ON ovs.order_id = o.order_id
                 WHERE
-                    o.order_date >= NOW() - INTERVAL '1 day' * :number_of_days
+                    o.order_date >= DATEADD(day, -:number_of_days, GETDATE())
                   AND o.order_status_id IN (SELECT order_status_id from order_status)
                 GROUP BY
                     p.product_id
             )
             SELECT
-                product_id
+                TOP (:top_n_products) product_id
             FROM
                 ProductSales
             ORDER BY
                 total_sold DESC
-            LIMIT :top_n_products
             """, nativeQuery = true)
     List<String> findTopSoldProductIds(@Param("number_of_days") int numberOfDays, @Param("top_n_products") int topNProducts);
 }

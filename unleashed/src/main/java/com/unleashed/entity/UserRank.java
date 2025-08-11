@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -15,11 +16,11 @@ import java.time.ZoneId;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "user_rank", schema = "public")
+@Table(name = "user_rank", schema = "dbo")
 public class UserRank {
     @Id
-    @Column(name = "user_id", nullable = false, length = Integer.MAX_VALUE)
-    private String userId;
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @MapsId
     @OneToOne(fetch = FetchType.EAGER, optional = false)
@@ -56,5 +57,4 @@ public class UserRank {
         setRankUpdatedDate(OffsetDateTime.now(ZoneId.systemDefault()));
         setRankExpireDate(LocalDate.now(ZoneId.systemDefault()));
     }
-
 }

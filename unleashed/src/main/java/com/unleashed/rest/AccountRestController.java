@@ -64,7 +64,7 @@ public class AccountRestController {
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("User not found.");
         }
-        User updated = userService.updateUserInfo(currentUser.getUserId(), updatedUserInfo);
+        User updated = userService.updateUserInfo(currentUser.getUserId().toString(), updatedUserInfo);
         if (updated != null) {
             return ResponseEntity.ok("User information updated successfully.");
         } else {
@@ -87,7 +87,7 @@ public class AccountRestController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found.");
         }
 
-        boolean success = userService.disableAccount(currentUser.getUserId());
+        boolean success = userService.disableAccount(currentUser.getUserId().toString());
 
         if (success) {
             return ResponseEntity.ok("Account has been disabled successfully.");

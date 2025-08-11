@@ -11,12 +11,11 @@ import java.time.OffsetDateTime;
 @Getter
 @Setter
 @Entity
-@Table(name = "sale", schema = "public")
+@Table(name = "sale", schema = "dbo")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Sale {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "sale_id_gen")
-    @SequenceGenerator(name = "sale_id_gen", sequenceName = "sale_sale_id_seq", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "sale_id", nullable = false)
     private Integer id;
 

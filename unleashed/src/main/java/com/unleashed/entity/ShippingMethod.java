@@ -3,19 +3,24 @@ package com.unleashed.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.Nationalized;
+
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "shipping_method", schema = "public")
+@Table(name = "shipping_method", schema = "dbo")
 public class ShippingMethod {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "shipping_method_id_gen")
-    @SequenceGenerator(name = "shipping_method_id_gen", sequenceName = "shipping_method_shipping_method_id_seq", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "shipping_method_id", nullable = false)
     private Integer id;
 
-    @Column(name = "shipping_method_name", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Lob
+    @Column(name = "shipping_method_name")
     private String shippingMethodName;
 
 //    @OneToMany(mappedBy = "shippingMethod")

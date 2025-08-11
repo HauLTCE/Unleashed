@@ -1,23 +1,27 @@
-package com.unleashed.entity.ComposeKey;
+package com.unleashed.entity.composite;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 import org.hibernate.Hibernate;
 
+import java.io.Serializable;
 import java.util.Objects;
+import java.util.UUID;
 
 @Getter
 @Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @Embeddable
-public class WishlistId implements java.io.Serializable {
-    private static final long serialVersionUID = 7807137151683249112L;
-    @Column(name = "user_id", length = Integer.MAX_VALUE)
-    private String userId;
+public class WishlistId implements Serializable {
+    private static final long serialVersionUID = 4053200803877087956L;
+    @Column(name = "user_id")
+    private UUID userId;
 
-    @Column(name = "product_id", length = Integer.MAX_VALUE)
-    private String productId;
+    @Column(name = "product_id")
+    private UUID productId;
 
     @Override
     public boolean equals(Object o) {

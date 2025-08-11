@@ -2,67 +2,82 @@ package com.unleashed.service;
 
 import com.unleashed.dto.CartDTO;
 import com.unleashed.entity.Cart;
-import com.unleashed.entity.ComposeKey.CartId;
+import com.unleashed.entity.User;
+import com.unleashed.entity.Variation;
+import com.unleashed.entity.composite.CartId;
 import com.unleashed.repo.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class CartService {
     private final CartRepository cartRepository;
-    private final ProductRepository productRepository;
     private final VariationRepository variationRepository;
     private final StockVariationRepository stockVariationRepository;
     private final SaleRepository saleRepository;
-
+    private final UserRepository userRepository;
 
     @Autowired
-    public CartService(CartRepository cartRepository, ProductRepository productRepository, VariationRepository variationRepository, StockVariationRepository stockVariationRepository, SaleRepository saleRepository) {
+    public CartService(CartRepository cartRepository, VariationRepository variationRepository, StockVariationRepository stockVariationRepository, SaleRepository saleRepository, UserRepository userRepository) {
         this.cartRepository = cartRepository;
-        this.productRepository = productRepository;
         this.variationRepository = variationRepository;
         this.stockVariationRepository = stockVariationRepository;
         this.saleRepository = saleRepository;
+        this.userRepository = userRepository;
     }
 
     public LinkedMultiValueMap<String, CartDTO> getCartByUserId(String userid) {
-
-        List<Cart> userCart = cartRepository.findAllById_UserId(userid);
+        UUID userUuid = UUID.fromString(userid);
+        List<Cart> userCart = cartRepository.findAllById_UserId(userUuid);
 
         List<CartDTO> cart = userCart.stream().map(uc ->
                         CartDTO.builder()
-                                .variation(variationRepository.findById(uc.getId().getVariationId()).orElse(null))
+                                .variation(uc.getVariation())
                                 .quantity(uc.getCartQuantity())
                                 .build())
                 .toList();
 
         cart.forEach(c -> {
-            c.setStockQuantity(stockVariationRepository.findStockProductByProductVariationId(c.getVariation().getId()));
-            c.setSale(saleRepository.findSaleByProductId(c.getVariation().getProduct().getProductId()).orElse(null));
+            if (c.getVariation() != null) {
+                c.setStockQuantity(stockVariationRepository.findStockProductByProductVariationId(c.getVariation().getId()));
+                if (c.getVariation().getProduct() != null) {
+                    // This now correctly passes a UUID to the repository method
+                    c.setSale(saleRepository.findSaleByProductId(UUID.fromString(c.getVariation().getProduct().getProductId().toString())).orElse(null));
+                }
+            }
         });
 
         LinkedMultiValueMap<String, CartDTO> productList = new LinkedMultiValueMap<>();
-        cart.forEach(v -> productList.add(v.getVariation().getProduct().getProductName(), v));
-
+        cart.forEach(v -> {
+            if (v.getVariation() != null && v.getVariation().getProduct() != null) {
+                productList.add(v.getVariation().getProduct().getProductName(), v);
+            }
+        });
 
         return productList;
     }
 
     public void addToCart(String userId, Integer variationId, Integer quantity) {
+        UUID userUuid = UUID.fromString(userId);
         CartId cartId = CartId.builder()
-                .userId(userId)
+                .userId(userUuid)
                 .variationId(variationId)
                 .build();
 
-        Cart cart = cartRepository.findById(cartId)
-                .orElse((null));
+        Cart cart = cartRepository.findById(cartId).orElse(null);
 
         if (cart == null) {
+            User user = userRepository.findById(userUuid).orElseThrow(() -> new NullPointerException("User not found"));
+            Variation variation = variationRepository.findById(variationId).orElseThrow(() -> new NullPointerException("Variation not found"));
+
             cart = Cart.builder()
                     .id(cartId)
+                    .user(user)
+                    .variation(variation)
                     .cartQuantity(quantity)
                     .build();
         } else {
@@ -72,9 +87,10 @@ public class CartService {
     }
 
     public void removeFromCart(String userId, Integer variationId) {
+        UUID userUuid = UUID.fromString(userId);
         cartRepository.findById(CartId
                 .builder()
-                .userId(userId)
+                .userId(userUuid)
                 .variationId(variationId)
                 .build()).ifPresentOrElse(cartRepository::delete,
                 () -> {
@@ -83,9 +99,10 @@ public class CartService {
     }
 
     public void removeAllFromCart(String userId) {
-        if (cartRepository.findAllById_UserId(userId).isEmpty()) {
+        UUID userUuid = UUID.fromString(userId);
+        if (cartRepository.findAllById_UserId(userUuid).isEmpty()) {
             throw new NullPointerException("No items in cart");
         }
-        cartRepository.deleteAllById_UserId(userId);
+        cartRepository.deleteAllById_UserId(userUuid);
     }
 }

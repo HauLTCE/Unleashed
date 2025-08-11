@@ -3,8 +3,8 @@ package com.unleashed.service;
 import com.unleashed.dto.SimplifiedTransactionCardDTO;
 import com.unleashed.dto.StockTransactionDTO;
 import com.unleashed.dto.TransactionCardDTO;
-import com.unleashed.entity.ComposeKey.StockVariationId;
 import com.unleashed.entity.*;
+import com.unleashed.entity.composite.StockVariationId;
 import com.unleashed.repo.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -48,54 +48,42 @@ public class StockTransactionService {
         this.providerRepository = providerRepository;
     }
 
-//    public Transaction createStockTransaction(StockTransactionDTO stockTransactionDTO) {
-//        Transaction transaction = StockTransactionMapper.INSTANCE.toEntity(stockTransactionDTO);
-//        transaction.setStock(stockRepository.findById(stockTransactionDTO.getStockId()).get());
-//        transaction.setVariation(variationRepository.findById(stockTransactionDTO.getVariationId()).get());
-//        return transactionRepository.save(transaction);
-//    }
 
-
-    @Transactional(readOnly = true) // Good practice for read operations
+    @Transactional(readOnly = true)
     public List<TransactionCardDTO> findAllTransactionCards() {
 
-        // 1. Fetch simplified DTOs (without category, but with product ID)
         List<SimplifiedTransactionCardDTO> simpleDtos = transactionRepository.findSimplifiedTransactionCardDTOsOrderByIdDesc();
 
         if (simpleDtos.isEmpty()) {
             return Collections.emptyList();
         }
 
-        // 2. Collect unique Product IDs
-        Set<String> productIds = simpleDtos.stream()
+        Set<UUID> productIds = simpleDtos.stream()
                 .map(SimplifiedTransactionCardDTO::getProductId)
-                .filter(Objects::nonNull) // Ensure product ID is not null
+                .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        // 3. Fetch Category names mapped by Product ID
-        Map<String, List<String>> productCategoryMap = productRepository.findCategoryNamesMapByProductIds(productIds);
+        Map<UUID, List<String>> productCategoryMap = productRepository.findCategoryNamesMapByProductIds(productIds);
 
-        // 4. Combine data into the final TransactionCardDTO
         List<TransactionCardDTO> finalDtos = new ArrayList<>();
         for (SimplifiedTransactionCardDTO simpleDto : simpleDtos) {
-            // Get categories for the current product, defaulting to an empty list
-            List<String> categoryNames = productCategoryMap.getOrDefault(simpleDto.getProductId(), Collections.emptyList());
-
-            // Format categories (e.g., comma-separated string)
-            String categoryNameString = String.join(", ", categoryNames);
-            if (categoryNameString.isEmpty()) {
-                categoryNameString = null; // Or "" depending on preference
+            List<String> categoryNames = Collections.emptyList();
+            if (simpleDto.getProductId() != null) {
+                categoryNames = productCategoryMap.getOrDefault(simpleDto.getProductId(), Collections.emptyList());
             }
 
+            String categoryNameString = String.join(", ", categoryNames);
+            if (categoryNameString.isEmpty()) {
+                categoryNameString = null;
+            }
 
-            // Create the final DTO
             TransactionCardDTO finalDto = new TransactionCardDTO(
                     simpleDto.getTransactionId(),
                     simpleDto.getVariationImage(),
                     simpleDto.getProductName(),
                     simpleDto.getStockName(),
                     simpleDto.getTransactionTypeName(),
-                    categoryNameString, // Use the combined category string
+                    categoryNameString,
                     simpleDto.getBrandName(),
                     simpleDto.getSizeName(),
                     simpleDto.getColorName(),
@@ -138,11 +126,10 @@ public class StockTransactionService {
                 transaction.setVariation(variation.get());
                 transaction.setProvider(provider.get());
                 transaction.setInchargeEmployee(userRepository.findByUserUsername(stockTransactionDTO.getUsername()).orElse(null));
-                transaction.setTransactionType(transactionTypeRepository.findById(1).isPresent() ? transactionTypeRepository.findById(1).get() : null); // Assuming IN transaction
+                transaction.setTransactionType(transactionTypeRepository.findById(1).orElse(null));
                 transaction.setTransactionQuantity(variationQuantity.getQuantity());
                 transactionRepository.save(transaction);
 
-                //BRUHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
                 StockVariationId stockVariationId = new StockVariationId();
                 stockVariationId.setStockId(stock.get().getId());
                 stockVariationId.setVariationId(variation.get().getId());
@@ -159,9 +146,10 @@ public class StockTransactionService {
                     stockVariation.setStockQuantity(variationQuantity.getQuantity());
                     stockVariationRepository.save(stockVariation);
                 }
-                ProductStatus productStatus = productStatusRepository.findById(3).isPresent() ? productStatusRepository.findById(3).get() : null;
+                ProductStatus productStatus = productStatusRepository.findById(3).orElse(null);
                 Product product = variation.get().getProduct();
                 product.setProductStatus(productStatus);
+                productRepository.save(product);
 
             }
         } catch (IllegalArgumentException e) {

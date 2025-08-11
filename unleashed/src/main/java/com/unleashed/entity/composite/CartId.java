@@ -1,24 +1,29 @@
-package com.unleashed.entity.ComposeKey;
+package com.unleashed.entity.composite;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import org.hibernate.Hibernate;
 
+import java.io.Serializable;
 import java.util.Objects;
+import java.util.UUID;
 
 @Getter
 @Setter
-@AllArgsConstructor
-@NoArgsConstructor
-@Builder
 @Embeddable
-public class CartId implements java.io.Serializable {
-    private static final long serialVersionUID = 5945842057963320656L;
-    @Column(name = "user_id", length = Integer.MAX_VALUE)
-    private String userId;
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class CartId implements Serializable {
+    private static final long serialVersionUID = 3071593009437811726L;
+    @NotNull
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
-    @Column(name = "variation_id")
+    @NotNull
+    @Column(name = "variation_id", nullable = false)
     private Integer variationId;
 
     @Override

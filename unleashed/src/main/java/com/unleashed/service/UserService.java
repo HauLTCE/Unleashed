@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -195,7 +196,7 @@ public class UserService {
     }
 
     public User findById(String userId) {
-        return userRepository.findById(userId).orElse(null);
+        return userRepository.findById(UUID.fromString(userId)).orElse(null);
     }
 
 
@@ -219,7 +220,7 @@ public class UserService {
 
     @Transactional
     public User updateUserInfo(String userId, UpdateUserDTO updatedUserInfo) {
-        Optional<User> existingUserOptional = userRepository.findById(userId);
+        Optional<User> existingUserOptional = userRepository.findById(UUID.fromString(userId));
 
         if (existingUserOptional.isPresent()) {
             User existingUser = existingUserOptional.get();
@@ -272,7 +273,7 @@ public class UserService {
         List<User> users = userRepository.findAll();
         ViewUserMapper viewUserMapper;
         return users.stream()
-                .map(user -> new ViewInfoDTO(user.getUserId(),
+                .map(user -> new ViewInfoDTO(user.getUserId().toString(),
                         user.getUserUsername(),
                         user.getUserEmail(),
                         user.getUserFullname(),
@@ -317,10 +318,10 @@ public class UserService {
 
     @Transactional
     public boolean deleteUserById(String userId) throws CustomException {
-        if (!userRepository.existsById(userId)) {
+        if (!userRepository.existsById(UUID.fromString(userId))) {
             throw new CustomException("User not found", HttpStatus.NOT_FOUND);
         }
-        userRepository.deleteById(userId);
+        userRepository.deleteById(UUID.fromString(userId));
         return true;
     }
 
@@ -369,7 +370,7 @@ public class UserService {
 
     private ViewInfoDTO mapUserToViewInfoDTO(User user) {
         ViewInfoDTO viewInfoDTO = new ViewInfoDTO();
-        viewInfoDTO.setUserId(user.getUserId());
+        viewInfoDTO.setUserId(user.getUserId().toString());
         viewInfoDTO.setUsername(user.getUserUsername());
         viewInfoDTO.setUserEmail(user.getUserEmail());
         viewInfoDTO.setFullName(user.getUserFullname());
@@ -386,16 +387,16 @@ public class UserService {
     }
 
     public ViewInfoDTO getUserInfoById(String userId) {
-        Optional<User> userOptional = userRepository.findById(userId);
+        Optional<User> userOptional = userRepository.findById(UUID.fromString(userId));
         return userOptional.map(this::mapUserToViewInfoDTO).orElse(null);
     }
 
     public UserDTO getCurrentUser(String userId) {
-        User user = userRepository.findById(userId)
+        User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new CustomException("User not found", HttpStatus.NOT_FOUND));
 
         return new UserDTO(
-                user.getUserId(),
+                user.getUserId().toString(),
                 user.getUserUsername(),
                 null, // Không trả password
                 user.getUserEmail(), // Đảm bảo có userEmail
@@ -422,7 +423,7 @@ public class UserService {
             throw new CustomException("User ID is missing in request!", HttpStatus.BAD_REQUEST);
         }
 
-        User user = userRepository.findById(userId)
+        User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new CustomException("User not found", HttpStatus.NOT_FOUND));
 
         user.setUserEmail((String) updatedUserInfo.get("email"));
@@ -433,7 +434,7 @@ public class UserService {
         userRepository.save(user);
 
         return new UserDTO(
-                user.getUserId(),
+                user.getUserId().toString(),
                 user.getUserUsername(),
                 null,
                 user.getUserEmail(),
@@ -451,7 +452,7 @@ public class UserService {
     }
 
     public boolean disableAccount(String userId) {
-        Optional<User> userOptional = userRepository.findById(userId);
+        Optional<User> userOptional = userRepository.findById(UUID.fromString(userId));
         if (userOptional.isPresent()) {
             User user = userOptional.get();
             user.setIsUserEnabled(false);
