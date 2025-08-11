@@ -14,7 +14,7 @@ public class VNPayConfig {
     public static String vnp_PayUrl = " https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
     public static String vnp_Returnurl = ""; //don't you put anything in here, this code works on magic
     public static String vnp_TmnCode = "3J9MCD67";
-    public static String vnp_HashSecret = "KMSFROSQJYULMXBB3ES9CCYMDGG4SWCZ";
+    public static String vnp_HashSecret = "0LXAT8O05NXQS6V8R3PTLOR6BZR4MEO9";
     public static String vnp_apiUrl = "https://sandbox.vnpayment.vn/merchant_webapi/api/transaction";
 
     public static String md5(String message) {

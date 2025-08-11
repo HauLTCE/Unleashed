@@ -83,7 +83,7 @@ const DashboardAddProducts = () => {
 		formData.append('image', file)
 
 		return toast.promise(
-			fetch('https://api.imgbb.com/1/upload?key=387abfba10f808a7f6ac4abb89a3d912', {
+			fetch('https://api.imgbb.com/1/upload?key=37a8229aac308c0f3568b5163a7104f8', {
 				method: 'POST',
 				body: formData,
 			})
