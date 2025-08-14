@@ -1,351 +1,257 @@
-import React, { useState, useEffect } from 'react'
-import { apiClient } from '../../core/api'
-import { Card, CardContent, Typography, Grid, Divider, Button, IconButton } from '@mui/material'
+import React, { useState, useEffect, useRef } from 'react';
+import { apiClient } from '../../core/api';
+import { Typography, Button, IconButton, Chip, Skeleton, TextField, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
 import {
-	LocalShipping,
-	Payment,
-	DateRange,
-	Info,
-	Home,
-	TrackChanges,
-	CheckCircle,
-	Cancel,
-	Visibility,
-	Person,
-	PersonOutline,
-	ContentPasteSearch,
-} from '@mui/icons-material'
-import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader'
-import useAuthUser from 'react-auth-kit/hooks/useAuthUser'
-import { formatPrice } from '../../components/format/formats'
-import { FaBarcode } from 'react-icons/fa'
-import DashboardOrderDetailsDrawer from '../../components/drawer/DashboardOrderDetailsDrawer'
-import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined'
+    Visibility,
+    CheckCircle,
+    Cancel,
+    ContentPasteSearch,
+} from '@mui/icons-material';
+import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined';
+import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader';
+import useAuthUser from 'react-auth-kit/hooks/useAuthUser';
+import { formatPrice } from '../../components/format/formats';
+import DashboardOrderDetailsDrawer from '../../components/drawer/DashboardOrderDetailsDrawer';
+import useDebounce from '../../components/hooks/useDebounce';
+import EnhancedPagination from '../../components/pagination/EnhancedPagination';
 
 const DashboardOrders = () => {
-	const [orders, setOrders] = useState([])
-	const [currentPage, setCurrentPage] = useState(1)
-	const [totalPages, setTotalPages] = useState(1)
-	const [selectedOrderId, setSelectedOrderId] = useState(null)
-	const [drawerOpen, setDrawerOpen] = useState(false)
-	const varToken = useAuthHeader()
-	const authUser = useAuthUser()
+    const [orders, setOrders] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [selectedOrderId, setSelectedOrderId] = useState(null);
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [sortOrder, setSortOrder] = useState('priority_desc');
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
+    const varToken = useAuthHeader();
+    const authUser = useAuthUser();
+    const isInitialMount = useRef(true);
 
-	useEffect(() => {
-		fetchOrders()
-	}, [currentPage, drawerOpen]) // Removed 'orders' from dependency array
+    useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+        } else {
+            setCurrentPage(1);
+        }
+    }, [debouncedSearchTerm, sortOrder]);
 
-	const fetchOrders = () => {
-		apiClient
-			.get('/api/orders', {
-				// API call to /api/orders (root path - fetching ALL orders)
-				headers: { Authorization: varToken },
-				params: { page: currentPage - 1, size: 10 }, // Pagination parameters
-			})
-			.then((response) => {
-				setOrders(response.data.orders) // Access orders from response.data.orders
-				setTotalPages(response.data.totalPages)
-			})
-			.catch((error) => console.error('Error fetching orders:', error))
-	}
+    useEffect(() => {
+        fetchOrders();
+    }, [currentPage, debouncedSearchTerm, sortOrder]);
 
-	const handlePageChange = (newPage) => {
-		setCurrentPage(newPage)
-	}
+    const fetchOrders = () => {
+        setLoading(true);
+        apiClient
+            .get('/api/orders', {
+                headers: { Authorization: varToken },
+                params: {
+                    page: currentPage - 1,
+                    size: 10,
+                    search: debouncedSearchTerm,
+                    sort: sortOrder,
+                },
+            })
+            .then((response) => {
+                setOrders(response.data.orders);
+                setTotalPages(response.data.totalPages);
+            })
+            .catch((error) => console.error('Error fetching orders:', error))
+            .finally(() => setLoading(false));
+    };
 
-	const handleReview = (orderId, isApproved) => {
-		apiClient
-			.put(
-				`/api/orders/${orderId}/staff-review`,
-				{
-					isApproved: isApproved,
-					staffName: authUser.username,
-				},
-				{
-					headers: { Authorization: varToken },
-				}
-			)
-			.then((response) => {
-				// console.log('Review submitted:', response.data.message)
-				fetchOrders()
-			})
-			.catch((error) => {
-				console.error('Error submitting review:', error)
-			})
-	}
+    const handlePageChange = (newPage) => {
+        if (newPage > 0 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+        }
+    };
 
-	const openDrawer = (orderId) => {
-		setSelectedOrderId(orderId)
-		setDrawerOpen(true)
-	}
+    const handleAction = (url, data) => {
+        apiClient
+            .put(url, data, { headers: { Authorization: varToken } })
+            .then(() => fetchOrders())
+            .catch((error) => console.error('Error performing action:', error));
+    };
 
-	const closeDrawer = () => {
-		setDrawerOpen(false)
-		setSelectedOrderId(null)
-	}
+    const handleReview = (orderId, isApproved) => {
+        handleAction(`/api/orders/${orderId}/staff-review`, {
+            isApproved,
+            staffName: authUser.username,
+        });
+    };
 
-	const getStatusColor = (status) => {
-		switch (status.toUpperCase()) {
-			case 'PENDING':
-				return '#FFA500' // Orange
-			case 'PROCESSING':
-				return '#800080' // Purple
-			case 'COMPLETED':
-				return '#008000' // Green
-			case 'SHIPPING':
-				return '#0000FF' // Blue
-			case 'CANCELLED':
-				return '#FF0000' // Red
-			case 'DENIED':
-				return '#FF0000' // Red
-			case 'RETURNED':
-				return '#A9A9A9' // Dark Gray
-			default:
-				return '#808080' // Gray
-		}
-	}
+    const handleInspectOrder = (orderId) => {
+        handleAction(`/api/orders/${orderId}/inspect`, {});
+    };
 
-	const viewOrderDetails = (orderId) => {
-		// console.log(`Viewing details for order ID: ${orderId}`)
-	}
+    const handleReturnOrder = (orderId) => {
+        handleAction(`/api/orders/${orderId}/returned`, {});
+    };
 
-	const handleInspectOrder = (orderId) => {
-		apiClient
-			.put(`/api/orders/${orderId}/inspect`, {}, { headers: { Authorization: varToken } })
-			.then((response) => {
-				console.log('Order inspected:', response.data.message)
-				fetchOrders() // Cập nhật danh sách đơn hàng sau khi gọi API thành công
-			})
-			.catch((error) => {
-				console.error('Error inspecting order:', error)
-			})
-	}
+    const openDrawer = (orderId) => {
+        setSelectedOrderId(orderId);
+        setDrawerOpen(true);
+    };
 
-	const handleReturnOrder = (orderId) => {
-		apiClient
-			.put(`/api/orders/${orderId}/returned`, {}, { headers: { Authorization: varToken } })
-			.then((response) => {
-				// console.log('Order returned:', response.data.message)
-				fetchOrders()
-			})
-			.catch((error) => {
-				console.error('Error returning order:', error)
-			})
-	}
+    const closeDrawer = () => {
+        setDrawerOpen(false);
+        setSelectedOrderId(null);
+    };
 
-	return (
-		<div>
-			<Typography variant='h4' className='text-4xl font-bold mb-4'>
-				Orders
-			</Typography>
-			<Grid container spacing={4}>
-				{orders.map((order) => (
-					<Grid item xs={12} key={order.orderId}>
-						<Card
-							variant='outlined'
-							className='p-4 shadow-md hover:shadow-lg transition-shadow duration-300'
-						>
-							<CardContent>
-								<Grid container spacing={2} alignItems='center'>
-									<Grid item xs={12} sm={6} md={4}>
-										<Typography variant='h6' className='font-semibold mb-2'>
-											<Info className='mr-2' /> Order ID: {order.orderId}
-											<IconButton
-												onClick={() => openDrawer(order.orderId)}
-												color='primary'
-												aria-label='view details'
-												className='ml-2'
-											>
-												<Visibility />
-											</IconButton>
-										</Typography>
-										<Typography color='textSecondary' className='flex items-center mb-1'>
-											<DateRange className='mr-1' /> Date:{' '}
-											{order.orderDate ? new Date(order.orderDate).toLocaleString() : 'N/A'}
-										</Typography>
-										<Typography
-											color='textSecondary'
-											className='flex items-center mb-1'
-											sx={{ color: getStatusColor(order.orderStatus) }}
-										>
-											<TrackChanges className='mr-1' /> Status: {order.orderStatus}
-										</Typography>
-									</Grid>
+    const getStatusChip = (status) => {
+        let color;
+        switch (status.toUpperCase()) {
+            case 'PENDING': color = 'warning'; break;
+            case 'PROCESSING': color = 'secondary'; break;
+            case 'COMPLETED': color = 'success'; break;
+            case 'SHIPPING': color = 'info'; break;
+            case 'CANCELLED': case 'DENIED': color = 'error'; break;
+            case 'RETURNING': case 'INSPECTION': case 'RETURNED': color = 'default'; break;
+            default: color = 'primary';
+        }
+        return <Chip label={status} color={color} variant='outlined' size='small' />;
+    };
 
-									<Grid item xs={12} sm={6} md={4}>
-										<Typography color='textSecondary' className='flex items-center mb-1'>
-											<Home className='mr-1' /> Billing Address: {order.billingAddress}
-										</Typography>
-										<Typography color='textSecondary' className='flex items-center mb-1'>
-											<LocalShipping className='mr-1' /> Shipping Method: {order.shippingMethod}
-										</Typography>
-										<Typography color='textSecondary' className='flex items-center mb-1'>
-											<DateRange className='mr-1' /> Expected Delivery:{' '}
-											{order.expectedDeliveryDate
-												? new Date(order.expectedDeliveryDate).toLocaleDateString()
-												: 'N/A'}
-										</Typography>
-										<Typography color='textSecondary' className='flex items-center'>
-											<FaBarcode className='mr-1' />
-											Transaction Ref: {order.transactionReference || 'N/A'}
-										</Typography>
-									</Grid>
+    const renderOrderActions = (order) => {
+        switch (order.orderStatus.toUpperCase()) {
+            case 'PENDING':
+                return (
+                    <div className='flex flex-col sm:flex-row gap-2'>
+                        <Button variant='contained' color='success' size='small' onClick={() => handleReview(order.orderId, true)} startIcon={<CheckCircle />}>Approve</Button>
+                        <Button variant='contained' color='error' size='small' onClick={() => handleReview(order.orderId, false)} startIcon={<Cancel />}>Reject</Button>
+                    </div>
+                );
+            case 'PROCESSING':
+                return <Button variant='contained' color='success' size='small' onClick={() => handleReview(order.orderId, true)} startIcon={<CheckCircle />}>Approve Ship</Button>;
+            case 'RETURNING':
+                return <Button variant='contained' color='info' size='small' onClick={() => handleInspectOrder(order.orderId)} startIcon={<ContentPasteSearch />}>Inspect</Button>;
+            case 'INSPECTION':
+                return <Button variant='contained' color='warning' size='small' onClick={() => handleReturnOrder(order.orderId)} startIcon={<KeyboardReturnOutlinedIcon />}>Returned</Button>;
+            default:
+                return null;
+        }
+    };
 
-									<Grid item xs={12} sm={6} md={4}>
-										<Typography color='textSecondary' className='flex items-center mb-1'>
-											<Payment className='mr-1' /> Payment Method: {order.paymentMethod}
-										</Typography>
-										<Typography color='textSecondary' className='flex items-center mb-1'>
-											<Payment className='mr-1' /> Total Amount: {formatPrice(order.totalAmount)}
-										</Typography>
-										<Typography color='textSecondary' className='flex items-center'>
-											<TrackChanges className='mr-1' /> Tracking #: {order.trackingNumber}
-										</Typography>
-										<Typography color='green' className='flex items-center mt-1'>
-											<Person className='mr-1' />
-											Customer: {order.customerUsername}
-										</Typography>
-										<Typography color='orange' className='flex items-center'>
-											<PersonOutline className='mr-1' />
-											Staff: {order.staffUsername || 'N/A'}
-										</Typography>
-									</Grid>
+    const TableSkeleton = () => (
+        <>
+            {[...Array(5)].map((_, index) => (
+                <tr key={index}>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                </tr>
+            ))}
+        </>
+    );
 
-									{order.orderStatus === 'PENDING' && (
-										<Grid item xs={12}>
-											<Typography variant='h6' className='mt-2'>
-												Confirm Order:
-											</Typography>
-											<div className='flex items-center space-x-4'>
-												<Button
-													variant='contained'
-													color='success'
-													onClick={() => handleReview(order.orderId, true)}
-													startIcon={<CheckCircle />}
-													size='large'
-												>
-													Approve
-												</Button>
-												<Button
-													variant='contained'
-													color='error'
-													onClick={() => handleReview(order.orderId, false)}
-													startIcon={<Cancel />}
-													size='large'
-												>
-													Reject
-												</Button>
-											</div>
-										</Grid>
-									)}
+    return (
+        <div className='p-4'>
+            <Typography variant='h4' className='text-3xl font-bold mb-4'>
+                Orders Management
+            </Typography>
 
-									{order.orderStatus === 'PROCESSING' && (
-										<Grid item xs={12}>
-											<Typography variant='h6' className='mt-2'>
-												Confirm Shipping:
-											</Typography>
-											<div className='flex items-center space-x-4'>
-												<Button
-													variant='contained'
-													color='success'
-													onClick={() => handleReview(order.orderId, true)}
-													startIcon={<CheckCircle />}
-													size='large'
-												>
-													Approve
-												</Button>
-											</div>
-										</Grid>
-									)}
-								</Grid>
+            <div className='flex justify-between items-center mb-4 bg-white p-3 rounded-lg shadow'>
+                <TextField
+                    label="Search Orders..."
+                    variant="outlined"
+                    size="small"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-1/3"
+                />
+                <FormControl variant="outlined" size="small" className="w-1/4">
+                    <InputLabel>Sort By</InputLabel>
+                    <Select
+                        value={sortOrder}
+                        onChange={(e) => setSortOrder(e.target.value)}
+                        label="Sort By"
+                    >
+                        <MenuItem value="priority_desc">Priority (Default)</MenuItem>
+                        <MenuItem value="totalPrice_desc">Total: High to Low</MenuItem>
+                        <MenuItem value="totalPrice_asc">Total: Low to High</MenuItem>
+                    </Select>
+                </FormControl>
+            </div>
 
-								{order.orderStatus === 'RETURNING' && (
-									<Grid item xs={12}>
-										<Typography variant='h6' className='mt-2'>
-											Order Actions:
-										</Typography>
-										<div className='flex items-center space-x-4'>
-											<Button
-												variant='contained'
-												color='info'
-												onClick={() => handleInspectOrder(order.orderId)}
-												startIcon={<ContentPasteSearch />}
-												size='large'
-											>
-												Inspect
-											</Button>
-										</div>
-									</Grid>
-								)}
+            <div className='overflow-x-auto bg-white rounded-lg shadow'>
+                <table className='min-w-full table-fixed'>
+                    <thead className='bg-gray-100'>
+                    <tr>
+                        <th style={{ width: '12%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Order ID</th>
+                        <th style={{ width: '15%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Customer</th>
+                        <th style={{ width: '20%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Date</th>
+                        <th style={{ width: '10%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Total</th>
+                        <th style={{ width: '10%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Status</th>
+                        <th style={{ width: '10%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Staff</th>
+                        <th style={{ width: '23%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody className='divide-y divide-gray-200'>
+                    {loading ? (
+                        <TableSkeleton />
+                    ) : orders.length > 0 ? (
+                        orders.map((order) => (
+                            <tr key={order.orderId} className='hover:bg-gray-50 align-middle'>
+                                <td
+                                    className='px-4 py-3 text-sm font-medium text-blue-600 hover:text-blue-800 cursor-pointer whitespace-nowrap'
+                                    onClick={() => openDrawer(order.orderId)}
+                                >
+                                    {order.orderId}
+                                </td>
+                                <td className='px-4 py-3 text-sm text-gray-700 truncate'>{order.customerUsername}</td>
+                                <td className='px-4 py-3 text-sm text-gray-700 whitespace-nowrap'>
+                                    {new Date(order.orderDate).toLocaleString()}
+                                </td>
+                                <td className='px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap'>
+                                    {formatPrice(order.totalAmount)}
+                                </td>
+                                <td className='px-4 py-3 text-sm'>{getStatusChip(order.orderStatus)}</td>
+                                <td className='px-4 py-3 text-sm text-gray-700'>{order.staffUsername || 'N/A'}</td>
+                                <td className='px-4 py-3'>
+                                    <div className='flex items-center gap-2'>
+                                        <IconButton
+                                            onClick={() => openDrawer(order.orderId)}
+                                            color='primary'
+                                            size='small'
+                                            title='View Details'
+                                        >
+                                            <Visibility fontSize='small' />
+                                        </IconButton>
+                                        {renderOrderActions(order)}
+                                    </div>
+                                </td>
+                            </tr>
+                        ))
+                    ) : (
+                        <tr>
+                            <td colSpan="7" className="text-center py-10 text-gray-500">
+                                No orders found.
+                            </td>
+                        </tr>
+                    )}
+                    </tbody>
+                </table>
+            </div>
 
-								{order.orderStatus === 'INSPECTION' && (
-									<Grid item xs={12}>
-										<Typography variant='h6' className='mt-2'>
-											Order Actions:
-										</Typography>
-										<div className='flex items-center space-x-4'>
-											<Button
-												variant='contained'
-												color='warning'
-												onClick={() => handleReturnOrder(order.orderId)}
-												startIcon={<KeyboardReturnOutlinedIcon />}
-												size='large'
-											>
-												Returned
-											</Button>
-										</div>
-									</Grid>
-								)}
+            <DashboardOrderDetailsDrawer
+                open={drawerOpen}
+                onClose={closeDrawer}
+                orderId={selectedOrderId}
+            />
 
-								<Divider style={{ margin: '16px 0' }} />
-								<Typography variant='body2' color='textSecondary' className='mt-2'>
-									Notes: {order.notes || 'N/A'}
-								</Typography>
-							</CardContent>
-						</Card>
-					</Grid>
-				))}
-			</Grid>
+            <EnhancedPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                isLoading={loading}
+            />
+        </div>
+    );
+};
 
-			<DashboardOrderDetailsDrawer
-				open={drawerOpen}
-				onClose={closeDrawer}
-				orderId={selectedOrderId}
-			/>
-
-			<div className='flex justify-center items-center mt-4'>
-				<Button
-					variant='contained'
-					color='primary'
-					onClick={() => handlePageChange(currentPage - 1)}
-					disabled={currentPage === 1}
-				>
-					Previous
-				</Button>
-
-				{[...Array(totalPages)].map((_, index) => (
-					<button
-						key={index + 1}
-						onClick={() => handlePageChange(index + 1)}
-						className={`px-4 py-2 mx-1 border border-gray-300 rounded-lg ${
-							currentPage === index + 1 ? 'bg-blue-500 text-white' : ''
-						}`}
-					>
-						{index + 1}
-					</button>
-				))}
-
-				<Button
-					variant='contained'
-					color='primary'
-					onClick={() => handlePageChange(currentPage + 1)}
-					disabled={currentPage === totalPages}
-				>
-					Next
-				</Button>
-			</div>
-		</div>
-	)
-}
-
-export default DashboardOrders
+export default DashboardOrders;

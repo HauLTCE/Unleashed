@@ -16,7 +16,6 @@ public class Role {
     private Integer id;
 
     @Nationalized
-    @Lob
     @Column(name = "role_name")
     private String roleName;
 

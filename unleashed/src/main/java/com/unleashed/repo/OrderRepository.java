@@ -140,4 +140,12 @@ public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecif
                 total_sold DESC
             """, nativeQuery = true)
     List<String> findTopSoldProductIds(@Param("number_of_days") int numberOfDays, @Param("top_n_products") int topNProducts);
+
+    @Query(value = "SELECT o FROM Order o " +
+            "ORDER BY CASE WHEN o.orderStatus.orderStatusName = 'PENDING' THEN 1 ELSE 2 END ASC, " +
+            "o.orderCreatedAt DESC",
+            countQuery = "SELECT count(o) FROM Order o")
+    Page<Order> findAllWithPriority(Pageable pageable);
+
+
 }

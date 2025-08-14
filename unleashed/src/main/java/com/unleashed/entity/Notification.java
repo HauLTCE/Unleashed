@@ -22,12 +22,10 @@ public class Notification {
     private User userIdSender;
 
     @Nationalized
-    @Lob
     @Column(name = "notification_title")
     private String notificationTitle;
 
     @Nationalized
-    @Lob
     @Column(name = "notification_content")
     private String notificationContent;
 

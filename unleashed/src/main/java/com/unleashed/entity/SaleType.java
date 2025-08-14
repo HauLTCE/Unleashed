@@ -18,7 +18,6 @@ public class SaleType {
     private Integer id;
 
     @Nationalized
-    @Lob
     @Column(name = "sale_type_name")
     private String saleTypeName;
 

@@ -19,7 +19,6 @@ public class VariationSingle {
     private Integer id;
 
     @Nationalized
-    @Lob
     @Column(name = "variation_single_code")
     private String variationSingleCode;
 

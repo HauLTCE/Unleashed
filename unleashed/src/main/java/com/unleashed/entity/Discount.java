@@ -41,7 +41,6 @@ public class Discount {
     private BigDecimal discountValue;
 
     @Nationalized
-    @Lob
     @Column(name = "discount_description")
     private String discountDescription;
 

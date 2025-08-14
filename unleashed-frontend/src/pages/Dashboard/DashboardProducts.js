@@ -150,9 +150,10 @@ const DashboardProducts = () => {
                                                 />
                                             </TableCell>
                                             <TableCell component="th" scope="row">
-                                                <Link to={`/shop/product/${product.productId}`} className="hover:underline text-blue-600">
+                                                <Link to={`/Dashboard/Products/${product.productId}`} className="hover:underline text-blue-600">
                                                     {product.productName}
                                                 </Link>
+
                                             </TableCell>
                                             <TableCell>{product.brandName || 'N/A'}</TableCell>
                                             <TableCell>{product.productPrice ? formatPrice(product.productPrice) : 'N/A'}</TableCell>

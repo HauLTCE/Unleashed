@@ -4,10 +4,12 @@ import com.unleashed.dto.*;
 import com.unleashed.dto.mapper.ProductMapper;
 import com.unleashed.entity.*;
 import com.unleashed.repo.*;
+import com.unleashed.repo.specification.VariationSpecification;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
@@ -55,6 +57,30 @@ public class ProductService {
 
     public List<Product> findAll() {
         return productRepository.findAll();
+    }
+
+
+    @Transactional(readOnly = true)
+    public Page<VariationImportDTO> findAllVariationsForImport(String search, Integer stockId, Pageable pageable) {
+        Specification<Variation> spec = new VariationSpecification(search);
+        Page<Variation> variationPage = variationRepository.findAll(spec, pageable);
+        Page<VariationImportDTO> dtoPage = variationPage.map(VariationImportDTO::fromEntity);
+
+        if (stockId != null && dtoPage.hasContent()) {
+            List<Integer> variationIds = dtoPage.getContent().stream()
+                    .map(VariationImportDTO::getId)
+                    .collect(Collectors.toList());
+
+            List<StockVariation> stockLevels = stockVariationRepository.findById_StockIdAndId_VariationIdIn(stockId, variationIds);
+
+            Map<Integer, Integer> stockMap = stockLevels.stream()
+                    .collect(Collectors.toMap(sv -> sv.getId().getVariationId(), StockVariation::getStockQuantity));
+
+            dtoPage.getContent().forEach(dto -> {
+                dto.setCurrentStock(stockMap.getOrDefault(dto.getId(), 0));
+            });
+        }
+        return dtoPage;
     }
 
     public Product findById(String id) {

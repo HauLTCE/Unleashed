@@ -10,6 +10,7 @@ import com.unleashed.dto.mapper.ProductVariationMapper;
 import com.unleashed.entity.composite.OrderVariationSingleId;
 import com.unleashed.entity.*;
 import com.unleashed.repo.*;
+import com.unleashed.repo.specification.OrderSpecification;
 import jakarta.servlet.http.HttpServletRequest;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,8 +18,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
@@ -396,23 +399,81 @@ public class OrderService {
     }
 
     @Transactional
+    public Map<String, Object> getOrders(String search, String sort, int page, int size) {
+        Specification<Order> spec = new OrderSpecification(search);
+
+        Pageable pageable;
+        if ("totalPrice_asc".equals(sort)) {
+            pageable = PageRequest.of(page, size, Sort.by("orderTotalAmount").ascending());
+        } else if ("totalPrice_desc".equals(sort)) {
+            pageable = PageRequest.of(page, size, Sort.by("orderTotalAmount").descending());
+        } else {
+            // Default sort is priority. We must check if a search is active.
+            if (StringUtils.hasText(search)) {
+                // When searching, a simple date sort is a good fallback.
+                pageable = PageRequest.of(page, size, Sort.by("orderUpdatedAt").descending());
+            } else {
+                // If NOT searching and using default sort, use the special priority query.
+                // This bypasses the specification, which is fine since the search term is empty.
+                Page<Order> ordersPage = orderRepository.findAllWithPriority(PageRequest.of(page, size));
+                return mapOrderPageToResponse(ordersPage);
+            }
+        }
+
+        Page<Order> ordersPage = orderRepository.findAll(spec, pageable);
+        return mapOrderPageToResponse(ordersPage);
+    }
+
+    // Helper method to map the Page<Order> to the response structure.
+    private Map<String, Object> mapOrderPageToResponse(Page<Order> ordersPage) {
+        List<Map<String, Object>> ordersList = ordersPage.getContent().stream()
+                .map(order -> {
+                    // This is your existing detailed mapping logic.
+                    Map<String, Object> orderJson = new HashMap<>();
+                    orderJson.put("orderId", order.getOrderId());
+                    orderJson.put("totalAmount", order.getOrderTotalAmount());
+                    orderJson.put("orderStatus", order.getOrderStatus().getOrderStatusName());
+                    orderJson.put("orderDate", order.getOrderDate());
+                    orderJson.put("billingAddress", order.getOrderBillingAddress());
+                    orderJson.put("shippingMethod", order.getShippingMethod().getShippingMethodName());
+                    orderJson.put("expectedDeliveryDate", order.getOrderExpectedDeliveryDate());
+                    orderJson.put("transactionReference", order.getOrderTransactionReference());
+                    orderJson.put("paymentMethod", order.getPaymentMethod().getPaymentMethodName());
+                    orderJson.put("trackingNumber", order.getOrderTrackingNumber());
+                    orderJson.put("customerUsername", order.getUser().getUsername());
+                    orderJson.put("notes", order.getOrderNote());
+                    orderJson.put("staffUsername",
+                            order.getInchargeEmployee() != null ? order.getInchargeEmployee().getUsername() : "N/A");
+                    return orderJson;
+                }).collect(Collectors.toList());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("orders", ordersList);
+        response.put("currentPage", ordersPage.getNumber());
+        response.put("totalItems", ordersPage.getTotalElements());
+        response.put("totalPages", ordersPage.getTotalPages());
+
+        return response;
+    }
+
+
+    @Transactional
     public Map<String, Object> getOrdersByUserId(String userId, Pageable pageable) {
         Page<Order> ordersPage;
 
-        // IF NULL = FETCH ALL
+        // IF userId NULL = FETCH ALL
         // very-very-very leaky approach but who am I to say
         // this thing runs on hopes and dreams 🫤
         // and I am not going to fix this. Too much work
         // let it leak
 
-        // a Sort object for descending orderUpdatedAt, this is the BEST approach
-        Sort sort = Sort.by("orderUpdatedAt").descending();
-        Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
-
-        // use the sorted Pageable in the repository query, cleanest and most efficient
         if (userId == null || userId.trim().isEmpty()) {
-            ordersPage = orderRepository.findAll(sortedPageable);
+            // For admins/staff fetching all orders, use the new query with status prioritization.
+            ordersPage = orderRepository.findAllWithPriority(pageable);
         } else {
+            // For fetching a specific user's orders, sort by date as before.
+            Sort sort = Sort.by("orderUpdatedAt").descending();
+            Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
             ordersPage = orderRepository.findByUserId(UUID.fromString(userId), sortedPageable);
         }
 

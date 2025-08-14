@@ -46,8 +46,9 @@ export const LoginUser = async (data, navigate, signIn) => {
       },
     },
     {
-      position: "bottom-center",
+      position: "top-center",
       transition: Zoom,
+
     }
   );
 

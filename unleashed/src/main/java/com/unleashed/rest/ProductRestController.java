@@ -1,10 +1,7 @@
 package com.unleashed.rest;
 
 import com.fasterxml.jackson.annotation.JsonView;
-import com.unleashed.dto.ProductDTO;
-import com.unleashed.dto.ProductDetailDTO;
-import com.unleashed.dto.ProductItemDTO;
-import com.unleashed.dto.ProductListDTO;
+import com.unleashed.dto.*;
 import com.unleashed.entity.Product;
 import com.unleashed.entity.Variation;
 import com.unleashed.repo.ProductRepository;
@@ -19,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -68,6 +66,20 @@ public class ProductRestController {
         Page<ProductListDTO> productPage = productService.findProductsWithFilters(query, category, brand, rating, priceOrder, pageable);
         return ResponseEntity.ok(productPage);
     }
+
+    @GetMapping("/all")
+    public ResponseEntity<Page<VariationImportDTO>> getAllVariations(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Integer stockId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("product.productName").ascending());
+        // Pass the new stockId parameter to the service
+        Page<VariationImportDTO> result = productService.findAllVariationsForImport(search, stockId, pageable);
+        return ResponseEntity.ok(result);
+    }
+
 
     @GetMapping("/{productId}/detail")
     public ResponseEntity<ProductDetailDTO> getProductsById(@PathVariable String productId) {

@@ -18,7 +18,6 @@ public class Size {
     private Integer id;
 
     @Nationalized
-    @Lob
     @Column(name = "size_name")
     @JsonView({Views.ProductView.class, Views.TransactionView.class})
     private String sizeName;

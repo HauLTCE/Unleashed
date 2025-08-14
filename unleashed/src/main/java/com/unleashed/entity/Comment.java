@@ -24,7 +24,6 @@ public class Comment {
     private Review review;
 
     @Nationalized
-    @Lob
     @Column(name = "comment_content")
     private String commentContent;
 

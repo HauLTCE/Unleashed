@@ -7,13 +7,16 @@ import com.unleashed.dto.mapper.UserMapper;
 import com.unleashed.entity.*;
 import com.unleashed.entity.composite.UserDiscountId;
 import com.unleashed.repo.*;
+import com.unleashed.repo.specification.DiscountSpecification;
 import com.unleashed.util.JwtUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.rest.webmvc.ResourceNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -64,14 +67,31 @@ public class DiscountService {
         return discountRepository.findByDiscountCode(discountCode).isPresent();
     }
 
-    public Page<DiscountDTO> getAllDiscounts(int page, int size) {
-        return discountRepository.findAll(
-                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "discountId"))
-        ).map(this::convertToDTO);
+    public Page<DiscountDTO> getAllDiscounts(String search, Integer statusId, Integer typeId, Pageable pageable) {
+        Specification<Discount> spec = new DiscountSpecification(search, statusId, typeId);
+        return discountRepository.findAll(spec, pageable).map(this::convertToDTO);
     }
 
     public Optional<DiscountDTO> getDiscountById(int discountId) {
         return discountRepository.findById(discountId).map(this::convertToDTO);
+    }
+
+    /**
+     * Finds all available discount statuses.
+     * @return A list of all DiscountStatus entities.
+     */
+    @Transactional(readOnly = true)
+    public List<DiscountStatus> findAllStatuses() {
+        return discountStatusRespository.findAll();
+    }
+
+    /**
+     * Finds all available discount types.
+     * @return A list of all DiscountType entities.
+     */
+    @Transactional(readOnly = true)
+    public List<DiscountType> findAllTypes() {
+        return discountTypeRepository.findAll();
     }
 
     @Transactional

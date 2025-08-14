@@ -1,279 +1,179 @@
-import React, { useState, useEffect } from "react";
-import { FaPlus, FaEdit, FaTrash, FaEye, FaUserPlus } from "react-icons/fa";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { apiClient } from "../../core/api";
 import useAuthUser from "react-auth-kit/hooks/useAuthUser";
 import { toast, Zoom } from "react-toastify";
 import useAuthHeader from "react-auth-kit/hooks/useAuthHeader";
 import { formatPrice } from "../../components/format/formats";
 import DeleteConfirmationModal from "../../components/modals/DeleteConfirmationModal";
+import useDebounce from '../../components/hooks/useDebounce';
+import {
+    Typography, Paper, TextField, Select, MenuItem, FormControl, InputLabel,
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+    Skeleton, Tooltip, IconButton, Button, Chip
+} from "@mui/material";
+import { Edit, Delete, Visibility, PersonAdd, Add } from "@mui/icons-material";
+import EnhancedPagination from '../../components/pagination/EnhancedPagination';
 
 const DashboardDiscounts = () => {
-  const [discounts, setDiscounts] = useState([]);
-  const [totalPages, setTotalPages] = useState(0);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
-  const [discountToDelete, setDiscountToDelete] = useState(null);
-  const [isOpen, setIsOpen] = useState(false);
+    const [discounts, setDiscounts] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [discountToDelete, setDiscountToDelete] = useState(null);
+    const [isOpen, setIsOpen] = useState(false);
+    const [statuses, setStatuses] = useState([]);
+    const [types, setTypes] = useState([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [selectedStatus, setSelectedStatus] = useState("");
+    const [selectedType, setSelectedType] = useState("");
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
+    const authUser = useAuthUser();
+    const varToken = useAuthHeader();
+    const isInitialMount = useRef(true);
 
-  const authUser = useAuthUser();
-  const userRole = authUser.role;
-  const varToken = useAuthHeader();
+    useEffect(() => {
+        apiClient.get('/api/discounts/discount-statuses', { headers: { Authorization: varToken } }).then(res => setStatuses(res.data));
+        apiClient.get('/api/discounts/discount-types', { headers: { Authorization: varToken } }).then(res => setTypes(res.data));
+    }, [varToken]);
 
-  useEffect(() => {
-    fetchDiscounts(currentPage, pageSize);
-  }, [currentPage, pageSize]);
+    useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+        } else {
+            setCurrentPage(1);
+        }
+    }, [debouncedSearchTerm, selectedStatus, selectedType]);
 
-  const fetchDiscounts = (page, size) => {
-    apiClient
-      .get(`/api/discounts?page=${page}&size=${size}`, {
-        headers: {
-          Authorization: varToken,
-        },
-      })
-      .then((response) => {
-        setDiscounts(response.data.content);
-        setTotalPages(response.data.totalPages);
-      })
-      .catch((error) => {
-        console.error("Error fetching discounts:", error);
-      });
-  };
+    useEffect(() => {
+        fetchDiscounts();
+    }, [currentPage, debouncedSearchTerm, selectedStatus, selectedType]);
 
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
-  };
+    const fetchDiscounts = () => {
+        setLoading(true);
+        apiClient.get('/api/discounts', {
+            headers: { Authorization: varToken },
+            params: {
+                page: currentPage - 1,
+                size: 10,
+                search: debouncedSearchTerm,
+                statusId: selectedStatus || null,
+                typeId: selectedType || null
+            }
+        })
+            .then((response) => {
+                setDiscounts(response.data.content);
+                setTotalPages(response.data.totalPages);
+            })
+            .catch((error) => console.error("Error fetching discounts:", error))
+            .finally(() => setLoading(false));
+    };
 
-  const handleNextPage = () => {
-    if (currentPage < totalPages - 1) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
+    const openDeleteModal = (discount) => {
+        setDiscountToDelete(discount);
+        setIsOpen(true);
+    };
 
-  const handlePreviousPage = () => {
-    if (currentPage > 0) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
+    const handleClose = () => setIsOpen(false);
 
-  const openDeleteModal = (discount) => {
-    setDiscountToDelete(discount);
-    setIsOpen(true);
-  };
+    const handleDelete = () => {
+        apiClient.delete(`/api/discounts/${discountToDelete.discountId}`, { headers: { Authorization: varToken } })
+            .then(() => {
+                fetchDiscounts();
+                handleClose();
+                toast.success("Discount deleted successfully", { position: "bottom-right", transition: Zoom });
+            })
+            .catch(() => toast.error("Failed to delete discount", { position: "bottom-right", transition: Zoom }));
+    };
 
-  const handleClose = () => {
-    setIsOpen(false);
-  };
+    const getStatusChipColor = (statusName) => {
+        switch (statusName?.toUpperCase()) {
+            case "ACTIVE": return "success";
+            case "EXPIRED": return "error";
+            case "INACTIVE": return "default";
+            case "USED": return "secondary";
+            default: return "primary";
+        }
+    };
 
-  const handleDelete = () => {
-    apiClient
-      .delete(`/api/discounts/${discountToDelete.discountId}`, {
-        headers: {
-          Authorization: varToken,
-        },
-      })
-      .then(() => {
-        fetchDiscounts(currentPage, pageSize);
-        handleClose();
-        toast.success("Delete discount successfully", {
-          position: "bottom-right",
-          transition: Zoom,
-        });
-      })
-      .catch(() => {
-        toast.error("Delete discount failed", {
-          position: "bottom-right",
-          transition: Zoom,
-        });
-      });
-  };
+    const TableSkeleton = () => (
+        [...Array(10)].map((_, index) => (
+            <TableRow key={index}>
+                {[...Array(7)].map((_, cellIndex) => <TableCell key={cellIndex}><Skeleton /></TableCell>)}
+            </TableRow>
+        ))
+    );
 
-  function getStatusColor(discountStatus) {
-    switch (discountStatus) {
-      case 1:
-        return "text-gray-500";
-      case 2:
-        return "text-green-500";
-      case 3:
-        return "text-red-500";
-      case 4:
-        return "text-purple-500";
-      default:
-        return "";
-    }
-  }
+    return (
+        <div className="p-4">
+            <div className="flex items-center justify-between mb-4">
+                <Typography variant="h4" component="h1" className="font-bold">Discount Management</Typography>
+                <Link to="/Dashboard/Discounts/Create">
+                    <Button variant="contained" startIcon={<Add />}>Create Discount</Button>
+                </Link>
+            </div>
 
-  function getDiscountTypeName(discountTypeId) { // Function to get discount type name from ID
-    switch (discountTypeId) {
-      case 1:
-        return "Percentage";
-      case 2:
-        return "Fixed Amount";
-      default:
-        return "Unknown Type";
-    }
-  }
+            <Paper elevation={2} className="p-4 mb-6 flex flex-col md:flex-row gap-4 items-center">
+                <TextField label="Search by Code or Description..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} variant="outlined" size="small" className="flex-grow" />
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel>Status</InputLabel>
+                    <Select value={selectedStatus} label="Status" onChange={(e) => setSelectedStatus(e.target.value)}>
+                        <MenuItem value=""><em>All Statuses</em></MenuItem>
+                        {statuses.map((s) => <MenuItem key={s.id} value={s.id}>{s.discountStatusName}</MenuItem>)}
+                    </Select>
+                </FormControl>
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel>Type</InputLabel>
+                    <Select value={selectedType} label="Type" onChange={(e) => setSelectedType(e.target.value)}>
+                        <MenuItem value=""><em>All Types</em></MenuItem>
+                        {types.map((t) => <MenuItem key={t.id} value={t.id}>{t.discountTypeName}</MenuItem>)}
+                    </Select>
+                </FormControl>
+            </Paper>
 
-  function getDiscountStatusName(discountStatusId) { // Function to get discount status name from ID
-    switch (discountStatusId) {
-      case 1:
-        return "Inactive";
-      case 2:
-        return "Active";
-      case 3:
-        return "Expired";
-      case 4:
-        return "Used";
-      default:
-        return "Unknown Status";
-    }
-  }
+            <TableContainer component={Paper} elevation={3}>
+                <Table sx={{ minWidth: 650 }}>
+                    <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+                        <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Code</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Type</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Rank Req.</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Value</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Usage</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', textAlign: 'right' }}>Actions</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {loading ? <TableSkeleton /> : discounts.map((d) => (
+                            <TableRow key={d.discountId} hover>
+                                <TableCell sx={{ fontWeight: 'medium' }}>{d.discountCode}</TableCell>
+                                <TableCell>{d.discountType?.discountTypeName}</TableCell>
+                                <TableCell>{d.rank?.rankName || 'Any'}</TableCell>
+                                <TableCell>{d.discountType?.id === 1 ? `${d.discountValue}%` : formatPrice(d.discountValue)}</TableCell>
+                                <TableCell>
+                                    <Chip label={d.discountStatus?.discountStatusName} color={getStatusChipColor(d.discountStatus?.discountStatusName)} size="small" />
+                                </TableCell>
+                                <TableCell>{`${d.usageCount} / ${d.usageLimit}`}</TableCell>
+                                <TableCell align="right">
+                                    <Tooltip title="View Details"><Link to={`/Dashboard/Discounts/${d.discountId}`}><IconButton color="default"><Visibility /></IconButton></Link></Tooltip>
+                                    <Tooltip title="Edit Discount"><Link to={`/Dashboard/Discounts/Edit/${d.discountId}`}><IconButton color="secondary"><Edit /></IconButton></Link></Tooltip>
+                                    <Tooltip title="Assign to Users"><Link to={`/Dashboard/Discounts/${d.discountId}/AddAccount`}><IconButton color="primary"><PersonAdd /></IconButton></Link></Tooltip>
+                                    <Tooltip title="Delete"><IconButton color="error" onClick={() => openDeleteModal(d)}><Delete /></IconButton></Tooltip>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </TableContainer>
 
-  function getDiscountRankName(rank) { // Function to get discount status name from ID
-    switch (rank) {
-      case 1:
-        return "Unranked";
-      case 2:
-        return "Bronze";
-      case 3:
-        return "Silver";
-      case 4:
-        return "Gold";
-      case 5:
-        return "Diamond";
-      default:
-        return "Unknown Status";
-    }
-  }
-
-  const renderPageNumbers = () => {
-    const pages = [];
-    for (let i = 0; i < totalPages; i++) {
-      pages.push(
-        <button
-          key={i}
-          onClick={() => handlePageChange(i)}
-          className={`px-4 py-2 mx-1 border border-gray-300 rounded-lg ${
-            currentPage === i ? "bg-blue-500 text-white" : ""
-          }`}
-        >
-          {i + 1}
-        </button>
-      );
-    }
-    return pages;
-  };
-
-  return (
-    <>
-      <div className="flex items-center justify-between">
-        <h1 className="text-4xl font-bold mb-6">Discounts</h1>
-        <Link to="/Dashboard/Discounts/Create">
-          <button className="text-blue-600 border border-blue-500 px-4 py-2 rounded-lg flex items-center">
-            <FaPlus className="mr-2" /> Create Discount
-          </button>
-        </Link>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="table-auto w-full border-collapse">
-          <thead className="border border-gray-300">
-          <tr>
-            <th className="px-4 py-2 text-left">ID</th>
-            <th className="px-4 py-2 text-left">Code</th>
-            <th className="px-4 py-2 text-left">Type</th>
-            <th className="px-4 py-2 text-left">Rank</th>
-            <th className="px-4 py-2 text-left">Value</th>
-            <th className="px-4 py-2 text-left">Status</th>
-            <th className="px-4 py-2 text-left">Usage Limit</th>
-            <th className="px-4 py-2 text-left">Usage Count</th>
-            <th className="px-4 py-2 text-left">Actions</th>
-          </tr>
-          </thead>
-          <tbody>
-          {discounts.length > 0 ? (
-              discounts.map((discount) => (
-                  <tr key={discount.discountId} className="hover:bg-gray-50">
-                    <td className="px-4 py-2">{discount.discountId}</td>
-                    <td className="px-4 py-2">{discount.discountCode}</td>
-                    <td className="px-4 py-2">{getDiscountTypeName(discount.discountType?.id)}</td>
-                    <td className="px-4 py-2">{getDiscountRankName(discount.discountRank?.id)}</td> {/* Display discountRank, N/A if null */}
-                    <td className="px-4 py-2">
-                      {" "}
-                      {discount.discountType?.id === 1
-                          ? discount.discountValue + "%"
-                          : formatPrice(discount.discountValue)}
-                    </td>
-                    <td
-                        className={`px-4 py-2 font-bold ${getStatusColor(
-                            discount.discountStatus
-                        )}`}
-                    >
-                      {getDiscountStatusName(discount.discountStatus?.id)}
-                    </td>
-                    <td className="px-4 py-2">{discount.usageLimit}</td>
-                    <td className="px-4 py-2">{discount.usageCount}</td>
-
-                    <td className="px-4 py-2 flex space-x-2 items-center">
-                      <Link to={`/Dashboard/Discounts/${discount.discountId}`}>
-                        <FaEye className="text-green-500 cursor-pointer"/>
-                      </Link>
-                      <Link
-                          to={`/Dashboard/Discounts/Edit/${discount.discountId}`}
-                      >
-                        <FaEdit className="text-blue-500 cursor-pointer"/>
-                      </Link>
-                      {/* Add User to Discount Button */}
-                      <Link
-                          to={`/Dashboard/Discounts/${discount.discountId}/AddAccount`}
-                      >
-                        <FaUserPlus
-                            className="text-blue-500 cursor-pointer"
-                            title="Add User to Discount"
-                        />
-                      </Link>                    
-                          <button
-                              className="text-red-500 cursor-pointer"
-                              onClick={() => openDeleteModal(discount)}
-                          >
-                            <FaTrash/>
-                          </button>
-                    </td>
-                  </tr>
-              ))
-          ) : (
-              <p className="text-red-500">No discounts found.</p>
+            {totalPages > 1 && (
+                <EnhancedPagination currentPage={currentPage} totalPages={totalPages} onPageChange={(page) => setCurrentPage(page)} isLoading={loading} />
             )}
-          </tbody>
-        </table>
-      </div>
 
-      <div className="flex justify-center mt-4">
-        <button
-          onClick={handlePreviousPage}
-          disabled={currentPage === 0}
-          className="px-4 py-2 mx-1 border border-gray-300 rounded-lg disabled:opacity-50"
-        >
-          Previous
-        </button>
-        <div>{renderPageNumbers()}</div>
-        <button
-          onClick={handleNextPage}
-          disabled={currentPage === totalPages - 1}
-          className="px-4 py-2 mx-1 border border-gray-300 rounded-lg disabled:opacity-50"
-        >
-          Next
-        </button>
-      </div>
-
-      <DeleteConfirmationModal
-        isOpen={isOpen}
-        onClose={handleClose}
-        onConfirm={handleDelete}
-        name={discountToDelete?.discountCode || ""}
-      />
-    </>
-  );
+            <DeleteConfirmationModal isOpen={isOpen} onClose={handleClose} onConfirm={handleDelete} name={discountToDelete?.discountCode || ""} />
+        </div>
+    );
 };
 
 export default DashboardDiscounts;

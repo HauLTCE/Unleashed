@@ -16,7 +16,6 @@ public class DiscountType {
     private Integer id;
 
     @Nationalized
-    @Lob
     @Column(name = "discount_type_name")
     private String discountTypeName;
 

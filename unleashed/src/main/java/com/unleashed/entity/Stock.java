@@ -19,12 +19,10 @@ public class Stock {
     private Integer id;
 
     @Nationalized
-    @Lob
     @Column(name = "stock_name")
     private String stockName;
 
     @Nationalized
-    @Lob
     @Column(name = "stock_address")
     private String stockAddress;
 }

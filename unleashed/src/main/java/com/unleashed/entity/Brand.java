@@ -27,7 +27,6 @@ public class Brand {
     private String brandName;
 
     @Nationalized
-    @Lob
     @Column(name = "brand_description")
     private String brandDescription;
 

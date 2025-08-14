@@ -1,6 +1,8 @@
 package com.unleashed.rest;
 
 import com.unleashed.dto.DiscountDTO;
+import com.unleashed.entity.DiscountStatus;
+import com.unleashed.entity.DiscountType;
 import com.unleashed.service.DiscountService;
 import com.unleashed.service.UserService;
 import com.unleashed.util.JwtUtil;
@@ -8,6 +10,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.rest.webmvc.ResourceNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -77,13 +82,32 @@ public class DiscountRestController {
                 });
     }
 
-    @PreAuthorize("permitAll()")
+    @PreAuthorize("hasAnyAuthority('ADMIN','STAFF')")
     @GetMapping
     public ResponseEntity<Page<DiscountDTO>> getAllDiscounts(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Integer statusId,
+            @RequestParam(required = false) Integer typeId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        Page<DiscountDTO> discounts = discountService.getAllDiscounts(page, size);
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "discountId"));
+        Page<DiscountDTO> discounts = discountService.getAllDiscounts(search, statusId, typeId, pageable);
         return ResponseEntity.ok(discounts);
+    }
+
+    @PreAuthorize("hasAnyAuthority('ADMIN','STAFF')")
+    @GetMapping("/discount-statuses")
+    public ResponseEntity<List<DiscountStatus>> getAllDiscountStatuses() {
+        List<DiscountStatus> statuses = discountService.findAllStatuses();
+        return ResponseEntity.ok(statuses);
+    }
+
+    @PreAuthorize("hasAnyAuthority('ADMIN','STAFF')")
+    @GetMapping("/discount-types")
+    public ResponseEntity<List<DiscountType>> getAllDiscountTypes() {
+        List<DiscountType> types = discountService.findAllTypes();
+        return ResponseEntity.ok(types);
     }
 
     @PreAuthorize("permitAll()")

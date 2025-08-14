@@ -1,10 +1,15 @@
 package com.unleashed.rest;
 
+import com.unleashed.dto.ProductSaleDTO;
 import com.unleashed.entity.Product;
 import com.unleashed.entity.Sale;
 import com.unleashed.repo.SaleRepository;
 import com.unleashed.service.SaleService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -25,9 +30,16 @@ public class SaleRestController {
 
     @PreAuthorize("hasAnyAuthority('STAFF', 'ADMIN')")
     @GetMapping
-    public ResponseEntity<?> getAllSales() {
+    public ResponseEntity<?> getAllSales(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false, defaultValue = "all") String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
         try {
-            return ResponseEntity.ok(saleService.findAll());
+            Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+            Page<Sale> salesPage = saleService.getSales(search, status, pageable);
+            return ResponseEntity.ok(salesPage);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -73,6 +85,39 @@ public class SaleRestController {
         }
     }
 
+    @PreAuthorize("hasAnyAuthority('STAFF', 'ADMIN')")
+    @GetMapping("/{saleId}/products")
+    public ResponseEntity<Page<ProductSaleDTO>> getProductsInSale(
+                                                                   @PathVariable int saleId,
+                                                                   @RequestParam(required = false) String search,
+                                                                   @RequestParam(defaultValue = "0") int page,
+                                                                   @RequestParam(defaultValue = "10") int size) {
+        try {
+            Pageable pageable = PageRequest.of(page, size, Sort.by("productName").ascending());
+            Page<ProductSaleDTO> products = saleService.getProductsInSale(saleId, search, pageable);
+            return ResponseEntity.ok(products);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
+    @GetMapping("/{saleId}/products/available")
+    public ResponseEntity<Page<ProductSaleDTO>> getProductsNotInSale(
+                                                                      @PathVariable int saleId,
+                                                                      @RequestParam(required = false) String search,
+                                                                      @RequestParam(defaultValue = "0") int page,
+                                                                      @RequestParam(defaultValue = "10") int size) {
+        try {
+            Pageable pageable = PageRequest.of(page, size, Sort.by("productName").ascending());
+            Page<ProductSaleDTO> products = saleService.getProductsNotInSale(saleId, search, pageable);
+            return ResponseEntity.ok(products);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+
     @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
     @PostMapping("/{saleId}/products")
     public ResponseEntity<?> addProductsToSale(@PathVariable int saleId, @RequestBody Map<String, List<String>> requestBody) {
@@ -99,15 +144,15 @@ public class SaleRestController {
         }
     }
 
-    @PreAuthorize("hasAnyAuthority('STAFF', 'ADMIN')")
-    @GetMapping("/{saleId}/products")
-    public ResponseEntity<?> getProductsInSale(@PathVariable int saleId) {
-        try {
-            return saleService.getProductsInSale(saleId);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
-    }
+//    @PreAuthorize("hasAnyAuthority('STAFF', 'ADMIN')")
+//    @GetMapping("/{saleId}/products")
+//    public ResponseEntity<?> getProductsInSale(@PathVariable int saleId) {
+//        try {
+//            return saleService.getProductsInSale(saleId);
+//        } catch (Exception e) {
+//            return ResponseEntity.badRequest().body(e.getMessage());
+//        }
+//    }
 
     @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
     @GetMapping("/products")

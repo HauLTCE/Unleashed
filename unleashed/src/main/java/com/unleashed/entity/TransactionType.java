@@ -18,7 +18,6 @@ public class TransactionType {
     private Integer id;
 
     @Nationalized
-    @Lob
     @Column(name = "transaction_type_name")
     @JsonView(Views.TransactionView.class)
     private String transactionTypeName;

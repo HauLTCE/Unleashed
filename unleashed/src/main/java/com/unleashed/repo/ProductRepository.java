@@ -5,6 +5,7 @@ import com.unleashed.entity.Product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,7 +19,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Repository
-public interface ProductRepository extends JpaRepository<Product, UUID> {
+public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpecificationExecutor<Product> {
 
 
     @Query("SELECT p.productName FROM Product p left join Variation v on p.productId = v.product.productId WHERE v.id = :variationId")
@@ -165,6 +166,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     }
 
 
+    @Query("SELECT SUM(sv.stockQuantity) FROM StockVariation sv WHERE sv.variation.product.productId = :productId")
+    Integer findTotalStockForProduct(@Param("productId") UUID productId);
 
 
 }

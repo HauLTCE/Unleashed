@@ -20,7 +20,6 @@ public class PaymentMethod {
     private Integer id;
 
     @Nationalized
-    @Lob
     @Column(name = "payment_method_name")
     private String paymentMethodName;
 

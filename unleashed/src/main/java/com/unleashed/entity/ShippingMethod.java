@@ -19,7 +19,6 @@ public class ShippingMethod {
     private Integer id;
 
     @Nationalized
-    @Lob
     @Column(name = "shipping_method_name")
     private String shippingMethodName;
 

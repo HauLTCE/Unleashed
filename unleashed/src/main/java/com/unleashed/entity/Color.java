@@ -22,13 +22,11 @@ public class Color {
     private Integer id;
 
     @Nationalized
-    @Lob
     @Column(name = "color_name")
     @JsonView({Views.TransactionView.class, Views.ProductView.class})
     private String colorName;
 
     @Nationalized
-    @Lob
     @Column(name = "color_hex_code")
     @JsonView({Views.TransactionView.class, Views.ProductView.class})
     private String colorHexCode;

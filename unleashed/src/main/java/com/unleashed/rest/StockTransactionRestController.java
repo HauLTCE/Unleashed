@@ -9,6 +9,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/stock-transactions")
@@ -20,11 +21,17 @@ public class StockTransactionRestController {
         this.stockTransactionService = stockTransactionService;
     }
 
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
     @GetMapping
-    public ResponseEntity<List<TransactionCardDTO>> getStockTransactions() {
+    @PreAuthorize("hasAnyAuthority('ADMIN','STAFF')")
+    public ResponseEntity<Map<String, Object>> getStockTransactions(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false, defaultValue = "all") String dateFilter,
+            @RequestParam(required = false, defaultValue = "newest_first") String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size) {
 
-        return ResponseEntity.ok(stockTransactionService.findAllTransactionCards());
+        Map<String, Object> response = stockTransactionService.getTransactions(search, dateFilter, sort, page, size);
+        return ResponseEntity.ok(response);
     }
 
     @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
