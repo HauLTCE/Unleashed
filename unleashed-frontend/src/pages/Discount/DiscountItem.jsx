@@ -10,7 +10,8 @@ const DiscountCard = ({ discount, discountCode, timesUsed, expiry, discountType,
         navigator.clipboard.writeText(discountCode); // Sử dụng brand để copy discountCode
         toast.success("Discount code copied!", {
             position: "bottom-center",
-            transition: Zoom
+            transition: Zoom,
+            autoClose: 2000
         })
     };
 

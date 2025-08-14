@@ -1,6 +1,7 @@
 package com.unleashed.service;
 
 import com.unleashed.dto.CartDTO;
+import com.unleashed.dto.VariationDTO;
 import com.unleashed.entity.Cart;
 import com.unleashed.entity.User;
 import com.unleashed.entity.Variation;
@@ -8,10 +9,13 @@ import com.unleashed.entity.composite.CartId;
 import com.unleashed.repo.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class CartService {
@@ -30,31 +34,50 @@ public class CartService {
         this.userRepository = userRepository;
     }
 
+    @Transactional(readOnly = true)
     public LinkedMultiValueMap<String, CartDTO> getCartByUserId(String userid) {
         UUID userUuid = UUID.fromString(userid);
         List<Cart> userCart = cartRepository.findAllById_UserId(userUuid);
 
-        List<CartDTO> cart = userCart.stream().map(uc ->
-                        CartDTO.builder()
-                                .variation(uc.getVariation())
-                                .quantity(uc.getCartQuantity())
-                                .build())
-                .toList();
+        // Map Cart entity to CartDTO
+        List<CartDTO> cartDtos = userCart.stream().map(cartItem -> {
+            Variation variationEntity = cartItem.getVariation();
+            if (variationEntity == null) {
+                return null;
+            }
 
-        cart.forEach(c -> {
+            VariationDTO variationDto = VariationDTO.builder()
+                    .id(variationEntity.getId())
+                    .variationPrice(variationEntity.getVariationPrice())
+                    .variationImage(variationEntity.getVariationImage())
+                    .colorName(variationEntity.getColor() != null ? variationEntity.getColor().getColorName() : null)
+                    .sizeName(variationEntity.getSize() != null ? variationEntity.getSize().getSizeName() : null)
+                    .build();
+
+            return CartDTO.builder()
+                    .variation(variationDto)
+                    .quantity(cartItem.getCartQuantity())
+                    .build();
+        }).filter(Objects::nonNull).toList();
+
+        cartDtos.forEach(c -> {
             if (c.getVariation() != null) {
                 c.setStockQuantity(stockVariationRepository.findStockProductByProductVariationId(c.getVariation().getId()));
-                if (c.getVariation().getProduct() != null) {
-                    // This now correctly passes a UUID to the repository method
-                    c.setSale(saleRepository.findSaleByProductId(UUID.fromString(c.getVariation().getProduct().getProductId().toString())).orElse(null));
+
+                Variation originalVariation = variationRepository.findById(c.getVariation().getId()).orElse(null);
+                if (originalVariation != null && originalVariation.getProduct() != null) {
+                    c.setSale(saleRepository.findSaleByProductId(originalVariation.getProduct().getProductId()).orElse(null));
                 }
             }
         });
 
         LinkedMultiValueMap<String, CartDTO> productList = new LinkedMultiValueMap<>();
-        cart.forEach(v -> {
-            if (v.getVariation() != null && v.getVariation().getProduct() != null) {
-                productList.add(v.getVariation().getProduct().getProductName(), v);
+        cartDtos.forEach(dto -> {
+            if (dto.getVariation() != null) {
+                Variation originalVariation = variationRepository.findById(dto.getVariation().getId()).orElse(null);
+                if (originalVariation != null && originalVariation.getProduct() != null) {
+                    productList.add(originalVariation.getProduct().getProductName(), dto);
+                }
             }
         });
 

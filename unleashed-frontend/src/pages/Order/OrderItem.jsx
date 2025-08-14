@@ -77,15 +77,15 @@ function OrderItemCard({ Order, loading }) {
 		}
 	}
 
-	const handleReturnOrder = async () => {
-		try {
-			await returnOrder(Order.orderId, authHeader)
-			setOrderStatus('RETURNING')
-		} catch (error) {
-			console.error('Error returning order:', error)
-			alert('Failed to request return. Please try again.')
-		}
-	}
+	// const handleReturnOrder = async () => {
+	// 	try {
+	// 		await returnOrder(Order.orderId, authHeader)
+	// 		setOrderStatus('RETURNING')
+	// 	} catch (error) {
+	// 		console.error('Error returning order:', error)
+	// 		alert('Failed to request return. Please try again.')
+	// 	}
+	// }
 
 	if (loading) {
 		return (
@@ -139,21 +139,21 @@ function OrderItemCard({ Order, loading }) {
 					Total: {formatPrice(Order.totalAmount)}
 				</Typography>
 				<div className='space-x-3 flex items-center'>
-					{/* Cancel Button (PENDING or PROCESSING) */}
-					{(orderStatus === 'PENDING' || orderStatus === 'PROCESSING') && (
-						<Button
-							variant='contained'
-							color='error'
-							onClick={handleCancelOrder}
-							sx={{
-								textTransform: 'none',
-								fontFamily: 'Montserrat',
-								borderRadius: '30px',
-							}}
-						>
-							Cancel Order
-						</Button>
-					)}
+					{/*/!* Cancel Button (PENDING or PROCESSING) *!/*/}
+					{/*{(orderStatus === 'PENDING' || orderStatus === 'PROCESSING') && (*/}
+					{/*	<Button*/}
+					{/*		variant='contained'*/}
+					{/*		color='error'*/}
+					{/*		onClick={handleCancelOrder}*/}
+					{/*		sx={{*/}
+					{/*			textTransform: 'none',*/}
+					{/*			fontFamily: 'Montserrat',*/}
+					{/*			borderRadius: '30px',*/}
+					{/*		}}*/}
+					{/*	>*/}
+					{/*		Cancel Order*/}
+					{/*	</Button>*/}
+					{/*)}*/}
 
 					{/* Confirm Delivery Button (SHIPPING) */}
 					{orderStatus === 'SHIPPING' && (
@@ -172,20 +172,20 @@ function OrderItemCard({ Order, loading }) {
 					)}
 
 					{/* Return Button (SHIPPING or COMPLETED) */}
-					{(orderStatus === 'SHIPPING' || orderStatus === 'COMPLETED') && (
-						<Button
-							variant='contained'
-							color='warning'
-							onClick={handleReturnOrder}
-							sx={{
-								textTransform: 'none',
-								fontFamily: 'Montserrat',
-								borderRadius: '30px',
-							}}
-						>
-							Return Order
-						</Button>
-					)}
+					{/*{(orderStatus === 'SHIPPING' || orderStatus === 'COMPLETED') && (*/}
+					{/*	<Button*/}
+					{/*		variant='contained'*/}
+					{/*		color='warning'*/}
+					{/*		onClick={handleReturnOrder}*/}
+					{/*		sx={{*/}
+					{/*			textTransform: 'none',*/}
+					{/*			fontFamily: 'Montserrat',*/}
+					{/*			borderRadius: '30px',*/}
+					{/*		}}*/}
+					{/*	>*/}
+					{/*		Return Order*/}
+					{/*	</Button>*/}
+					{/*)}*/}
 
 					<Link to={`/user/orders/me/${Order.orderId}`}>
 						<Button

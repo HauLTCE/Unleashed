@@ -10,6 +10,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -191,7 +195,7 @@ public class ProductService {
         product.setBrand(brandRepository.findById(productDTO.getBrandId()).orElse(null));
         product = productRepository.save(product);
         for (Integer categoryId : productDTO.getCategoryIdList()) {
-            productRepository.addProductCategory(UUID.fromString(product.getProductId().toString()), categoryId);
+            productRepository.addProductCategory(product.getProductId(), categoryId);
         }
 //        System.out.println(productRepository);
         List<Variation> variations = new ArrayList<>();
@@ -402,5 +406,49 @@ public class ProductService {
                         .build())
                 .collect(Collectors.toList());
     }
+
+    public Page<ProductListDTO> findProductsWithFilters(String query, String category, String brand, float rating, String priceOrder, Pageable pageable) {
+        Sort sort = Sort.unsorted();
+        // The property "v.variationPrice" must match an alias or field in the JPQL query
+        if ("asc".equalsIgnoreCase(priceOrder)) {
+            sort = Sort.by("v.variationPrice").ascending();
+        } else if ("desc".equalsIgnoreCase(priceOrder)) {
+            sort = Sort.by("v.variationPrice").descending();
+        }
+
+        Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
+
+        Page<Object[]> productPageResult = productRepository.findProductsWithFilters(query, category, brand, rating, sortedPageable);
+
+        // Map the raw Page<Object[]> to Page<ProductListDTO>
+        return productPageResult.map(result -> {
+            Product product = (Product) result[0];
+            Variation firstVariation = (Variation) result[1];
+            Double averageRating = (Double) result[2];
+            Long totalRatings = (Long) result[3];
+
+            ProductListDTO dto = new ProductListDTO();
+            dto.setProductId(product.getProductId().toString());
+            dto.setProductName(product.getProductName());
+            dto.setBrandName(product.getBrand().getBrandName());
+            dto.setCategoryList(new ArrayList<>(product.getCategories()));
+
+            if (firstVariation != null) {
+                dto.setProductPrice(firstVariation.getVariationPrice());
+                dto.setProductVariationImage(firstVariation.getVariationImage());
+            }
+
+            dto.setAverageRating(averageRating != null ? averageRating : 0.0);
+            dto.setTotalRatings(totalRatings != null ? totalRatings : 0L);
+
+            Integer totalQuantity = stockVariationRepository.getTotalStockQuantityForProduct(product.getProductId());
+            dto.setQuantity(totalQuantity != null ? totalQuantity : 0);
+
+            return dto;
+        });
+    }
+
+
+
 
 }

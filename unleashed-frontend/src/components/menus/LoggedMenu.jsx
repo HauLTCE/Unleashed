@@ -105,12 +105,12 @@ const LoggedMenu = () => {
 					<ListItemText primary='Discounts' />
 				</MenuItem>
 
-				<MenuItem component={Link} to='/user/membership' onClick={handleMenuClose}>
-					<ListItemIcon sx={{ fontSize: '1.75rem', minWidth: '40px' }}>
-						<CardMembership className='text-3xl' />
-					</ListItemIcon>
-					<ListItemText primary='Membership' />
-				</MenuItem>
+				{/*<MenuItem component={Link} to='/user/membership' onClick={handleMenuClose}>*/}
+				{/*	<ListItemIcon sx={{ fontSize: '1.75rem', minWidth: '40px' }}>*/}
+				{/*		<CardMembership className='text-3xl' />*/}
+				{/*	</ListItemIcon>*/}
+				{/*	<ListItemText primary='Membership' />*/}
+				{/*</MenuItem>*/}
 
 				<MenuItem component={Link} to='/user/histoty-review' onClick={handleMenuClose}>
 					<ListItemIcon sx={{ fontSize: '1.75rem', minWidth: '40px' }}>
@@ -123,7 +123,7 @@ const LoggedMenu = () => {
 					<ListItemIcon sx={{ fontSize: '1.75rem', minWidth: '40px' }}>
 						<FavoriteBorder className='text-3xl' />
 					</ListItemIcon>
-					<ListItemText primary='Wish List' />
+					<ListItemText primary='Wishlist' />
 				</MenuItem>
 
 				<MenuItem component={Link} to='/logout' onClick={handleMenuClose}>

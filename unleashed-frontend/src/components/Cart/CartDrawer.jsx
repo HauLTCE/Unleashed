@@ -1,306 +1,219 @@
-import React, { useEffect, useRef, useState } from "react";
-import { useCart } from "react-use-cart"; // Import from react-use-cart
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { useCart } from "react-use-cart";
 import {
-  Drawer,
-  List,
-  ListItem,
-  Button,
-  Typography,
-  Box,
-  Divider,
-  IconButton,
+    Drawer,
+    List,
+    ListItem,
+    Button,
+    Typography,
+    Box,
+    Divider,
+    IconButton,
+    CircularProgress,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-
 import { Drawerbtn } from "../buttons/Button";
 import { formatPrice } from "../format/formats";
 import { MdAdd, MdCancel, MdRemove } from "react-icons/md";
 import { addToCart, fetchUserCart, removeAllFromCart, removeFromCart } from "../../service/UserService";
 import useAuthHeader from "react-auth-kit/hooks/useAuthHeader";
+import { toast } from "react-toastify";
 
 const CartDrawer = ({ isCartOpen, toggleCartDrawer }) => {
-  const [isLoading, setIsLoading] = useState(true); // If using react
-  const drawerRef = useRef(null);
-  const isCartFetched = useRef(false);
-  const [total, setTotal] = useState(0);
-  const {
-    isEmpty,
-    items,
-    removeItem,
-    emptyCart,
-    cartTotal,
-    updateItemQuantity,
-    addItem,
-    updateItem,
-    getItem,
-    inCart
-  } = useCart();
+    const [isLoading, setIsLoading] = useState(false);
+    const drawerRef = useRef(null);
+    const isCartFetched = useRef(false);
 
-  const authHeader = useAuthHeader();
-  const navigate = useNavigate();
+    const {
+        isEmpty,
+        items,
+        removeItem,
+        emptyCart,
+        cartTotal,
+        updateItemQuantity,
+        setItems,
+    } = useCart();
 
-  const handleClickOutside = (event) => {
-    if (drawerRef.current && !drawerRef.current.contains(event.target)) {
-      toggleCartDrawer(false)();
-    }
-  };
-  const handleRemovefromCart = async (item) => {
-    await removeFromCart(authHeader, item.id)
-    removeItem(item.id)
-  }
-  const handleClearAll = async () => {
-    await removeAllFromCart(authHeader)
-    emptyCart();
-  };
+    const authHeader = useAuthHeader();
+    const navigate = useNavigate();
 
-  const handleIncrease = async (item) => {
-    if (item.quantity < item.maxQuantity) {
-      await addToCart(authHeader, item.id, + 1)
-      updateItemQuantity(item.id, item.quantity + 1);
-    }
-  };
-
-  const handleDecrease = async (item) => {
-    if (item.quantity > 1) {
-      await addToCart(authHeader, item.id, - 1)
-      updateItemQuantity(item.id, item.quantity - 1);
-    }
-  };
-  const fetchCart = async () => {
-    if (isCartFetched.current) {
-      return; // Prevent multiple calls
-    }
-    isCartFetched.current = true;
-    setIsLoading(true);
-    try {
-      const response = await fetchUserCart(authHeader);
-      if (response && response.data && Object.keys(response.data).length > 0) {
-        const processedIds = new Set(); // Track processed IDs
-        for (const [productName, datas] of Object.entries(response.data)) {
-          const promises = datas.map(async (data) => {
-            const cartItem = {
-              id: data.variation.id,
-              name: productName,
-              color: data.variation.color.colorName,
-              size: data.variation.size.sizeName,
-              image: data.variation.variationImage,
-              price: data.variation.variationPrice,
-              maxQuantity: data.stockQuantity,
-              saledPrice: data.sale ? data.sale.saleType.id === 1 ? data.variation.variationPrice - Math.round(data.variation.variationPrice * (data.sale.saleValue / 100))
-                : data.variation.variationPrice - data.sale.saleValue
-                : data.variation.variationPrice
-            }
-
-            if (!processedIds.has(cartItem.id)) { // Check if ID is processed
-              processedIds.add(cartItem.id); // Mark ID as processed
-              if (getItem(cartItem.id) === undefined) {
-                addItem(cartItem, data.quantity);
-              } else {
-                updateItemQuantity(cartItem.id, data.quantity);
-              }
-            }
-          });
-          await Promise.all(promises);
+    // THIS IS THE PRIMARY FIX:
+    // The dependency array for useCallback has been corrected. We only need `authHeader`.
+    // The setter functions (setItems, emptyCart) are stable enough to be excluded,
+    // which prevents the infinite loop.
+    const fetchCart = useCallback(async () => {
+        if (!authHeader || isCartFetched.current) {
+            return;
         }
-      } else {
-        emptyCart();
-      }
-    } catch (error) {
-      console.error("Error fetching cart:", error);
-      emptyCart();
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  useEffect(() => {
-    fetchCart()
-  }, [])
+        isCartFetched.current = true;
+        setIsLoading(true);
 
-  useEffect(() => {
-    let total = 0
-    items.map(item => total += item.saledPrice * item.quantity)
-    setTotal(total)
-  }, [items])
-  useEffect(() => {
-    if (isCartOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+        try {
+            const response = await fetchUserCart(authHeader);
+            const cartData = response?.data;
+
+            if (cartData && Object.keys(cartData).length > 0) {
+                const newCartItems = [];
+                for (const [productName, variations] of Object.entries(cartData)) {
+                    for (const data of variations) {
+                        const variation = data.variation;
+                        if (!variation) continue;
+
+                        let finalPrice = variation.variationPrice;
+                        if (data.sale && data.sale.saleValue != null) {
+                            if (data.sale.saleType?.saleTypeName === 'PERCENTAGE') {
+                                finalPrice = variation.variationPrice - (variation.variationPrice * data.sale.saleValue / 100);
+                            } else if (data.sale.saleType?.saleTypeName === 'FIXED AMOUNT') {
+                                finalPrice = variation.variationPrice - data.sale.saleValue;
+                            }
+                        }
+
+                        newCartItems.push({
+                            id: variation.id,
+                            name: productName,
+                            color: variation.colorName,
+                            size: variation.sizeName,
+                            image: variation.variationImage,
+                            price: finalPrice,
+                            maxQuantity: data.stockQuantity,
+                            quantity: data.quantity,
+                        });
+                    }
+                }
+                setItems(newCartItems);
+            } else {
+                emptyCart();
+            }
+        } catch (error) {
+            console.error("Error fetching cart:", error);
+            emptyCart();
+        } finally {
+            setIsLoading(false);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [authHeader]); // The dependency array is now stable.
+
+    // This useEffect now works correctly because `fetchCart` is stable.
+    useEffect(() => {
+        if (isCartOpen) {
+            fetchCart();
+        } else {
+            isCartFetched.current = false;
+        }
+    }, [isCartOpen, fetchCart]);
+
+
+    const handleClickOutside = (event) => {
+        if (drawerRef.current && !drawerRef.current.contains(event.target)) {
+            toggleCartDrawer(false)();
+        }
     };
-  });
 
-  const handleClickCheckout = () => {
-    toggleCartDrawer(false)();
-    navigate("/checkout");
-  };
+    useEffect(() => {
+        if (isCartOpen) {
+            document.addEventListener("mousedown", handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [isCartOpen, toggleCartDrawer]);
 
-  return (
-    isLoading ?
-      <div>Loading cart...</div>
-      :
-      <Drawer
-        anchor="right"
-        open={isCartOpen}
-        role="presentation"
-        onClose={() => toggleCartDrawer(false)}
-        PaperProps={{
-          sx: { width: "25%", padding: "15px" },
-        }}
-      >
-        <div ref={drawerRef} className="p-10">
-          <Typography
-            variant="h5"
-            className="font-bold"
-            gutterBottom
-            fontFamily="Poppins"
-          >
-            Shopping Cart
-          </Typography>
+    const handleUpdateQuantity = async (item, amount) => {
+        const newQuantity = item.quantity + amount;
+        if (newQuantity < 1 || newQuantity > item.maxQuantity) return;
+        await addToCart(authHeader, item.id, amount);
+        updateItemQuantity(item.id, newQuantity);
+    };
 
-          {isEmpty ? (
-            <Typography variant="body1" fontFamily="Poppins">
-              Your cart is empty.
-            </Typography>
-          ) : (
-            <List>
-              {items.map((item) => (
-                <ListItem
-                  key={`${item.id}-${item.variationId}`}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "10px 0",
-                  }}
-                >
-                  {/* Product Image */}
-                  <img
-                    src={item.image} // Assuming item has an image property
-                    alt={item.name}
-                    style={{
-                      width: "80px",
-                      height: "80px",
-                      objectFit: "cover",
-                      borderRadius: "8px",
-                      marginRight: "15px",
-                    }}
-                  />
-                  <Box>
-                    {/* Product Name */}
-                    <Typography
-                      variant="body1"
-                      color="text.primary"
-                      fontFamily="Poppins"
-                    >
-                      {item.name}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      fontFamily="Poppins"
-                    >
-                      {item.color} - {item.size}
-                    </Typography>
-                    {/* Quantity and Price */}
-                    <Box display="flex" alignItems="center" mt={1}>
-                      <IconButton
-                        onClick={() => handleDecrease(item)}
-                        disabled={item.quantity <= 1}
-                        size="small"
-                      >
-                        <MdRemove />
-                      </IconButton>
-                      <Typography variant="body2" mx={1}>
-                        {item.quantity}
-                      </Typography>
-                      <IconButton
-                        onClick={() => handleIncrease(item)}
-                        disabled={item.quantity >= item.maxQuantity}
-                        size="small"
-                      >
-                        <MdAdd />
-                      </IconButton>
-                    </Box>
-                    {/* Quantity and Price */}
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      fontFamily="Poppins"
-                    >
-                      {item.quantity} x
-                      &nbsp;
-                      {item.price !== item.saledPrice && ( // Conditional rendering
-                        <span style={{ textDecoration: 'line-through', color: 'red' }}>
-                          {formatPrice(item.price)}
-                        </span>
-                      )}
-                      &nbsp;
-                      <strong>{formatPrice(item.saledPrice)}</strong>
-                    </Typography>
-                  </Box>
+    const handleRemovefromCart = async (item) => {
+        try {
+            await removeFromCart(authHeader, item.id);
+            removeItem(item.id);
+            toast.success("Item removed from cart", { position: "top-center", autoClose: 2000 });
+        } catch (error) {
+            toast.error("Failed to remove item. Please try again.", { position: "top-center" });
+        }
+    };
 
-                  {/* Remove Item Button */}
-                  <Button
-                    onClick={() => handleRemovefromCart(item)}
-                    size="small"
-                    color="secondary"
-                    sx={{ marginLeft: "auto" }}
-                  >
-                    <Typography variant="body2">
-                      <MdCancel />
-                    </Typography>
-                  </Button>
-                </ListItem>
-              ))}
-            </List>
-          )}
+    const handleClearAll = async () => {
+        if (isEmpty) return;
+        try {
+            await removeAllFromCart(authHeader);
+            emptyCart();
+            toast.success("Cart has been cleared", { position: "top-center", autoClose: 2000 });
+        } catch (error) {
+            toast.error("Failed to clear cart. Please try again.", { position: "top-center" });
+        }
+    };
 
-          <Divider sx={{ my: 2 }} />
+    const handleClickCheckout = () => {
+        toggleCartDrawer(false)();
+        navigate("/checkout");
+    };
 
-          {/* Subtotal and Checkout */}
-          <Box display="flex" justifyContent="space-between" alignItems="center">
-            <Typography
-              variant="body1"
-              color="text.primary"
-              fontWeight="bold"
-              fontFamily="Poppins"
-            >
-              Subtotal
-            </Typography>
-            <Typography
-              variant="body1"
-              color="primary"
-              fontWeight="bold"
-              fontFamily="Poppins"
-            >
-              {formatPrice(total)}
-            </Typography>
-          </Box>
-
-          {/* Checkout Buttons */}
-          <Box
-            display="flex"
-            justifyContent="space-between"
-            marginTop="16px"
-            sx={{
-              gap: "16px",
+    return (
+        <Drawer
+            anchor="right"
+            open={isCartOpen}
+            onClose={() => toggleCartDrawer(false)}
+            PaperProps={{
+                sx: { width: "25%", minWidth: '350px', padding: "15px" },
             }}
-          >
-            <Drawerbtn
-              context={"Clear All"}
-              handleClick={handleClearAll}
-              isEmpty={isEmpty}
-            />
-            <Drawerbtn
-              context={"Checkout"}
-              handleClick={handleClickCheckout}
-              isEmpty={isEmpty}
-            />
-          </Box>
-        </div>
-      </Drawer>
-  );
+        >
+            <div ref={drawerRef} className="p-4">
+                <Typography variant="h5" className="font-bold" gutterBottom fontFamily="Poppins">
+                    Shopping Cart
+                </Typography>
+
+                {isLoading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+                        <CircularProgress />
+                    </Box>
+                ) : isEmpty ? (
+                    <Typography variant="body1" fontFamily="Poppins" textAlign="center" my={4}>
+                        Your cart is empty.
+                    </Typography>
+                ) : (
+                    <List>
+                        {items.map((item) => (
+                            <ListItem key={item.id} sx={{ display: "flex", alignItems: "center", padding: "10px 0" }}>
+                                <img src={item.image} alt={item.name} style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", marginRight: "15px" }} />
+                                <Box flexGrow={1}>
+                                    <Typography variant="body1" color="text.primary" fontFamily="Poppins" sx={{wordBreak: 'break-word'}}>{item.name}</Typography>
+                                    <Typography variant="body2" color="text.secondary" fontFamily="Poppins">{item.color} - {item.size}</Typography>
+                                    <Box display="flex" alignItems="center" mt={1}>
+                                        <IconButton onClick={() => handleUpdateQuantity(item, -1)} size="small" disabled={item.quantity <= 1}><MdRemove /></IconButton>
+                                        <Typography variant="body2" mx={1}>{item.quantity}</Typography>
+                                        <IconButton onClick={() => handleUpdateQuantity(item, 1)} size="small" disabled={item.quantity >= item.maxQuantity}><MdAdd /></IconButton>
+                                    </Box>
+                                    <Typography variant="body2" color="text.secondary" fontFamily="Poppins">
+                                        {item.quantity} x&nbsp;
+                                        <strong>{formatPrice(item.price)}</strong>
+                                    </Typography>
+                                </Box>
+                                <IconButton onClick={() => handleRemovefromCart(item)} size="small" color="secondary" sx={{ alignSelf: 'flex-start' }}>
+                                    <MdCancel />
+                                </IconButton>
+                            </ListItem>
+                        ))}
+                    </List>
+                )}
+
+                <Divider sx={{ my: 2 }} />
+
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Typography variant="body1" color="text.primary" fontWeight="bold" fontFamily="Poppins">Subtotal</Typography>
+                    <Typography variant="body1" color="primary" fontWeight="bold" fontFamily="Poppins">{formatPrice(cartTotal)}</Typography>
+                </Box>
+
+                <Box display="flex" justifyContent="space-between" marginTop="16px" sx={{ gap: "16px" }}>
+                    <Drawerbtn context={"Clear All"} handleClick={handleClearAll} isEmpty={isEmpty} />
+                    <Drawerbtn context={"Checkout"} handleClick={handleClickCheckout} isEmpty={isEmpty} />
+                </Box>
+            </div>
+        </Drawer>
+    );
 };
 
 export default CartDrawer;

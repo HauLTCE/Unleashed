@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from "react";
 import {
-  Container,
-  TextField,
-  Button,
-  Avatar,
-  Typography,
-  Box,
-  IconButton,
-  Grid,
-  CircularProgress,
-  Backdrop,
+    TextField,
+    Button,
+    Avatar,
+    Typography,
+    Box,
+    IconButton,
+    Grid,
+    CircularProgress,
+    Paper,
+    Divider,
 } from "@mui/material";
-import PhotoCamera from "@mui/icons-material/PhotoCamera";
+import { PhotoCamera, Save } from "@mui/icons-material";
 import { GetUserInfo, UpdateUserInfo } from "../../service/UserService";
-import { toast, Zoom } from "react-toastify";
+import { toast } from "react-toastify";
 import useAuthHeader from "react-auth-kit/hooks/useAuthHeader";
 import useSignOut from "react-auth-kit/hooks/useSignOut";
 import { useNavigate } from "react-router-dom";
@@ -24,297 +24,286 @@ import useSignIn from "react-auth-kit/hooks/useSignIn";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import DeleteAccountButton from "../../components/modals/DeleteAccount";
+import { jwtDecode } from "jwt-decode";
+
+const validationSchema = Yup.object({
+    username: Yup.string()
+        .required("Username is required")
+        .min(5, "Username must be at least 5 characters long"),
+    fullName: Yup.string()
+        .required("Full name is required")
+        .matches(/^[a-zA-Z\s'-]+$/, "Full name can only contain valid characters"),
+    userPhone: Yup.string()
+        .matches(/^(|0\d{9,11})$/, "Phone number must start with '0' and be 10 or 12 digits")
+        .nullable(),
+    userAddress: Yup.string().nullable(),
+});
 
 export const UserProfile = () => {
-  const authHeader = useAuthHeader();
-  const navigate = useNavigate();
-  const signOut = useSignOut();
-  const signIn = useSignIn();
+    const authHeader = useAuthHeader();
+    const navigate = useNavigate();
+    const signOut = useSignOut();
+    const signIn = useSignIn();
 
-  const [profileImage, setProfileImage] = useState(userDefault);
-  const [userData, setUserData] = useState({
-    userId: "",
-    email: "",
-    username: "",
-    fullName: "",
-    userAddress: "",
-    userPhone: "",
-    userImage: "",
-  });
-  const [initialData, setInitialData] = useState(null);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [loading, setLoading] = useState(true);
+    const [profileImage, setProfileImage] = useState(userDefault);
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [isGoogleAccount, setIsGoogleAccount] = useState(false);
 
-  useEffect(() => {
-    const fetchUserInfo = async () => {
-      try {
-        const response = await GetUserInfo(authHeader);
-        const userInfo = response.data;
+    const formik = useFormik({
+        initialValues: {
+            email: "",
+            username: "",
+            fullName: "",
+            userPhone: "",
+            userAddress: "",
+            userImage: "",
+        },
+        validationSchema,
+        onSubmit: async (values, { setSubmitting }) => {
+            setSubmitting(true);
+            try {
+                let imageUrl = values.userImage;
+                if (selectedFile) {
+                    const formData = new FormData();
+                    formData.append("image", selectedFile);
+                    const uploadPromise = fetch('https://api.imgbb.com/1/upload?key=387abfba10f808a7f6ac4abb89a3d912', {
+                        method: 'POST',
+                        body: formData,
+                    }).then((res) => res.json());
 
-        const userInfoData = {
-          userId: userInfo.userId,
-          email: userInfo.userEmail || "Email not provided",
-          username: userInfo.username || "Name not set",
-          fullName: userInfo.fullName || "",
-          userAddress: userInfo.userAddress || "",
-          userPhone: userInfo.userPhone || "",
-          userImage: userInfo.userImage || userDefault,
-        };
+                    const uploadResponse = await toast.promise(uploadPromise, {
+                        pending: 'Uploading image...',
+                        success: 'Image uploaded!',
+                        error: 'Image upload failed.',
+                    });
 
-        setUserData(userInfoData);
-        setProfileImage(userInfoData.userImage);
-        setInitialData(userInfoData);
-      } catch (error) {
-        toast.error("Failed to load user data.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchUserInfo();
-  }, [authHeader]);
+                    if (uploadResponse.success) {
+                        imageUrl = uploadResponse.data.display_url;
+                    } else {
+                        throw new Error(uploadResponse.error.message);
+                    }
+                }
 
-  // Validation schema – cho phép 10 hoặc 12 chữ số
-  const validationSchema = Yup.object({
-    fullName: Yup.string()
-      .required("Full name is required")
-      .matches(
-        /^[\p{L} .'-]+$/u,
-        "Full name can only contain letters, spaces, dots, apostrophes, and hyphens."
-      ),
-    userPhone: Yup.string()
-      .required("Phone number is required")
-      .matches(
-        /^0\d{9,11}$/,
-        "Phone number must start with '0' and be 10 or 12 digits"
-      ),
-    userAddress: Yup.string()
-      .required("Address is required")
-      .matches(
-        /^[\p{L}\p{N}\s,.-]+$/u,
-        "Address must not contain special characters"
-      ),
-  });
+                const updatedData = { ...values, userImage: imageUrl };
 
-  const formik = useFormik({
-    enableReinitialize: true,
-    initialValues: {
-      fullName: userData?.fullName || "",
-      userPhone: userData?.userPhone || "",
-      userAddress: userData?.userAddress || "",
-      userImage: userData?.userImage || ""
-    },
-    validationSchema,
-    onSubmit: async (values) => {
-      //console.log(" Data chuẩn bị gửi đi từ formik:", values);
+                const response = await UpdateUserInfo(updatedData, authHeader);
 
-      try {
-        let imageUrl = userData?.userImage;
-        if (selectedFile) {
-          const formData = new FormData();
-          formData.append("image", selectedFile);
-          const uploadResponse = await toast.promise(
-            fetch('https://api.imgbb.com/1/upload?key=387abfba10f808a7f6ac4abb89a3d912', {
-              method: 'POST',
-              body: formData,
-            })
-              .then((response) => response.json())
-              .then((data) => {
-                if (data.success) {
-                  return data.data.display_url
+                if (response && response.data && response.data.token) {
+                    const newToken = response.data.token;
+                    const decodedToken = jwtDecode(newToken);
+
+                    const userState = {
+                        username: decodedToken.sub,
+                        fullName: decodedToken.fullName,
+                        email: decodedToken.userEmail,
+                        userImage: decodedToken.image,
+                        address: decodedToken.address
+                    };
+
+                    signIn({
+                        auth: { token: newToken, type: 'Bearer' },
+                        userState: userState
+                    });
+
+                    toast.success("Profile updated successfully!");
+                    setSelectedFile(null);
+
+                    formik.resetForm({
+                        values: {
+                            ...values,
+                            username: userState.username,
+                            fullName: userState.fullName,
+                            userImage: userState.userImage || userDefault,
+                            userAddress: userState.address || '',
+                            email: userState.email || ''
+                        }
+                    });
+
                 } else {
-                  throw new Error('Image upload failed')
+                    throw new Error(response.data.message || "Failed to update session.");
                 }
-              }),
-            {
-              pending: 'Uploading image...',
-              success: 'Image uploaded successfully!',
-              error: 'Image upload failed',
-            },
-            {
-              position: 'bottom-right',
+
+            } catch (error) {
+                console.error("Error updating profile:", error);
+                const errorMessage = error.response?.data?.message || error.message;
+                toast.error(`Update failed: ${errorMessage}`);
+            } finally {
+                setSubmitting(false);
             }
-          );
-          imageUrl = uploadResponse;
-        }
+        },
+    });
 
-        const updatedData = {
-          userId: userData.userId,
-          fullName: values.fullName || userData.fullName,
-          userPhone:
-            values.userPhone && values.userPhone.trim() !== ""
-              ? values.userPhone.trim()
-              : userData.userPhone,
-          userAddress: values.userAddress || userData.userAddress,
-          userImage: imageUrl,
-          username: userData.username,
+    useEffect(() => {
+        const fetchUserInfo = async () => {
+            setLoading(true);
+            try {
+                const response = await GetUserInfo(authHeader);
+                const userInfo = response.data;
+
+                setIsGoogleAccount(!!userInfo.userGoogleId);
+
+                const initialData = {
+                    email: userInfo.userEmail || "",
+                    username: userInfo.username || "",
+                    fullName: userInfo.fullName || "",
+                    userAddress: userInfo.userAddress || "",
+                    userPhone: userInfo.userPhone || "",
+                    userImage: userInfo.userImage || userDefault,
+                };
+                formik.setValues(initialData);
+                setProfileImage(initialData.userImage);
+            } catch (error) {
+                toast.error("Failed to load user data.");
+            } finally {
+                setLoading(false);
+            }
         };
+        if(authHeader) fetchUserInfo();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [authHeader]);
 
-       // console.log(" Final updatedData (sent to API):", updatedData);
+    const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file && file.type.startsWith("image/")) {
+            setSelectedFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setProfileImage(reader.result);
+            };
+            reader.readAsDataURL(file);
+        } else {
+            toast.error("Please select a valid image file.");
+        }
+    };
 
-        await UpdateUserInfo(updatedData, authHeader, signIn);
-        toast.success("Profile updated successfully!", {
-          position: "top-center",
-          transition: Zoom,
-        });
-        setUserData(updatedData);
-        setSelectedFile(null);
-      } catch (error) {
-        console.error(" Error updating profile:", error);
-        toast.error("An error occurred: " + error.message, {
-          position: "top-center",
-          transition: Zoom,
-        });
-      }
-    },
-  });
+    const handleDeleteSuccess = () => {
+        signOut();
+        navigate("/");
+    };
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        alert('Please select an image file.');
-        return;
-      }
-
-      setSelectedFile(file);
-      const reader = new FileReader();
-
-      reader.onload = () => {
-        formik.setFieldValue('userImage', file); // Update formik value
-        formik.setTouched({ userImage: true }); // Mark userImage as touched
-        setProfileImage(reader.result);
-      };
-
-      reader.onerror = (error) => {
-        console.error('Error reading file:', error);
-        alert('Error reading file.');
-      };
-
-      reader.readAsDataURL(file);
+    if (loading) {
+        return (
+            <Grid container spacing={3}>
+                <Grid item xs={12} md={3}><UserSideMenu /></Grid>
+                <Grid item xs={12} md={9} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+                    <CircularProgress />
+                </Grid>
+            </Grid>
+        );
     }
-  };
 
-  const handleDeleteSuccess = () => {
-    signOut();
-    navigate("/");
-  };
+    return (
+        <Grid container spacing={3} sx={{ p: 2 }}>
+            <Grid item xs={12} md={3}>
+                <UserSideMenu />
+            </Grid>
+            <Grid item xs={12} md={9}>
+                <Box component="form" onSubmit={formik.handleSubmit}>
+                    {/* PROFILE HEADER CARD */}
+                    <Paper elevation={3} sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 3, borderRadius: 4, mb: 3 }}>
+                        <Box sx={{ position: 'relative' }}>
+                            <Avatar src={profileImage} sx={{ width: 100, height: 100 }} />
+                            <IconButton
+                                color="primary"
+                                component="label"
+                                sx={{
+                                    position: 'absolute',
+                                    bottom: -5,
+                                    right: -5,
+                                    backgroundColor: 'white',
+                                    '&:hover': { backgroundColor: 'grey.200' },
+                                }}
+                            >
+                                <PhotoCamera />
+                                <input type="file" hidden accept="image/*" onChange={handleImageChange} />
+                            </IconButton>
+                        </Box>
+                        <Box>
+                            <Typography variant="h5" fontWeight="bold">
+                                {formik.values.fullName || "User"}
+                            </Typography>
+                            <Typography variant="body1" color="text.secondary">
+                                {formik.values.email}
+                            </Typography>
+                        </Box>
+                    </Paper>
 
-  return (
-    <Grid container>
-      <Grid item xs={4}>
-        <UserSideMenu />
-      </Grid>
-      <Grid item xs={8}>
-        {loading ? (
-          <Backdrop
-            sx={{
-              color: "#858585",
-              zIndex: (theme) => theme.zIndex.drawer + 1,
-            }}
-            open={loading}
-          >
-            <CircularProgress color="inherit" />
-          </Backdrop>
-        ) : (
-          <Container maxWidth="sm" sx={{ marginLeft: 0 }}>
-            <Box display="flex" flexDirection="row" alignItems="center" mt={5}>
-              <Avatar
-                alt="Profile Picture"
-                src={profileImage}
-                sx={{ width: 100, height: 100 }}
-              />
-              <label htmlFor="profile-image-upload">
-                <input
-                  accept="image/*"
-                  style={{ display: "none" }}
-                  id="profile-image-upload"
-                  type="file"
-                  onChange={handleImageChange}
-                />
-                <IconButton color="primary" component="span">
-                  <PhotoCamera />
-                </IconButton>
-              </label>
-            </Box>
-            <Box component="form" mt={3} onSubmit={formik.handleSubmit}>
-              <TextField
-                fullWidth
-                margin="normal"
-                label="Email"
-                value={userData.email}
-                InputProps={{ readOnly: true }}
-                InputLabelProps={{ shrink: true }}
-              />
+                    {/* ACCOUNT DETAILS CARD */}
+                    <Paper elevation={3} sx={{ p: 3, borderRadius: 4 }}>
+                        <Typography variant="h6" component="h2" gutterBottom fontWeight="bold">
+                            Account Details
+                        </Typography>
+                        <Divider sx={{ mb: 3 }} />
+                        <Grid container spacing={3}>
+                            <Grid item xs={12} sm={6}>
+                                <TextField fullWidth label="Username" name="username" {...formik.getFieldProps("username")}
+                                           error={formik.touched.username && Boolean(formik.errors.username)}
+                                           helperText={formik.touched.username && formik.errors.username}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField fullWidth label="Full Name" name="fullName" {...formik.getFieldProps("fullName")}
+                                           error={formik.touched.fullName && Boolean(formik.errors.fullName)}
+                                           helperText={formik.touched.fullName && formik.errors.fullName}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField fullWidth label="Phone Number" name="userPhone" {...formik.getFieldProps("userPhone")}
+                                           error={formik.touched.userPhone && Boolean(formik.errors.userPhone)}
+                                           helperText={formik.touched.userPhone && formik.errors.userPhone}
+                                           placeholder="e.g., 0123456789"
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField fullWidth label="Address" name="userAddress" {...formik.getFieldProps("userAddress")}
+                                           error={formik.touched.userAddress && Boolean(formik.errors.userAddress)}
+                                           helperText={formik.touched.userAddress && formik.errors.userAddress}
+                                           placeholder="e.g., 123 Main St, District 1, HCMC"
+                                />
+                            </Grid>
+                            <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <Button type="submit" variant="contained" startIcon={<Save />}
+                                        disabled={!formik.dirty || !formik.isValid || formik.isSubmitting}>
+                                    Save Changes
+                                </Button>
+                            </Grid>
+                        </Grid>
+                    </Paper>
+                </Box>
 
-              <TextField
-                fullWidth
-                margin="normal"
-                label="Username"
-                value={userData.username}
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
-                fullWidth
-                margin="normal"
-                label="Full Name"
-                name="fullName"
-                {...formik.getFieldProps("fullName")}
-                error={
-                  formik.touched.fullName && Boolean(formik.errors.fullName)
-                }
-                helperText={formik.touched.fullName && formik.errors.fullName}
-                InputLabelProps={{ shrink: true }}
-              />
-              <TextField
-                fullWidth
-                margin="normal"
-                label="Phone Number"
-                name="userPhone"
-                {...formik.getFieldProps("userPhone")}
-                error={
-                  formik.touched.userPhone && Boolean(formik.errors.userPhone)
-                }
-                helperText={formik.touched.userPhone && formik.errors.userPhone}
-                inputProps={{ maxLength: 12 }}
-                InputLabelProps={{ shrink: true }}
-              />
-              <TextField
-                fullWidth
-                margin="normal"
-                label="Address"
-                name="userAddress"
-                {...formik.getFieldProps("userAddress")}
-                error={
-                  formik.touched.userAddress &&
-                  Boolean(formik.errors.userAddress)
-                }
-                helperText={
-                  formik.touched.userAddress && formik.errors.userAddress
-                }
-                InputLabelProps={{ shrink: true }}
-              />
+                {/* Security card */}
+                {!isGoogleAccount && (
+                    <Paper elevation={3} sx={{ p: 3, borderRadius: 4, mt: 3 }}>
+                        <Typography variant="h6" component="h2" gutterBottom fontWeight="bold">
+                            Security
+                        </Typography>
+                        <Divider sx={{ mb: 3 }} />
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography>Change your password</Typography>
+                            <UserChangePassword />
+                        </Box>
+                    </Paper>
+                )}
 
-              <Box display="flex" justifyContent="center" gap={3} mt={3}>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  sx={{ width: "150px", backgroundColor: "green" }}
-                  disabled={!formik.isValid || !formik.dirty}
-                >
-                  Save
-                </Button>
-                <UserChangePassword />
-                <DeleteAccountButton
-                  authHeader={authHeader}
-                  onDeleteSuccess={handleDeleteSuccess}
-                />
-              </Box>
-            </Box>
-          </Container>
-        )}
-      </Grid>
-    </Grid>
-  );
+                {/* DANGER ZONE CARD */}
+                <Paper elevation={3} sx={{ p: 3, borderRadius: 4, mt: 3, border: 1, borderColor: 'error.main' }}>
+                    <Typography variant="h6" component="h2" gutterBottom fontWeight="bold" color="error">
+                        Danger Zone
+                    </Typography>
+                    <Divider sx={{ mb: 3 }} />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Box>
+                            <Typography fontWeight="medium">Delete your account</Typography>
+                            <Typography variant="body2" color="text.secondary">Once deleted, your account is gone forever. Please be certain.</Typography>
+                        </Box>
+                        <DeleteAccountButton authHeader={authHeader} onDeleteSuccess={handleDeleteSuccess} />
+                    </Box>
+                </Paper>
+
+            </Grid>
+        </Grid>
+    );
 };
 
 export default UserProfile;

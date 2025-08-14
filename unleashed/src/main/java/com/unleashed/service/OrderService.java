@@ -52,6 +52,7 @@ public class OrderService {
     private final OrderStatusRepository orderStatusRepository;
     private final RankService rankService;
     private final StockVariationRepository stockVariationRepository;
+    private final UserService userService;
     private boolean isCancellingOrder = false;
     private final ReviewRepository reviewRepository;
 
@@ -69,7 +70,7 @@ public class OrderService {
                         UserRepository userRepository,
                         ProductRepository productRepository,
                         ReviewRepository reviewRepository,
-                        DiscountService discountService, OrderStatusRepository orderStatusRepository, VariationSingleRepository variationSingleRepository, OrderVariationSingleRepository orderVariationSingleRepository, CartService cartService, RankService rankService, StockVariationRepository stockVariationRepository) { // thêm reviewRepository
+                        DiscountService discountService, OrderStatusRepository orderStatusRepository, VariationSingleRepository variationSingleRepository, OrderVariationSingleRepository orderVariationSingleRepository, CartService cartService, RankService rankService, StockVariationRepository stockVariationRepository, UserService userService) { // thêm reviewRepository
         this.orderRepository = orderRepository;
         this.orderMapper = orderMapper;
         this.orderDetailMapper = orderDetailMapper;
@@ -90,6 +91,7 @@ public class OrderService {
         this.cartService = cartService;
         this.rankService = rankService;
         this.stockVariationRepository = stockVariationRepository;
+        this.userService = userService;
     }
 
 
@@ -1600,7 +1602,8 @@ public class OrderService {
         order.setOrderStatus(returnStatus);
         orderRepository.save(order);
         returnStock(order);
-        rankService.removeMoneySpent(order.getUser(), order.getOrderTotalAmount());
+
+        if(userService.getUserById(order.getUser().getUserId().toString()).getUserRank() != null) rankService.removeMoneySpent(order.getUser(), order.getOrderTotalAmount());
 
     }
 

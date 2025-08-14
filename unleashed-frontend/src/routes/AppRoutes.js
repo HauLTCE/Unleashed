@@ -18,7 +18,7 @@ import { ProtectedRoute } from './ProtectedRoute'
 import UserProfile from '../pages/User/UserSettings'
 import RegisterSuccess from '../pages/Register/RegisterSuccess'
 import ProductDetailPage from '../pages/Home/ProductDetail'
-import { ConfirmRegister } from '../pages/Register/ConfirmRegister'
+import {ConfirmRegister } from '../pages/Register/ConfirmRegister'
 import ForgotSuccess from '../pages/Forgot/ForgotPasswordSuccess'
 import ResetSuccessPage from '../pages/ResetPassword/ResetSuccess'
 import ResetPasswordPage from '../pages/ResetPassword/ResetPassword'
@@ -74,7 +74,7 @@ import ReviewHistory from '../pages/User/HistoryReviews.jsx'
 import WishlistPage from '../pages/Wishlist/Wishlist.jsx'
 import DashboardReview from '../pages/Dashboard/DashboardReview.jsx'
 import DashboardReviewProduct from '../pages/Dashboard/DashboardReviewProduct.jsx'
-import { GetUserInfo } from '../service/UserService.js'
+//import { GetUserInfo } from '../service/UserService.js'
 import { useEffect } from 'react'
 import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader'
 import { checkStatus } from '../service/AuthService.js'
@@ -751,17 +751,17 @@ const AppRoutes = ({ toggleSidebar, isOpen }) => {
 			/>
 
 			<Route path='/Dashboard/Logout' element={<Logout isDashboard={true} />} />
-			<Route path='User/Membership' element={<Membership />} />
-			<Route
-				path='/Dashboard/Memberships'
-				element={
-					<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-						<DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-							<DashboardMembership />
-						</DashboardLayout>
-					</PrivateRoute>
-				}
-			/>
+			{/*<Route path='User/Membership' element={<Membership />} />*/}
+			{/*<Route*/}
+			{/*	path='/Dashboard/Memberships'*/}
+			{/*	element={*/}
+			{/*		<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>*/}
+			{/*			<DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>*/}
+			{/*				<DashboardMembership />*/}
+			{/*			</DashboardLayout>*/}
+			{/*		</PrivateRoute>*/}
+			{/*	}*/}
+			{/*/>*/}
 
 			<Route
 				path='/Dashboard/Product-Reviews'

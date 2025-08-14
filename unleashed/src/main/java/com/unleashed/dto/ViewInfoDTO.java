@@ -26,4 +26,5 @@ public class ViewInfoDTO {
     private OffsetDateTime userCreatedAt;
     private OffsetDateTime userUpdatedAt;
     private Rank rank;
+    private String userGoogleId;
 }

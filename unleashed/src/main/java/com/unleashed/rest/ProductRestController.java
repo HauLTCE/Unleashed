@@ -51,9 +51,22 @@ public class ProductRestController {
         this.stockVariationRepository = stockVariationRepository;
     }
 
+    /**
+     * MODIFIED: This endpoint now handles pagination and filtering.
+     * It replaces the old getAllProducts() and can be used instead of the /search endpoint.
+     */
     @GetMapping()
-    public ResponseEntity<List<ProductListDTO>> getAllProducts() {
-        return ResponseEntity.ok(productService.getListProduct());
+    public ResponseEntity<Page<ProductListDTO>> findProducts(
+            @RequestParam(value = "query", required = false) String query,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "brand", required = false) String brand,
+            @RequestParam(value = "rating", required = false, defaultValue = "0") float rating,
+            @RequestParam(value = "priceOrder", required = false) String priceOrder,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "12") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ProductListDTO> productPage = productService.findProductsWithFilters(query, category, brand, rating, priceOrder, pageable);
+        return ResponseEntity.ok(productPage);
     }
 
     @GetMapping("/{productId}/detail")

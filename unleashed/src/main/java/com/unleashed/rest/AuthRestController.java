@@ -180,19 +180,8 @@ public class AuthRestController {
         String googleId = googleInfo.get("google_id");
         String fullName = googleInfo.get("name");
         String userImage = googleInfo.get("picture");
-        //System.out.println("gg id:" + googleInfo.get("google_id"));
-        // Call the service method
-        ResponseDTO responseDTO = userService.handleGoogleLogin(googleId, email, fullName, userImage);
 
-        // Kiểm tra nếu là người dùng mới được tạo
-        if (responseDTO.getStatusCode() == HttpStatus.CREATED.value()) {
-            // Lấy ID của người dùng vừa tạo
-            User user = userService.findByEmail(email);
-            if (user != null) {
-                // Gọi hàm assignNewUserDiscount để gán mã giảm giá cho người dùng mới
-//                discountService.assignNewUserDiscount(user.getUserId());
-            }
-        }
+        ResponseDTO responseDTO = userService.handleGoogleLogin(googleId, email, fullName, userImage);
 
         return ResponseEntity.status(responseDTO.getStatusCode()).body(responseDTO);
     }
@@ -222,7 +211,7 @@ public class AuthRestController {
                 + "<a href=\"" + resetLink + "\" style=\"display: inline-block; padding: 10px 20px; font-size: 16px; color: white; background-color: #4CAF50; text-decoration: none; border-radius: 5px;\">Reset Password</a>"
                 + "<p style=\"color: #555; font-size: 14px; margin-top: 20px;\">If you did not request a password reset, please ignore this email.</p>"
                 + "<p style=\"color: #555; font-size: 14px;\">Request sent on: " + currentDateTime + "</p>"
-                + "<p style=\"color: #999; font-size: 12px;\">&copy; " + currentYear + " EMC Company. All rights reserved.</p>"
+                + "<p style=\"color: #999; font-size: 12px;\">&copy; " + currentYear + " Unleashed Official. All rights reserved.</p>"
                 + "</div>";
 
         emailService.sendHtmlMessage(email, "Reset Password", emailContent);
@@ -274,7 +263,7 @@ public class AuthRestController {
                         + "<p style=\"color: #555; font-size: 16px;\">Your password has been successfully reset. You can now log in with your new password.</p>"
                         + "<p style=\"color: #555; font-size: 14px; margin-top: 20px;\">If you did not reset your password, please contact support immediately.</p>"
                         + "<p style=\"color: #555; font-size: 14px;\">Request processed on: " + currentDateTime + "</p>"
-                        + "<p style=\"color: #999; font-size: 12px;\">&copy; " + currentYear + " EMC Company. All rights reserved.</p>"
+                        + "<p style=\"color: #999; font-size: 12px;\">&copy; " + currentYear + " Unleashed Official. All rights reserved.</p>"
                         + "</div>";
 
                 // Gửi email

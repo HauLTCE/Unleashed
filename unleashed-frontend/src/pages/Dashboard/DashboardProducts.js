@@ -1,208 +1,219 @@
-import React, { useEffect, useState } from 'react'
-import { apiClient } from '../../core/api'
-import { Link } from 'react-router-dom'
-import { TextField } from '@mui/material'
-import { FaEdit, FaPlus, FaRegStar, FaStar, FaStarHalfAlt, FaTrash } from 'react-icons/fa'
-import { toast } from 'react-toastify'
-import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader'
-import { formatPrice } from '../../components/format/formats'
-import useAuthUser from 'react-auth-kit/hooks/useAuthUser'
-import DeleteConfirmationModal from '../../components/modals/DeleteConfirmationModal'
-import { getCategory } from '../../service/ShopService'
+import React, { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import {
+    TextField,
+    Pagination,
+    CircularProgress,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    Paper,
+    IconButton,
+    Box,
+    Tooltip
+} from '@mui/material';
+import { FaEdit, FaPlus, FaTrash } from 'react-icons/fa';
+import { toast } from 'react-toastify';
+import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader';
+import { formatPrice } from '../../components/format/formats';
+import useAuthUser from 'react-auth-kit/hooks/useAuthUser';
+import DeleteConfirmationModal from '../../components/modals/DeleteConfirmationModal';
+import { getProductList } from '../../service/ShopService';
+import useDebounce from '../../components/hooks/useDebounce';
+import { apiClient } from '../../core/api';
 
 const DashboardProducts = () => {
-	const [products, setProducts] = useState([])
-	const [filteredProducts, setFilteredProducts] = useState([])
-	const [isModalOpen, setIsModalOpen] = useState(false)
-	const [selectedProduct, setSelectedProduct] = useState(null)
-	const [searchTerm, setSearchTerm] = useState('')
-	const role = useAuthUser().role
-	const varToken = useAuthHeader()
+    const [products, setProducts] = useState([]);
+    const [page, setPage] = useState(1);
+    const [pageCount, setPageCount] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedProduct, setSelectedProduct] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-	useEffect(() => {
-		apiClient
-			.get('/api/products', {
-				headers: {
-					Authorization: varToken,
-				},
-			})
-			.then((response) => {
-				setProducts(response.data)
-				setFilteredProducts(response.data)
-				// console.log(response.data)
-			})
-			.catch((error) => console.error('Error fetching products:', error))
-	}, [varToken])
+    const role = useAuthUser()?.role;
+    const varToken = useAuthHeader();
+    const itemsPerPage = 10;
 
-	// Filter products based on search term
-	const handleSearchChange = (event) => {
-		const term = event.target.value
-		setSearchTerm(term)
+    const fetchProducts = useCallback(async () => {
+        setLoading(true);
+        try {
+            const filters = { query: debouncedSearchTerm };
+            const data = await getProductList(page, itemsPerPage, filters);
+            setProducts(data.content || []);
+            setPageCount(data.totalPages || 0);
+        } catch (error) {
+            console.error('Error fetching products:', error);
+            toast.error('Failed to fetch products.');
+        } finally {
+            setLoading(false);
+        }
+    }, [page, debouncedSearchTerm]);
 
-		if (term === '') {
-			setFilteredProducts(products) // Reset to all products if search is empty
-		} else {
-			setFilteredProducts(
-				products.filter((product) => product.productName.toLowerCase().includes(term.toLowerCase()))
-			)
-		}
-	}
+    useEffect(() => {
+        fetchProducts();
+    }, [fetchProducts]);
 
-	const handleDeleteProduct = (productId) => {
-		apiClient
-			.delete(`/api/products/${productId}`, {
-				headers: {
-					Authorization: varToken,
-				},
-			})
-			.then(() => {
-				setProducts(products.filter((product) => product.productId !== productId))
-				setFilteredProducts(filteredProducts.filter((product) => product.productId !== productId))
-				setIsModalOpen(false)
-				toast.success('Delete product successfully', {
-					position: 'bottom-right',
-				})
-			})
-			.catch((error) => {
-				console.error('Error deleting product:', error)
-				toast.error('Failed to delete product', {
-					position: 'bottom-right',
-				})
-			})
-	}
+    const handleSearchChange = (event) => {
+        setSearchTerm(event.target.value);
+        setPage(1);
+    };
 
-	const handleOpenModal = (product) => {
-		setSelectedProduct(product)
-		setIsModalOpen(true)
-	}
+    const handlePageChange = (event, value) => {
+        setPage(value);
+    };
 
-	const handleCloseModal = () => {
-		setIsModalOpen(false)
-		setSelectedProduct(null)
-	}
+    const handleDeleteProduct = async (productId) => {
+        try {
+            await apiClient.delete(`/api/products/${productId}`, {
+                headers: { Authorization: varToken },
+            });
+            toast.success('Product deleted successfully', { position: 'bottom-right' });
+            if (products.length === 1 && page > 1) {
+                setPage(page - 1);
+            } else {
+                fetchProducts();
+            }
+        } catch (error) {
+            console.error('Error deleting product:', error);
+            toast.error('Failed to delete product', { position: 'bottom-right' });
+        } finally {
+            setIsModalOpen(false);
+            setSelectedProduct(null);
+        }
+    };
 
-	// Hàm render sao
-	const renderStars = (rating) => {
-		const maxStars = 5 // Tổng số sao
-		const fullStars = Math.floor(rating) // Số sao đầy đủ
-		const halfStar = rating % 1 >= 0.5 ? 1 : 0 // Có nửa sao không
-		const emptyStars = maxStars - fullStars - halfStar // Số sao trống
+    const handleOpenModal = (product) => {
+        setSelectedProduct(product);
+        setIsModalOpen(true);
+    };
 
-		return (
-			<div className='flex items-center'>
-				{Array(fullStars)
-					.fill(0)
-					.map((_, index) => (
-						<FaStar key={`full-${index}`} className='text-yellow-500' />
-					))}
-				{/* Sao nửa */} {halfStar === 1 && <FaStarHalfAlt className='text-yellow-500' />}
-				{Array(emptyStars)
-					.fill(0)
-					.map((_, index) => (
-						<FaRegStar key={`empty-${index}`} className='text-gray-400' />
-					))}
-			</div>
-		)
-	}
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setSelectedProduct(null);
+    };
 
-	return (
-		<div>
-			<div className='flex items-center justify-between mb-6'>
-				<h1 className='text-4xl font-bold'>Products</h1>
-				{role === 'STAFF' || (
-					<Link to='/Dashboard/Products/Add'>
-						<button className='text-blue-600 border border-blue-500 px-4 py-2 rounded-lg flex items-center'>
-							<FaPlus className='mr-2' /> Add New Product
-						</button>
-					</Link>
-				)}
-			</div>
+    return (
+        <div>
+            <div className='flex items-center justify-between mb-6'>
+                <h1 className='text-4xl font-bold'>Products</h1>
+                {role !== 'STAFF' && (
+                    <Link to='/Dashboard/Products/Add'>
+                        <button className='text-blue-600 border border-blue-500 px-4 py-2 rounded-lg flex items-center'>
+                            <FaPlus className='mr-2' /> Add New Product
+                        </button>
+                    </Link>
+                )}
+            </div>
 
-			{/* Search Input */}
-			<TextField
-				label='Search Products'
-				variant='outlined'
-				value={searchTerm}
-				onChange={handleSearchChange}
-				fullWidth
-				margin='normal'
-			/>
+            <TextField
+                label='Search Products by Name'
+                variant='outlined'
+                value={searchTerm}
+                onChange={handleSearchChange}
+                fullWidth
+                margin='normal'
+            />
 
-			<div className='mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'>
-				{filteredProducts.length > 0 ? (
-					filteredProducts.map((product) => (
-						<div
-							key={product.productId}
-							className='border rounded-md p-4 flex flex-col relative transition-all duration-300 border-gray-300 hover:shadow-lg'
-						>
-							<Link
-								to={`/Dashboard/Products/${product.productId}`}
-								className='flex-grow flex flex-col'
-							>
-								<div className='flex flex-col items-center justify-center'>
-									<img
-										src={product.productVariationImage || '/images/placeholder.png'}
-										alt={product.productName}
-										className='w-full h-32 object-cover mb-2'
-									/>
-									<h2 className='font-semibold text-left w-full'>{product.productName}</h2>
-									{/* <p className='text-sm text-left w-full'>{product.productDescription}</p> */}
-								</div>
+            {loading ? (
+                <div className="flex justify-center items-center h-64">
+                    <CircularProgress />
+                </div>
+            ) : (
+                <>
+                    <TableContainer component={Paper}>
+                        <Table sx={{ minWidth: 650 }} aria-label="products table">
+                            <TableHead>
+                                <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>Image</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>Product Name</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>Brand</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>Price</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }} align="center">Stock</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>Rating</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }} align="center">Actions</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {products.length > 0 ? (
+                                    products.map((product) => (
+                                        <TableRow key={product.productId} hover>
+                                            <TableCell>
+                                                <img
+                                                    src={product.productVariationImage || 'https://placehold.co/60x60'}
+                                                    alt={product.productName}
+                                                    style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: '4px' }}
+                                                />
+                                            </TableCell>
+                                            <TableCell component="th" scope="row">
+                                                <Link to={`/shop/product/${product.productId}`} className="hover:underline text-blue-600">
+                                                    {product.productName}
+                                                </Link>
+                                            </TableCell>
+                                            <TableCell>{product.brandName || 'N/A'}</TableCell>
+                                            <TableCell>{product.productPrice ? formatPrice(product.productPrice) : 'N/A'}</TableCell>
+                                            <TableCell align="center">{product.quantity ?? 0}</TableCell>
+                                            <TableCell>
+                                                {product.averageRating.toFixed(1)} ({product.totalRatings})
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
+                                                    {role !== 'STAFF' && (
+                                                        <>
+                                                            <Tooltip title="Edit">
+                                                                <IconButton component={Link} to={`/Dashboard/Products/Edit/${product.productId}`} color="primary" size="small">
+                                                                    <FaEdit />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                            <Tooltip title="Delete">
+                                                                <IconButton onClick={() => handleOpenModal(product)} color="error" size="small">
+                                                                    <FaTrash />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        </>
+                                                    )}
+                                                </Box>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={7} align="center">
+                                            No products found.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
 
-								<div className='mt-auto w-full'>
-									<hr className='my-2 border-t border-gray-300' /> {/* Horizontal Line */}
-									<p className='text-gray-500'>Brand: {product.brandName}</p>
-									<p className='text-gray-500'>
-										Category:{' '}
-										{product.categoryList && product.categoryList.length > 0
-											? product.categoryList[0].categoryName
-											: 'N/A'}
-									</p>
-									<p className='font-bold'>
-										Price: {product.productPrice ? formatPrice(product.productPrice) : 'N/A'}
-									</p>
-									<p className='text-gray-400 flex items-center'>
-										{renderStars(product.averageRating)}
-										<span className='ml-2 text-sm text-yellow-500'>{product.averageRating}</span>
-										<span className='ml-2 text-sm'>({product.totalRatings} ratings)</span>
-									</p>
-								</div>
-							</Link>
+                    {pageCount > 1 && (
+                        <div className='flex justify-center mt-8'>
+                            <Pagination
+                                count={pageCount}
+                                page={page}
+                                onChange={handlePageChange}
+                                color="primary"
+                                showFirstButton
+                                showLastButton
+                            />
+                        </div>
+                    )}
+                </>
+            )}
 
-							{role === 'STAFF' || (
-								<div>
-									<button
-										onClick={() => handleOpenModal(product)}
-										className='absolute top-2 right-2 text-red-500 p-2 hover:text-red-700 bg-white'
-									>
-										<FaTrash />
-									</button>
-									<Link
-										to={`/Dashboard/Products/Edit/${product.productId}`}
-										className='absolute top-2 right-10 text-blue-500 hover:text-blue-700 p-2 bg-white'
-									>
-										<FaEdit />
-									</Link>
-								</div>
-							)}
-						</div>
-					))
-				) : (
-					<p className='text-red-500'>No products found.</p>
-				)}
-			</div>
+            <DeleteConfirmationModal
+                isOpen={isModalOpen}
+                onClose={handleCloseModal}
+                onConfirm={() => handleDeleteProduct(selectedProduct.productId)}
+                name={selectedProduct ? selectedProduct.productName : ''}
+            />
+        </div>
+    );
+};
 
-			{/* Delete Confirmation Modal */}
-			<DeleteConfirmationModal
-				isOpen={isModalOpen}
-				onClose={handleCloseModal}
-				onConfirm={() => {
-					handleDeleteProduct(selectedProduct.productId)
-				}}
-				name={selectedProduct ? selectedProduct.productName : ''}
-			/>
-		</div>
-	)
-}
-
-export default DashboardProducts
+export default DashboardProducts;
