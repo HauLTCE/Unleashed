@@ -28,7 +28,7 @@ public class CartRestController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof UserDetails userDetails) {
             String currentUsername = userDetails.getUsername();
-            return userService.findByUsername(currentUsername).getUserId();
+            return userService.findByUsername(currentUsername).getUserId().toString();
 
         } else {
             //System.out.println("Authentication failed or principal is not UserDetails.");

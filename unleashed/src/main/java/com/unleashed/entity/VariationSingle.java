@@ -3,6 +3,7 @@ package com.unleashed.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.hibernate.annotations.Nationalized;
 
 @Getter
 @Setter
@@ -10,15 +11,15 @@ import org.apache.commons.lang3.RandomStringUtils;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "variation_single", schema = "public")
+@Table(name = "variation_single", schema = "dbo")
 public class VariationSingle {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @SequenceGenerator(name = "variation_single_id_gen", sequenceName = "variation_single_variation_single_id_seq", allocationSize = 1)
     @Column(name = "variation_single_id", nullable = false)
     private Integer id;
 
-    @Column(name = "variation_single_code", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Column(name = "variation_single_code")
     private String variationSingleCode;
 
     @Column(name = "is_variation_single_bought")
@@ -27,8 +28,6 @@ public class VariationSingle {
 //    @OneToMany(mappedBy = "variationSingle")
 //    private Set<Review> reviews = new LinkedHashSet<>();
 
-    // Fields needed for code generation
-    // PLEASE SET DATA FOR THEM IF YOU WANT TO GENERATE CODE!!!
     @Transient
     private String productCodeForVariationSingle;
     @Transient

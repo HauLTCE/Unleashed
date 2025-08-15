@@ -4,20 +4,21 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.Nationalized;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "sale_status", schema = "public")
+@Table(name = "sale_status", schema = "dbo")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class SaleStatus {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "sale_status_id_gen")
-    @SequenceGenerator(name = "sale_status_id_gen", sequenceName = "sale_status_sale_status_id_seq", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "sale_status_id", nullable = false)
     private Integer id;
 
-    @Column(name = "sale_status_name", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Column(name = "sale_status_name")
     private String saleStatusName;
 
 //    @OneToMany(mappedBy = "saleStatus")

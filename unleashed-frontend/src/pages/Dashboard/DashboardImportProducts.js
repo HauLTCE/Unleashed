@@ -1,344 +1,347 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { apiClient } from "../../core/api";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast, Zoom } from "react-toastify";
 import useAuthHeader from "react-auth-kit/hooks/useAuthHeader";
 import useAuthUser from "react-auth-kit/hooks/useAuthUser";
+import {
+    Button,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
+    Skeleton,
+    TextField,
+    Typography,
+    Paper,
+    Avatar,
+    List,
+    ListItem,
+    ListItemAvatar,
+    ListItemButton,
+    ListItemText,
+    Divider,
+    IconButton } from "@mui/material";
+import { AddShoppingCart, RemoveCircleOutline } from "@mui/icons-material";
+import useDebounce from "../../components/hooks/useDebounce";
+import { formatPrice } from "../../components/format/formats";
+import EnhancedPagination from '../../components/pagination/EnhancedPagination';
 
 const DashboardImportProducts = () => {
-    const [products, setProducts] = useState([]);
-    const [filteredProducts, setFilteredProducts] = useState([]);
-    const [selectedVariations, setSelectedVariations] = useState({});
-    const [searchTerm, setSearchTerm] = useState("");
-    const [selectedBrand, setSelectedBrand] = useState("");
-    const [selectedCategory, setSelectedCategory] = useState("");
-    const [brands, setBrands] = useState([]);
-    const [categories, setCategories] = useState([]);
+    // State for data and UI control
+    const [variations, setVariations] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [providers, setProviders] = useState([]);
-    const [showProviderModal, setShowProviderModal] = useState(false); // Control modal visibility
-    const [selectedProviderId, setSelectedProviderId] = useState(null); // Store selected provider
+    const [showProviderModal, setShowProviderModal] = useState(false);
 
+    // State for the new Import List panel
+    const [importList, setImportList] = useState({}); // { variationId: { details..., quantity } }
+    const [importTotals, setImportTotals] = useState({ totalQuantity: 0, totalPrice: 0 });
+
+    // State for pagination and search
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [searchTerm, setSearchTerm] = useState("");
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
+
+    // Hooks and context
     const authUser = useAuthUser();
-    const username = authUser.username;
     const varToken = useAuthHeader();
     const { stockId } = useParams();
     const navigate = useNavigate();
+    const isInitialMount = useRef(true);
 
+    // --- DATA FETCHING ---
     useEffect(() => {
-        apiClient
-            .get("/api/products", { headers: { Authorization: varToken } })
-            .then((response) => setProducts(response.data))
-            .catch((error) => console.error("Error fetching products:", error));
-
-        apiClient
-            .get("/api/brands", { headers: { Authorization: varToken } })
-            .then((response) => setBrands(response.data))
-            .catch((error) => console.error("Error fetching brands:", error));
-
-        apiClient
-            .get("/api/categories", { headers: { Authorization: varToken } })
-            .then((response) => setCategories(response.data))
-            .catch((error) => console.error("Error fetching categories:", error));
-
-        apiClient
-            .get("/api/providers", { headers: { Authorization: varToken } })
+        apiClient.get("/api/providers", { headers: { Authorization: varToken } })
             .then((response) => setProviders(response.data))
             .catch((error) => console.error("Error fetching providers:", error));
     }, [varToken]);
 
     useEffect(() => {
-        setFilteredProducts(
-            products.filter((product) => {
-                const matchesSearch = product.productName.toLowerCase().includes(searchTerm.toLowerCase());
-                const matchesBrand = selectedBrand ? product.brandName.toLowerCase().trim() === selectedBrand.toLowerCase().trim() : true;
-                const matchesCategory = !selectedCategory ? true : product.categoryList.some(cat =>
-                    cat.categoryName.toLowerCase().trim() === selectedCategory.toLowerCase().trim()
-                );
-                return matchesSearch && matchesBrand && matchesCategory;
-            })
-        );
-    }, [products, searchTerm, selectedBrand, selectedCategory]);
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+        } else {
+            setCurrentPage(1);
+        }
+    }, [debouncedSearchTerm]);
 
-    const handleVariationChange = (variationId, quantity) => {
-        setSelectedVariations((prev) => {
-            const updatedVariations = { ...prev };
-            if (quantity > 0) {
-                updatedVariations[variationId] = parseInt(quantity);
-            } else {
-                delete updatedVariations[variationId];
+    useEffect(() => {
+        fetchVariations();
+    }, [currentPage, debouncedSearchTerm]);
+
+    useEffect(() => {
+        const calculateTotals = () => {
+            let totalQuantity = 0;
+            let totalPrice = 0;
+            for (const item of Object.values(importList)) {
+                totalQuantity += item.quantity;
+                totalPrice += item.variationPrice * item.quantity;
             }
-            return updatedVariations;
-        });
-    };
-
-
-    const handleImportFromProvider = (providerId) => {
-        setSelectedProviderId(providerId);
-        setShowProviderModal(false); // Close modal after selection
-
-        const variations = Object.entries(selectedVariations)
-            .filter(([variationId, quantity]) => !isNaN(parseInt(variationId)) && parseInt(variationId) > 0 && quantity > 0)
-            .map(([variationId, quantity]) => ({
-                productVariationId: parseInt(variationId),
-                quantity,
-            }));
-
-        const payload = {
-            stockId,
-            username,
-            variations,
-            providerId: providerId, // Include providerId in the payload
+            setImportTotals({ totalQuantity, totalPrice });
         };
+        calculateTotals();
+    }, [importList]);
 
-        apiClient.post("/api/stock-transactions", payload, {
-            headers: {
-                Authorization: varToken,
+    const fetchVariations = () => {
+        setLoading(true);
+        apiClient.get("/api/products/all", {
+            headers: { Authorization: varToken },
+            params: {
+                page: currentPage - 1,
+                size: 10,
+                search: debouncedSearchTerm,
+                stockId: stockId,
             },
         })
             .then((response) => {
-                toast.success("Import successfully", {
-                    position: "bottom-right",
-                    transition: Zoom,
-                });
+                if (response.data && Array.isArray(response.data.content)) {
+                    setVariations(response.data.content);
+                    setTotalPages(response.data.totalPages);
+                }
+            })
+            .catch((error) => console.error("Error fetching product variations:", error))
+            .finally(() => setLoading(false));
+    };
+
+    // --- HANDLER FUNCTIONS ---
+    const handleAddToImportList = (variation) => {
+        setImportList(prev => ({
+            ...prev,
+            [variation.id]: {
+                ...variation,
+                quantity: 1
+            }
+        }));
+    };
+
+    const handleRemoveFromList = (variationId) => {
+        setImportList(prev => {
+            const newList = { ...prev };
+            delete newList[variationId];
+            return newList;
+        });
+    };
+
+    const handleQuantityChangeInList = (variationId, quantity) => {
+        const numQuantity = parseInt(quantity, 10) || 0;
+        if (numQuantity <= 0) {
+            handleRemoveFromList(variationId);
+        } else {
+            setImportList(prev => ({
+                ...prev,
+                [variationId]: {
+                    ...prev[variationId],
+                    quantity: numQuantity
+                }
+            }));
+        }
+    };
+
+    const handleImportClick = () => {
+        if (Object.keys(importList).length === 0) {
+            toast.warn("Your import list is empty. Please add products to import.", { position: "bottom-right", transition: Zoom });
+            return;
+        }
+        setShowProviderModal(true);
+    };
+
+    const confirmImport = (providerId) => {
+        setShowProviderModal(false);
+        const payload = {
+            stockId: parseInt(stockId),
+            username: authUser.username,
+            providerId,
+            variations: Object.entries(importList).map(([id, item]) => ({
+                productVariationId: parseInt(id),
+                quantity: item.quantity,
+            })),
+        };
+
+        apiClient.post("/api/stock-transactions", payload, { headers: { Authorization: varToken } })
+            .then(() => {
+                toast.success("Products imported successfully!", { position: "bottom-right", transition: Zoom });
                 navigate(`/Dashboard/Warehouse/${stockId}`);
             })
             .catch((error) => {
-                toast.error("Import failed", {
-                    position: "bottom-right",
-                    transition: Zoom,
-                });
+                toast.error("Import failed. Please try again.", { position: "bottom-right", transition: Zoom });
+                console.error("Import error:", error);
             });
     };
 
-    const openProviderModal = () => {
-        // Check if variations are selected before opening the modal
-        if (Object.keys(selectedVariations).length === 0) {
-            toast.warn("Please select at least one variation before importing.", {
-                position: "bottom-right",
-                transition: Zoom,
-            });
-            return; // Prevent opening the modal
-        }
-        setShowProviderModal(true);
-    }
-
-    const closeModal = () => {
-        setShowProviderModal(false);
-    }
-
+    // --- RENDER COMPONENTS ---
+    const TableSkeleton = () => (
+        [...Array(10)].map((_, index) => (
+            <tr key={index}>
+                {[...Array(5)].map((_, cellIndex) => (
+                    <td key={cellIndex} className='px-4 py-2'><Skeleton variant="text" height={40} /></td>
+                ))}
+            </tr>
+        ))
+    );
 
     return (
-        <div className="p-5 max-w-5xl mx-auto">
-            <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">Import Products into Stock #{stockId}</h1>
-            <div className="flex flex-col sm:flex-row justify-center gap-4 mb-6">
-                <input
-                    type="text"
-                    placeholder="Search by product name"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="p-2 border rounded-md"
-                />
-                <select
-                    value={selectedBrand}
-                    onChange={(e) => setSelectedBrand(e.target.value)}
-                    className="p-2 border rounded-md"
-                >
-                    <option value="">All Brands</option>
-                    {brands.map((brand) => (
-                        <option key={brand.brandId} value={brand.brandName}>{brand.brandName}</option>
-                    ))}
-                </select>
-                <select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="p-2 border rounded-md"
-                >
-                    <option value="">All Categories</option>
-                    {categories.map((category) => (
-                        <option key={category.categoryId} value={category.categoryName}>{category.categoryName}</option>
-                    ))}
-                </select>
-            </div>
+        <div className="p-4">
+            <Typography variant='h4' className='text-3xl font-bold mb-4'>
+                Import Products into Warehouse #{stockId}
+            </Typography>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredProducts.map((product) => (
-                    <ProductCard
-                        key={product.productId}
-                        product={product}
-                        onVariationChange={handleVariationChange}
-                        selectedVariations={selectedVariations}
-                    />
-                ))}
-            </div>
+            <div className="flex flex-col md:flex-row gap-4">
+                <div className="w-full md:w-2/3">
+                    <Paper elevation={2} className="p-3 mb-4">
+                        <TextField
+                            label="Search by Product, Brand, Color, Size..."
+                            variant="outlined"
+                            size="small"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            fullWidth
+                        />
+                    </Paper>
 
-            <button
-                onClick={openProviderModal} // Open modal on click
-                className="block mt-8 mx-auto px-6 py-3 bg-green-500 text-white font-semibold rounded-lg shadow hover:bg-green-600 transition duration-200"
-            >
-                Import
-            </button>
-
-            {/* Provider Selection Modal */}
-            {showProviderModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-                    <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl">
-                        <h2 className="text-2xl font-bold mb-4">Select a Provider</h2>
-                        <button onClick={closeModal} className="absolute top-2 right-2 text-xl">×</button>
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
+                    <div className='overflow-x-auto bg-white rounded-lg shadow'>
+                        <table className='min-w-full table-fixed'>
+                            <thead className='bg-gray-100'>
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logo</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                <th style={{ width: '40%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Product</th>
+                                <th style={{ width: '25%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Details</th>
+                                <th style={{ width: '15%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Price</th>
+                                <th style={{ width: '10%' }} className='px-4 py-3 text-center text-sm font-semibold text-gray-600'>In Stock</th>
+                                <th style={{ width: '10%' }} className='px-4 py-3 text-center text-sm font-semibold text-gray-600'>Action</th>
                             </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                            {providers.map((provider) => (
-                                <tr key={provider.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <img src={provider.providerImageUrl} alt={provider.providerName} className="h-10 w-10 rounded-full" />
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{provider.providerName}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <button
-                                            onClick={() => handleImportFromProvider(provider.id)}
-                                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                                        >
-                                            Import
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
+                            <tbody className='divide-y divide-gray-200'>
+                            {loading ? <TableSkeleton /> : variations.map((v) => {
+                                {/* --- THIS IS THE FIXED BLOCK --- */}
+                                const inStock = v.currentStock || 0;
+                                const isInList = !!importList[v.id]; // Check against the new importList state
+
+                                return (
+                                    <tr key={v.id} className={`align-middle transition-colors ${isInList ? 'bg-green-50' : 'hover:bg-gray-50'}`}>
+                                        <td className="px-4 py-2">
+                                            <div className="flex items-center gap-3">
+                                                <img src={v.variationImage || '/images/placeholder.png'} alt={v.productName} className="h-12 w-12 object-cover rounded-md" />
+                                                <span className="font-semibold text-sm">{v.productName}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-2 text-sm">
+                                            <div>{v.brandName}</div>
+                                            <div className="text-xs text-gray-500">{v.sizeName} / {v.colorName}</div>
+                                        </td>
+                                        <td className="px-4 py-2 text-sm">{formatPrice(v.variationPrice)}</td>
+                                        <td className={`px-4 py-2 text-center text-sm font-bold ${inStock === 0 ? 'text-red-500' : 'text-gray-700'}`}>
+                                            {inStock}
+                                        </td>
+                                        <td className="px-4 py-2 text-center">
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                startIcon={<AddShoppingCart />}
+                                                onClick={() => handleAddToImportList(v)} // Use the correct handler
+                                                disabled={isInList}
+                                            >
+                                                {isInList ? 'Added' : 'Add'}
+                                            </Button>
+                                        </td>
+                                    </tr>
+                                );
+                                {/* --- END OF FIXED BLOCK --- */}
+                            })}
                             </tbody>
                         </table>
-
                     </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-
-
-const ProductCard = ({ product, onVariationChange, selectedVariations }) => {
-    const [variations, setVariations] = useState([]);
-    const varToken = useAuthHeader();
-
-    useEffect(() => {
-        apiClient
-            .get(`/api/products/${product.productId}/product-variations`, {
-                headers: {
-                    Authorization: varToken,
-                },
-            })
-            .then((response) => {
-                const variationsData = response.data;
-                setVariations(variationsData || []);
-            })
-            .catch((error) => console.error("Error fetching variations:", error));
-    }, [product.productId, varToken]);
-
-    return (
-        <div
-            className="p-6 border rounded-lg shadow-sm bg-white hover:shadow-lg transition duration-200 flex flex-col justify-between"
-            style={{ minWidth: "330px" }}
-        >
-            <div>
-                <div className="flex items-center mb-4">
-                    <img
-                        src={product.productVariationImage}
-                        alt={product.productName}
-                        className="w-20 h-20 rounded-lg shadow mr-4 object-cover"
-                    />
-                    <div>
-                        <h2 className="text-lg font-semibold text-gray-800">{product.productName}</h2>
-                        <p className="text-sm text-gray-600">Brand: {product.brandName}</p>
-                        <p className="text-sm text-gray-600">
-                            Category: {product.categoryList && product.categoryList[0] ? product.categoryList[0].categoryName : 'N/A'}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                            Price: {product.productPrice.toLocaleString()} VND
-                        </p>
-                    </div>
-                </div>
-
-                <div className="mt-4 pt-4 border-t"></div>
-
-                <div className="grid grid-cols-3 gap-3 mt-4">
-                    {variations.map((variation) => (
-                        <VariationCard
-                            key={variation.id}
-                            variation={variation}
-                            onVariationChange={onVariationChange}
-                            isSelected={selectedVariations[variation.id] > 0}
+                    <div className='flex justify-center items-center mt-4'>
+                        <EnhancedPagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={setCurrentPage}
+                            isLoading={loading}
                         />
-                    ))}
+                    </div>
+                </div>
+
+                {/* --- RIGHT PANEL: IMPORT LIST --- */}
+                <div className="w-full md:w-1/3">
+                    <Paper elevation={2} className="p-4 sticky top-4">
+                        <Typography variant="h6" className="font-bold mb-3 border-b pb-2">Import List</Typography>
+                        <div className="max-h-[60vh] overflow-y-auto pr-2">
+                            {Object.keys(importList).length === 0 ? (
+                                <Typography className="text-center text-gray-500 py-10">Your list is empty.<br />Add products from the left.</Typography>
+                            ) : (
+                                Object.values(importList).map(item => (
+                                    <div key={item.id} className="flex items-center gap-3 mb-3 border-b pb-3">
+                                        <img src={item.variationImage} alt={item.productName} className="h-12 w-12 object-cover rounded-md flex-shrink-0" />
+                                        <div className="flex-grow">
+                                            <p className="font-semibold text-sm leading-tight">{item.productName}</p>
+                                            <p className="text-xs text-gray-500">{item.sizeName} / {item.colorName}</p>
+                                            <p className="text-xs font-medium">{formatPrice(item.variationPrice)}</p>
+                                        </div>
+                                        <div className="flex-shrink-0">
+                                            <TextField
+                                                type="number"
+                                                size="small"
+                                                variant="outlined"
+                                                value={item.quantity}
+                                                onChange={(e) => handleQuantityChangeInList(item.id, e.target.value)}
+                                                inputProps={{ min: 1, style: { textAlign: 'center' } }}
+                                                className="w-20"
+                                            />
+                                        </div>
+                                        <IconButton size="small" onClick={() => handleRemoveFromList(item.id)}><RemoveCircleOutline color="error" /></IconButton>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        {Object.keys(importList).length > 0 && (
+                            <div className="mt-4 pt-4 border-t">
+                                <div className="flex justify-between font-bold text-lg">
+                                    <span>Total Items:</span>
+                                    <span>{importTotals.totalQuantity.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between font-bold text-lg mt-2">
+                                    <span>Grand Total:</span>
+                                    <span>{formatPrice(importTotals.totalPrice)}</span>
+                                </div>
+                                <Button fullWidth variant="contained" color="primary" size="large" onClick={handleImportClick} className="mt-4">
+                                    Select Provider & Import
+                                </Button>
+                            </div>
+                        )}
+                    </Paper>
                 </div>
             </div>
-        </div>
-    );
-};
 
-const VariationCard = ({ variation, onVariationChange, isSelected }) => {
-    const [quantity, setQuantity] = useState(0);
-    const [showInput, setShowInput] = useState(false);
-
-    const handleCardClick = () => {
-        if (!showInput) {
-            setShowInput(true);
-            setQuantity(quantity || 1);
-            onVariationChange(variation.id, quantity || 1);
-        } else {
-            setShowInput(false);
-            onVariationChange(variation.id, 0);
-            setQuantity(0);
-        }
-    };
-
-    const handleQuantityChange = (e) => {
-        const value = e.target.value;
-        const parsedValue = parseInt(value, 10) || 0;
-        if (value === "0" || parsedValue === 0) {
-            setQuantity("");
-            onVariationChange(variation.id, 0);
-        } else {
-            setQuantity(parsedValue);
-            onVariationChange(variation.id, parsedValue);
-        }
-    };
-
-    return (
-        <div
-            className={`p-2 rounded-lg border text-center shadow-sm cursor-pointer transition duration-200 flex flex-col justify-between ${isSelected ? "border-green-500 bg-green-50" : "bg-gray-50"}`}
-            onClick={handleCardClick}
-            style={{ minWidth: "90px", maxWidth: "110px", height: "100%"}}
-        >
-            <div>
-                <img
-                    src={variation.variationImage}
-                    alt={`${variation.size?.sizeName} ${variation.color?.colorName}`}
-                    className="w-full h-16 rounded-lg object-cover mb-1"
-                />
-                <p className="text-xs font-medium text-gray-700">
-                    Size: {variation.size?.sizeName}
-                </p>
-                <p className="text-xs font-medium text-gray-700">
-                    Color: {variation.color?.colorName}
-                </p>
-            </div>
-
-            {showInput && (
-                <input
-                    type="number"
-                    min="0"
-                    value={quantity}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={handleQuantityChange}
-                    placeholder="Quantity"
-                    className="mt-1 w-full p-1 border rounded focus:outline-none focus:ring focus:ring-green-200"
-                />
-            )}
+            {/* Provider Selection Modal */}
+            <Dialog open={showProviderModal} onClose={() => setShowProviderModal(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>Select a Provider</DialogTitle>
+                <DialogContent sx={{ p: 0 }}>
+                    {providers.length > 0 ? (
+                        <List>
+                            {providers.map((provider, index) => (
+                                <React.Fragment key={provider.id}>
+                                    <ListItemButton onClick={() => confirmImport(provider.id)}>
+                                        <ListItemAvatar>
+                                            <Avatar src={provider.providerImageUrl} alt={provider.providerName} />
+                                        </ListItemAvatar>
+                                        <ListItemText
+                                            primary={provider.providerName}
+                                            primaryTypographyProps={{ fontWeight: 'medium' }}
+                                        />
+                                    </ListItemButton>
+                                    {index < providers.length - 1 && <Divider component="li" />}
+                                </React.Fragment>
+                            ))}
+                        </List>
+                    ) : (
+                        <Typography sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
+                            No providers found.
+                        </Typography>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setShowProviderModal(false)}>Cancel</Button>
+                </DialogActions>
+            </Dialog>
         </div>
     );
 };

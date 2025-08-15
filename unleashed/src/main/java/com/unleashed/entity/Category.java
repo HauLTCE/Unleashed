@@ -3,15 +3,17 @@ package com.unleashed.entity;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.unleashed.util.Views;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.Nationalized;
 
 import java.time.OffsetDateTime;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "category", schema = "public")
+@Table(name = "category", schema = "dbo")
 public class Category {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -19,13 +21,19 @@ public class Category {
     @JsonView(Views.TransactionView.class)
     private Integer id;
 
+    @Size(max = 255)
+    @Nationalized
     @Column(name = "category_name")
     @JsonView(Views.TransactionView.class)
     private String categoryName;
 
-    @Column(name = "category_description", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Lob
+    @Column(name = "category_description")
     private String categoryDescription;
 
+    @Size(max = 255)
+    @Nationalized
     @Column(name = "category_image_url")
     private String categoryImageUrl;
 

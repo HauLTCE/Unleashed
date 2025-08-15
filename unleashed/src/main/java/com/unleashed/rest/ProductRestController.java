@@ -1,10 +1,7 @@
 package com.unleashed.rest;
 
 import com.fasterxml.jackson.annotation.JsonView;
-import com.unleashed.dto.ProductDTO;
-import com.unleashed.dto.ProductDetailDTO;
-import com.unleashed.dto.ProductItemDTO;
-import com.unleashed.dto.ProductListDTO;
+import com.unleashed.dto.*;
 import com.unleashed.entity.Product;
 import com.unleashed.entity.Variation;
 import com.unleashed.repo.ProductRepository;
@@ -19,87 +16,72 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/products")
 public class ProductRestController {
-    private final RestClient.Builder builder;
-    private final SizeRepository sizeRepository;
-    private final ProductRepository productRepository;
     private final ProductService productService;
-    private final BrandService brandService;
-    private final CategoryService categoryService;
-    private final VariationRepository variationRepository;
-    private final StockVariationRepository stockVariationRepository;
 
     @Autowired
-    public ProductRestController(ProductService productService, BrandService brandService, CategoryService categoryService, RestClient.Builder builder, SizeRepository sizeRepository, ProductRepository productRepository, VariationRepository variationRepository, StockVariationRepository stockVariationRepository) {
+    public ProductRestController(ProductService productService) {
         this.productService = productService;
-        this.brandService = brandService;
-        this.categoryService = categoryService;
-        this.builder = builder;
-        this.sizeRepository = sizeRepository;
-        this.productRepository = productRepository;
-        this.variationRepository = variationRepository;
-        this.stockVariationRepository = stockVariationRepository;
     }
 
     @GetMapping()
-    public ResponseEntity<List<ProductListDTO>> getAllProducts() {
-        return ResponseEntity.ok(productService.getListProduct());
+    public ResponseEntity<Page<ProductListDTO>> findProducts(
+            @RequestParam(value = "query", required = false) String query,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "brand", required = false) String brand,
+            @RequestParam(value = "rating", required = false, defaultValue = "0") float rating,
+            @RequestParam(value = "priceOrder", required = false) String priceOrder,
+            @RequestParam(value = "inStockOnly", required = false, defaultValue = "false") boolean inStockOnly,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "12") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ProductListDTO> productPage = productService.findProductsWithFilters(query, category, brand, rating, priceOrder, inStockOnly, pageable); // <-- UPDATE THIS LINE
+        return ResponseEntity.ok(productPage);
     }
+
+    @GetMapping("/all")
+    public ResponseEntity<Page<VariationImportDTO>> getAllVariations(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Integer stockId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("product.productName").ascending());
+        // Pass the new stockId parameter to the service
+        Page<VariationImportDTO> result = productService.findAllVariationsForImport(search, stockId, pageable);
+        return ResponseEntity.ok(result);
+    }
+
 
     @GetMapping("/{productId}/detail")
     public ResponseEntity<ProductDetailDTO> getProductsById(@PathVariable String productId) {
-        Product products = productService.findById(productId);
-        List<Variation> availableVariations = variationRepository.findProductVariationByProductId(productId);
-        availableVariations.removeIf(variation -> {
-            Integer stock = stockVariationRepository.findStockProductByProductVariationId(variation.getId());
-            return stock != null && stock < 0;
-        });
-
-//        availableVariations.removeIf(variation -> stockVariationRepository.findStockProductByProductVariationId(variation.getId()) != null && stockVariationRepository.findStockProductByProductVariationId(variation.getId()) < 0 );
-        ProductDetailDTO dto = ProductDetailDTO.builder()
-                .productId(products.getProductId())
-                .productName(products.getProductName())
-                .productCode(products.getProductCode())
-                .productDescription(products.getProductDescription())
-                .productStatusId(products.getProductStatus())
-                .productVariations(availableVariations)
-                .productCreatedAt(products.getProductCreatedAt())
-                .productUpdatedAt(products.getProductUpdatedAt())
-                .brand(products.getBrand())
-                .categories(products.getCategories())
-                .build();
-        return ResponseEntity.ok(dto);
+        ProductDetailDTO dto = productService.getProductDetailById(productId);
+        if (dto != null) {
+            return ResponseEntity.ok(dto);
+        } else {
+            return ResponseEntity.notFound().build();
+        }
     }
+
 
     @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
     @GetMapping("/{productId}/product-variations")
     @JsonView(Views.ProductView.class)
     public ResponseEntity<?> getProductVariationsByProductId(@PathVariable String productId) {
-        Product product = productService.findById(productId);
-//        System.out.println("Name: " + product.getProductName() +
-//                " Variation price: " + product.getProductVariations().get(0).getVariationPrice() +
-//                " Color: " + product.getProductVariations().get(0).getColor().getColorName() +
-//                " Size: " + product.getProductVariations().get(0).getSize().getSizeName() +
-//                " Class: " + product.getProductVariations().get(0).getClass()
-//        );
+        List<Variation> availableVariations = productService.getAvailableVariationsForProduct(productId);
 
-        if (product != null && product.getProductVariations() != null) {
-            List<Variation> availableVariations = product.getProductVariations();
-            availableVariations.removeIf(variation -> {
-                Integer stock = stockVariationRepository.findStockProductByProductVariationId(variation.getId());
-                return stock != null && stock < 0;
-            });
-
-//            availableVariations.removeIf(variation -> stockVariationRepository.findStockProductByProductVariationId(variation.getId()) != null && stockVariationRepository.findStockProductByProductVariationId(variation.getId()) < 0 );
+        if (availableVariations != null) {
             return ResponseEntity.ok(availableVariations);
         } else {
             return ResponseEntity.notFound().build();
@@ -166,4 +148,8 @@ public class ProductRestController {
         List<ProductDetailDTO> productsInStock = productService.getProductsInStock();
         return ResponseEntity.ok(productsInStock);
     }
+
+
+
+
 }

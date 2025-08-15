@@ -46,8 +46,9 @@ export const LoginUser = async (data, navigate, signIn) => {
       },
     },
     {
-      position: "bottom-center",
+      position: "top-center",
       transition: Zoom,
+
     }
   );
 
@@ -104,31 +105,84 @@ export const HandleForgotPassword = async (data, navigate) => {
 };
 
 export const HandleLoginGoogle = async (accessToken, navigate, signIn) => {
-  try {
-    const response = await apiClient.get(
-      `/api/auth/google-callback?token=${accessToken}`
-    );
-    const user = jwtDecode(response.data.token);
-    signIn({
-      auth: {
-        token: response.data.token,
-        type: "Bearer",
-      },
-      userState: {
-        username: user.sub,
-        userImage: user.image,
-        role: user.role?.[0]?.authority,
-      },
-    });
+    try {
+        // This line will attempt to get the user data from your backend
+        const response = await apiClient.get(
+            `/api/auth/google-callback?token=${accessToken}`
+        );
 
-    toast.success("Login successful!" || response?.data?.message, {
-      position: "bottom-center",
-      transition: Zoom,
-    });
-    navigate("/");
-  } catch (error) {
-    console.error("Error in HandleLoginGoogle:", error);
-  }
+        // This part ONLY runs if the backend returns a successful (2xx) status.
+        // For example, a 200 OK for a successful login.
+        if (response.status === 200 && response.data.token) {
+            const user = jwtDecode(response.data.token);
+            signIn({
+                auth: {
+                    token: response.data.token,
+                    type: "Bearer",
+                },
+                userState: {
+                    username: user.sub,
+                    userImage: user.image,
+                    role: user.role?.[0]?.authority,
+                },
+            });
+
+            toast.success("Login successful!", {
+                position: "top-center",
+                transition: Zoom,
+            });
+            navigate("/");
+            return;
+        }
+
+        // This handles the 201 CREATED for a brand new user
+        if (response.status === 201) {
+            localStorage.setItem("mail", response.data.email);
+            toast.info(response.data.message, { position: "top-center", autoClose: 6000 });
+            navigate("/register/confirm-registration");
+            return;
+        }
+
+    } catch (error) {
+        // THIS IS THE CRUCIAL PART.
+        // Any non-2xx response from the backend (like your 403) will land here.
+
+        if (error.response) {
+            // We have a response from the server, let's inspect it.
+            const { status, data } = error.response;
+
+            // --- SCENARIO: Account exists but is NOT activated ---
+            if (status === 403) {
+                // Use the email from the backend's error response
+                localStorage.setItem("mail", data.email);
+
+                // Show the user a helpful message
+                toast.warn(data.message, {
+                    position: "top-center",
+                    autoClose: 6000, // Keep message on screen longer
+                });
+
+                // Redirect to the confirmation page
+                navigate("/register/confirm-registration");
+                return; // Stop execution
+            }
+
+            // --- SCENARIO: Email conflict (account exists with password) ---
+            if (status === 409) {
+                toast.error(data.message, {
+                    position: "top-center",
+                    autoClose: 6000,
+                });
+                return; // Stop execution
+            }
+        }
+
+        // --- Fallback for any other unexpected errors ---
+        toast.error("An unexpected error occurred during Google Sign-In.", {
+            position: "top-center"
+        });
+        console.error("Unhandled Error in HandleLoginGoogle:", error);
+    }
 };
 
 export const ResetPassword = async (password, email, token, navigate) => {

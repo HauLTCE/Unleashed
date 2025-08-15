@@ -1,6 +1,6 @@
 package com.unleashed.entity;
 
-import com.unleashed.entity.ComposeKey.OrderVariationSingleId;
+import com.unleashed.entity.composite.OrderVariationSingleId;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
@@ -13,7 +13,7 @@ import java.math.BigDecimal;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "order_variation_single", schema = "public")
+@Table(name = "order_variation_single", schema = "dbo")
 public class OrderVariationSingle {
     @EmbeddedId
     private OrderVariationSingleId id;

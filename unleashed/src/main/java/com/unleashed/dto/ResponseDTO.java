@@ -3,9 +3,13 @@ package com.unleashed.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 
 @Data
+@Getter
+@Setter
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ResponseDTO {
 
@@ -14,6 +18,7 @@ public class ResponseDTO {
     private String token;
     private String expirationTime;
     private UserDTO user;
+    private String email;
 
     // Constructor với statusCode và message
     public ResponseDTO(int statusCode, String message) {

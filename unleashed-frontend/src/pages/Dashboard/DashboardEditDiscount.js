@@ -1,355 +1,220 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  Button,
-  TextField,
-  Typography,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  FormHelperText,
+    Button,
+    CircularProgress,
+    Container,
+    Grid,
+    MenuItem,
+    Paper,
+    TextField,
+    Typography
 } from "@mui/material";
-import { Formik, Field, Form, ErrorMessage } from "formik";
+import { Field, Form, Formik } from "formik";
 import * as Yup from "yup";
 import { apiClient } from "../../core/api";
 import useAuthHeader from "react-auth-kit/hooks/useAuthHeader";
 import { toast, Zoom } from "react-toastify";
 
-const formatDateTime = (dateString) => {
-  const date = new Date(dateString);
-  return date.toISOString().slice(0, 16);
+const formatDateTimeForInput = (dateString) => {
+    if (!dateString) return '';
+    try {
+        const date = new Date(dateString);
+        const timezoneOffset = date.getTimezoneOffset() * 60000;
+        const localDate = new Date(date.getTime() - timezoneOffset);
+        return localDate.toISOString().slice(0, 16);
+    } catch (error) {
+        return '';
+    }
 };
 
-const convertToOffsetDateTime = (value) => {
-  if (!value) return '';
-  if (value.length === 16) {
-    return value + ':00Z';
-  }
-  return value;
-}
+const convertToOffsetDateTime = (localDateTime) => {
+    if (!localDateTime) return null;
+    return new Date(localDateTime).toISOString();
+};
 
 const validationSchema = Yup.object({
-  discountCode: Yup.string()
-    .required("Discount code is required")
-    .min(3, "Discount code must be at least 3 characters")
-    .max(20, "Discount code cannot exceed 20 characters"),
-  discountType: Yup.number() // Changed to number validation
-      .required("Discount type is required")
-      .oneOf([1, 2], "Invalid discount type"),
-  discountValue: Yup.number()
-      .required("Discount value is required")
-      .min(1, "Discount value cannot be negative")
-      .max(99999999, "Maximum value cannot exceed 99999999")
-      .when("discountType", {
-        is: 1, // Check against integer ID for PERCENTAGE
-        then: (schema) =>
-            schema
-                .min(1, "Discount value cannot be negative")
-                .max(100, "Discount value cannot be greater than 100")
-                .required("Discount value is required"),
-      })
-      .max(99999999, "Maximum value cannot exceed 99999999"),
-  startDate: Yup.date().required("Start date is required"),
-  // .min(new Date(), "Start date cannot be in the past"),
-  endDate: Yup.date()
-    .required("End date is required")
-    .min(Yup.ref("startDate"), "End date must be after start date"),
-  discountStatus: Yup.number() // Changed to number validation
-      .required("Discount status is required")
-      .oneOf([1, 2, 3, 4], "Invalid discount status"),
-  discountDescription: Yup.string(),
-  minimumOrderValue: Yup.number()
-    .min(0, "Minimum order value cannot be negative")
-      .max(99999999, "Maximum value cannot exceed 99999999")
-    .nullable(),
-  maximumDiscountValue: Yup.number()
-    .min(0, "Maximum discount value cannot be negative")
-      .max(99999999, "Maximum value cannot exceed 99999999")
-    .nullable()
-      .when("discountType", {
-        is: 2, // Check against integer ID for FIXED_AMOUNT
-        then: (schema) =>
-            schema.test(
-                "is-null",
-                "For fixed amount, Maximum discount value should be null",
-                (value) => value === null || value === undefined
-            ),
-      }),
-
-  usageLimit: Yup.number()
-    .min(1, "Usage limit cannot be negative")
-      .max(99999999, "Maximum value cannot exceed 99999999")
-    .required("Usage limit cannot be null"),
-  discountRank: Yup.number() // Validation for discountRank - optional, integer, min 1, max 5
-      .required("Discount rank is required")
-      .oneOf([1, 2, 3, 4, 5], "Invalid discount rank"),
+    discountCode: Yup.string().required("Required"),
+    discountType: Yup.number().required("Discount type is required").oneOf([1, 2]),
+    discountValue: Yup.number()
+        .required("Discount value is required")
+        .min(0, "Discount value cannot be negative")
+        .when("discountType", {
+            is: 1,
+            then: (schema) => schema.max(100, "Percentage value cannot exceed 100"),
+        }),
+    startDate: Yup.date().required("Start date is required"),
+    endDate: Yup.date().required("End date is required").min(Yup.ref("startDate"), "End date must be after start date"),
+    discountStatus: Yup.number().required("Discount status is required").oneOf([1, 2, 3, 4]),
+    discountDescription: Yup.string().nullable(),
+    minimumOrderValue: Yup.number().min(0, "Cannot be negative").nullable(),
+    maximumDiscountValue: Yup.number()
+        .min(0, "Cannot be negative")
+        .nullable()
+        .when("discountType", {
+            is: 2,
+            then: (schema) => schema.test("is-null", "Max value must be null for Fixed Amount type", (v) => v === null || v === undefined || v === ''),
+        }),
+    usageLimit: Yup.number().required("Usage limit is required").min(1, "Usage limit must be at least 1"),
+    discountRank: Yup.number().required("Discount rank is required").oneOf([1, 2, 3, 4, 5]),
 });
 
 const DashboardEditDiscount = () => {
-  const [initialValues, setInitialValues] = useState({
-    discountCode: "",
-    discountType: 1,
-    discountValue: "",
-    startDate: "",
-    endDate: "",
-    discountStatus: 2,
-    discountDescription: "",
-    minimumOrderValue: "",
-    maximumDiscountValue: "",
-    usageLimit: "",
-    discountRank: 1,
-  });
+    const [initialValues, setInitialValues] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const navigate = useNavigate();
+    const { discountId } = useParams();
+    const varToken = useAuthHeader();
 
-  const navigate = useNavigate();
-  const { discountId } = useParams();
-  const varToken = useAuthHeader();
+    useEffect(() => {
+        if (discountId) {
+            setLoading(true);
+            apiClient.get(`/api/discounts/${discountId}`, { headers: { Authorization: varToken } })
+                .then((response) => {
+                    const discount = response.data;
+                    setInitialValues({
+                        discountCode: discount.discountCode || "",
+                        discountType: discount.discountType?.id || 1,
+                        discountValue: discount.discountValue || "",
+                        startDate: formatDateTimeForInput(discount.startDate),
+                        endDate: formatDateTimeForInput(discount.endDate),
+                        discountStatus: discount.discountStatus?.id || 1,
+                        discountDescription: discount.discountDescription || "",
+                        minimumOrderValue: discount.minimumOrderValue || "",
+                        maximumDiscountValue: discount.maximumDiscountValue || "",
+                        usageLimit: discount.usageLimit || "",
+                        discountRank: discount.rank?.id || 1,
+                        usageCount: discount.usageCount || 0,
+                    });
+                })
+                .catch((error) => {
+                    toast.error("Failed to load discount details.", { position: "bottom-right", transition: Zoom });
+                })
+                .finally(() => {
+                    setLoading(false);
+                });
+        }
+    }, [discountId, varToken]);
 
-  useEffect(() => {
-    const fetchDiscount = async () => {
-      try {
-        const response = await apiClient.get(`/api/discounts/${discountId}`, {
-          headers: { Authorization: varToken },
-        });
-        const discount = response.data;
-        setInitialValues({
-          discountCode: discount.discountCode,
-          discountType: discount.discountType.id,
-          discountValue: discount.discountValue,
-          startDate: formatDateTime(discount.startDate),
-          endDate: formatDateTime(discount.endDate),
-          discountStatus: discount.discountStatus.id,
-          discountDescription: discount.discountDescription,
-          minimumOrderValue: discount.minimumOrderValue,
-          maximumDiscountValue: discount.maximumDiscountValue,
-          usageLimit: discount.usageLimit,
-          discountRank: discount.discountRank.id,
-          usageCount: discount.usageCount,
-        });
-      } catch (error) {
-        console.error("Error fetching discount details:", error);
-      }
+    const handleSubmit = (values, { setSubmitting }) => {
+        const requestBody = {
+            discountCode: values.discountCode,
+            discountType: { id: values.discountType },
+            discountValue: values.discountValue,
+            startDate: convertToOffsetDateTime(values.startDate),
+            endDate: convertToOffsetDateTime(values.endDate),
+            discountStatus: { id: values.discountStatus },
+            discountDescription: values.discountDescription,
+            minimumOrderValue: values.minimumOrderValue || null,
+            maximumDiscountValue: values.maximumDiscountValue || null,
+            usageLimit: values.usageLimit,
+            rank: { id: values.discountRank },
+            usageCount: values.usageCount
+        };
+
+        apiClient.put(`/api/discounts/${discountId}`, requestBody, { headers: { Authorization: varToken } })
+            .then(() => {
+                toast.success("Discount updated successfully!", { position: "bottom-right", transition: Zoom });
+                navigate("/Dashboard/Discounts");
+            })
+            .catch((error) => {
+                toast.error("Failed to update discount.", { position: "bottom-right", transition: Zoom });
+            })
+            .finally(() => setSubmitting(false));
     };
-    fetchDiscount();
-  }, [discountId, varToken]);
 
-  const handleSubmit = (values) => {
-    const requestBody = { // Tạo requestBody tương tự như DashboardCreateDiscount
-      discountCode: values.discountCode,
-      discountType: { id: values.discountType },
-      discountValue: values.discountValue,
-      startDate: convertToOffsetDateTime(values.startDate),
-      endDate: convertToOffsetDateTime(values.endDate),
-      discountStatus: { id: values.discountStatus },
-      discountDescription: values.discountDescription,
-      minimumOrderValue: values.minimumOrderValue,
-      maximumDiscountValue: values.maximumDiscountValue,
-      usageLimit: values.usageLimit,
-      discountRank: { id: values.discountRank },
-      usageCount: values.usageCount
-    };
+    if (loading) {
+        return (
+            <Container maxWidth="md" sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+                <CircularProgress />
+            </Container>
+        );
+    }
 
-    apiClient
-        .put(`/api/discounts/${discountId}`, requestBody, { // Gửi requestBody đã format
-          headers: { Authorization: varToken },
-        })
-        .then(() => {
-          toast.success("Update discount successfully", {
-            position: "bottom-right",
-            transition: Zoom,
-          });
-          navigate("/Dashboard/Discounts");
-        })
-        .catch((error) => {
-          toast.error("Update discount failed", {
-            position: "bottom-right",
-            transition: Zoom,
-          });
-          console.error("Error updating discount:", error);
-        });
-  };
-  return (
-    <div className="max-w-lg mx-auto">
-      <Typography variant="h4" gutterBottom>
-        Edit Discount {discountId}
-      </Typography>
-      <Formik
-        initialValues={initialValues}
-        validationSchema={validationSchema}
-        onSubmit={handleSubmit}
-        enableReinitialize
-      >
-        {({ values, handleChange, errors, touched }) => (
-          <Form className="space-y-6">
-            <TextField
-              label="Discount Code"
-              name="discountCode"
-              value={values.discountCode}
-              onChange={handleChange}
-              fullWidth
-              error={touched.discountCode && Boolean(errors.discountCode)}
-              helperText={touched.discountCode && errors.discountCode}
-              required
-              disabled
-            />
-
-            <FormControl
-              fullWidth
-              error={touched.discountType && Boolean(errors.discountType)}
-              helperText={touched.discountType && errors.discountType}
+    return (
+        <Container maxWidth="md" className="p-4">
+            <Typography variant="h4" gutterBottom fontWeight="bold">Edit Discount #{discountId}</Typography>
+            <Formik
+                initialValues={initialValues}
+                validationSchema={validationSchema}
+                onSubmit={handleSubmit}
+                enableReinitialize
             >
-              <InputLabel>Discount Type</InputLabel>
-              <Select
-                name="discountType"
-                value={values.discountType}
-                onChange={handleChange}
-                label="Discount Type"
-              >
-                <MenuItem value={1}>Percentage</MenuItem> {/* Value as integer ID */}
-                <MenuItem value={2}>Fixed Amount</MenuItem> {/* Value as integer ID */}
-              </Select>
-              <FormHelperText>
-                {touched.discountType && errors.discountType}
-              </FormHelperText>
-            </FormControl>
-
-            <TextField
-              label="Discount Value"
-              name="discountValue"
-              type="number"
-              value={values.discountValue}
-              onChange={handleChange}
-              fullWidth
-              error={touched.discountValue && Boolean(errors.discountValue)}
-              helperText={touched.discountValue && errors.discountValue}
-              required
-            />
-
-            <TextField
-              label="Start Date"
-              name="startDate"
-              type="datetime-local"
-              value={values.startDate}
-              onChange={handleChange}
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              error={touched.startDate && Boolean(errors.startDate)}
-              helperText={touched.startDate && errors.startDate}
-              required
-              disabled
-            />
-
-            <TextField
-              label="End Date"
-              name="endDate"
-              type="datetime-local"
-              value={values.endDate}
-              onChange={handleChange}
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              error={touched.endDate && Boolean(errors.endDate)}
-              helperText={touched.endDate && errors.endDate}
-              required
-            />
-
-            <FormControl
-              fullWidth
-              error={touched.discountStatus && Boolean(errors.discountStatus)}
-              helperText={touched.discountStatus && errors.discountStatus}
-            >
-              <InputLabel>Discount Status</InputLabel>
-              <Select
-                name="discountStatus"
-                value={values.discountStatus}
-                onChange={handleChange}
-                label="Discount Status"
-              >
-                <MenuItem value={2}>Active</MenuItem> {/* Value as integer ID */}
-                <MenuItem value={1}>Inactive</MenuItem> {/* Value as integer ID */}
-              </Select>
-              <FormHelperText>
-                {touched.discountStatus && errors.discountStatus}
-              </FormHelperText>
-            </FormControl>
-
-            <TextField
-              label="Discount Description"
-              name="discountDescription"
-              value={values.discountDescription}
-              onChange={handleChange}
-              fullWidth
-              multiline
-              rows={3}
-            />
-
-            <TextField
-              label="Minimum Order Value"
-              name="minimumOrderValue"
-              type="number"
-              value={values.minimumOrderValue}
-              onChange={handleChange}
-              fullWidth
-              error={
-                touched.minimumOrderValue && Boolean(errors.minimumOrderValue)
-              }
-              helperText={touched.minimumOrderValue && errors.minimumOrderValue}
-            />
-
-            <TextField
-              label="Maximum Discount Value"
-              name="maximumDiscountValue"
-              type="number"
-              value={values.maximumDiscountValue}
-              onChange={handleChange}
-              fullWidth
-              error={
-                touched.maximumDiscountValue &&
-                Boolean(errors.maximumDiscountValue)
-              }
-              helperText={
-                touched.maximumDiscountValue && errors.maximumDiscountValue
-              }
-            />
-
-            <TextField
-              label="Usage Limit"
-              name="usageLimit"
-              type="number"
-              value={values.usageLimit}
-              onChange={handleChange}
-              fullWidth
-              error={touched.usageLimit && Boolean(errors.usageLimit)}
-              helperText={touched.usageLimit && errors.usageLimit}
-              required
-            />
-
-            {/* New Discount Rank Field */}
-            <Field
-                name="discountRank"
-                as={TextField}
-                label="Discount Rank"
-                variant="outlined"
-                select
-                fullWidth
-                required
-                error={touched.discountRank && Boolean(errors.discountRank)}
-                helperText={touched.discountRank && errors.discountRank}
-            >
-              <MenuItem value={1}>Unrank</MenuItem> {/* Value as integer ID */}
-              <MenuItem value={2}>Bronze</MenuItem> {/* Value as integer ID */}
-              <MenuItem value={3}>Silver</MenuItem>
-              <MenuItem value={4}>Gold</MenuItem>
-              <MenuItem value={5}>Diamond</MenuItem>
-              </Field>
-
-            <Button type="submit" variant="contained" color="primary" fullWidth>
-              Update Discount
-            </Button>
-          </Form>
-        )}
-      </Formik>
-    </div>
-  );
+                {({ errors, touched, values, isSubmitting }) => (
+                    <Form>
+                        <Paper elevation={3} sx={{ p: 3 }}>
+                            <Grid container spacing={3}>
+                                <Grid item xs={12}>
+                                    <Field as={TextField} name="discountCode" label="Discount Code" fullWidth disabled />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <Field as={TextField} name="discountType" label="Discount Type" select fullWidth
+                                           required error={touched.discountType && !!errors.discountType}
+                                           helperText={touched.discountType && errors.discountType}>
+                                        <MenuItem value={1}>Percentage</MenuItem>
+                                        <MenuItem value={2}>Fixed Amount</MenuItem>
+                                    </Field>
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <Field as={TextField} name="discountValue" label="Discount Value" type="number"
+                                           fullWidth required error={touched.discountValue && !!errors.discountValue}
+                                           helperText={touched.discountValue && errors.discountValue} />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <Field as={TextField} name="startDate" label="Start Date" type="datetime-local"
+                                           fullWidth required InputLabelProps={{ shrink: true }}
+                                           error={touched.startDate && !!errors.startDate}
+                                           helperText={touched.startDate && errors.startDate} />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <Field as={TextField} name="endDate" label="End Date" type="datetime-local"
+                                           fullWidth required InputLabelProps={{ shrink: true }}
+                                           error={touched.endDate && !!errors.endDate}
+                                           helperText={touched.endDate && errors.endDate} />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <Field as={TextField} name="discountStatus" label="Discount Status" select fullWidth
+                                           required error={touched.discountStatus && !!errors.discountStatus}
+                                           helperText={touched.discountStatus && errors.discountStatus}>
+                                        <MenuItem value={2}>Active</MenuItem>
+                                        <MenuItem value={1}>Inactive</MenuItem>
+                                        <MenuItem value={3} disabled>Expired</MenuItem>
+                                        <MenuItem value={4} disabled>Used</MenuItem>
+                                    </Field>
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <Field as={TextField} name="usageLimit" label="Usage Limit" type="number" fullWidth
+                                           required error={touched.usageLimit && !!errors.usageLimit}
+                                           helperText={touched.usageLimit && errors.usageLimit} />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <Field as={TextField} name="minimumOrderValue" label="Minimum Order Value"
+                                           type="number" fullWidth
+                                           error={touched.minimumOrderValue && !!errors.minimumOrderValue}
+                                           helperText={touched.minimumOrderValue && errors.minimumOrderValue} />
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <Field as={TextField} name="maximumDiscountValue" label="Maximum Discount Value"
+                                           type="number" fullWidth disabled={values.discountType === 2}
+                                           error={touched.maximumDiscountValue && !!errors.maximumDiscountValue}
+                                           helperText={touched.maximumDiscountValue && errors.maximumDiscountValue} />
+                                </Grid>
+                                <Field type="hidden" name="discountRank" />
+                                <Grid item xs={12}>
+                                    <Field as={TextField} name="discountDescription" label="Discount Description"
+                                           multiline rows={3} fullWidth />
+                                </Grid>
+                                <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
+                                    <Button variant="outlined" onClick={() => navigate('/Dashboard/Discounts')}>Cancel</Button>
+                                    <Button type="submit" variant="contained" color="primary" disabled={isSubmitting}>Update Discount</Button>
+                                </Grid>
+                            </Grid>
+                        </Paper>
+                    </Form>
+                )}
+            </Formik>
+        </Container>
+    );
 };
 
 export default DashboardEditDiscount;

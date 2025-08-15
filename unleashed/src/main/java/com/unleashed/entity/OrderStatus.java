@@ -3,7 +3,7 @@ package com.unleashed.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.Nationalized;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -11,14 +11,15 @@ import java.util.Set;
 @Getter
 @Setter
 @Entity
-@Table(name = "order_status", schema = "public")
+@Table(name = "order_status", schema = "dbo")
 public class OrderStatus {
     @Id
-    @ColumnDefault("nextval('order_status_order_status_id_seq')")
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "order_status_id", nullable = false)
     private Integer id;
 
-    @Column(name = "order_status_name", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Column(name = "order_status_name")
     private String orderStatusName;
 
     @OneToMany(mappedBy = "orderStatus")

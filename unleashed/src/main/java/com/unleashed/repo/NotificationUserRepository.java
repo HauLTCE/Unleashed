@@ -1,6 +1,6 @@
 package com.unleashed.repo;
 
-import com.unleashed.entity.ComposeKey.NotificationUserId;
+import com.unleashed.entity.composite.NotificationUserId;
 import com.unleashed.entity.NotificationUser;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -9,13 +9,11 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface NotificationUserRepository extends JpaRepository<NotificationUser, NotificationUserId> {
-    //    List<NotificationUser> findByUserId(String userId);  // Cập nhật thành String
-//    Optional<NotificationUser> findByNotificationIdAndUserId(Integer notificationId, String userId);  // Cập nhật thành String
-//    void deleteByNotificationId(Integer notificationId);
-    List<NotificationUser> findByIdUserId(String userId);
 
+    List<NotificationUser> findByIdUserId(UUID userId);
 
     @Modifying
     @Transactional
@@ -29,4 +27,3 @@ public interface NotificationUserRepository extends JpaRepository<NotificationUs
     @Query("DELETE FROM NotificationUser nu WHERE nu.id.notificationId = :notificationId")
     void deleteByNotificationId(@Param("notificationId") Integer notificationId);
 }
-

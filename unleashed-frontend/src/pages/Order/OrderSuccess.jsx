@@ -52,7 +52,7 @@ function OrderSuccess() {
   }
 
   const handleReturnToHome = () => {
-    navigate("/");
+    navigate("/shop");
     emptyCart();
     localStorage.removeItem("orderId");
   };

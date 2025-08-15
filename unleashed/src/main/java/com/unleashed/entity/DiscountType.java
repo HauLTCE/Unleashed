@@ -1,24 +1,22 @@
 package com.unleashed.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.Nationalized;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "discount_type", schema = "public")
+@Table(name = "discount_type", schema = "dbo")
 public class DiscountType {
     @Id
-    @ColumnDefault("nextval('discount_type_discount_type_id_seq')")
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "discount_type_id", nullable = false)
     private Integer id;
 
-    @Column(name = "discount_type_name", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Column(name = "discount_type_name")
     private String discountTypeName;
 
 }

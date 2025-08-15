@@ -2,30 +2,32 @@ package com.unleashed.entity;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.unleashed.util.Views;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.Nationalized;
+
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "color", schema = "public")
+@Table(name = "color", schema = "dbo")
 public class Color {
     @Id
-    @ColumnDefault("nextval('color_color_id_seq')")
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "color_id", nullable = false)
     @JsonView(Views.ProductView.class)
     private Integer id;
 
-    @Column(name = "color_name", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Column(name = "color_name")
     @JsonView({Views.TransactionView.class, Views.ProductView.class})
     private String colorName;
 
-    @Column(name = "color_hex_code", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Column(name = "color_hex_code")
     @JsonView({Views.TransactionView.class, Views.ProductView.class})
     private String colorHexCode;
 

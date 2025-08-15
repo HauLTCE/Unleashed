@@ -3,6 +3,7 @@ package com.unleashed.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.Nationalized;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -10,15 +11,16 @@ import java.util.Set;
 @Getter
 @Setter
 @Entity
-@Table(name = "topic", schema = "public")
+@Table(name = "topic", schema = "dbo")
 public class Topic {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "topic_id_gen")
-    @SequenceGenerator(name = "topic_id_gen", sequenceName = "topic_topic_id_seq", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "topic_id", nullable = false)
     private Integer id;
 
-    @Column(name = "topic_name", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Lob
+    @Column(name = "topic_name")
     private String topicName;
 
     @OneToMany(mappedBy = "topic")

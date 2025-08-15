@@ -36,7 +36,7 @@ const Sidebar = ({ isOpen }) => {
     { to: "/Dashboard/Orders", icon: FaList, label: "Order Lists" },
     { to: "/Dashboard/Warehouse", icon: FaWarehouse, label: "Warehouse" },
     { to: "/Dashboard/StockTransactions", icon: FaFileInvoice, label: "Stock Transactions" },
-    { to: "/Dashboard/Memberships", icon: FaGifts, label: "Account Memeberships" },
+    // { to: "/Dashboard/Memberships", icon: FaGifts, label: "Account Memeberships" },
     { to: "/Dashboard/Product-Reviews", icon: FaRegStar, label: "Product Reviews" }
   ].filter(Boolean);
 

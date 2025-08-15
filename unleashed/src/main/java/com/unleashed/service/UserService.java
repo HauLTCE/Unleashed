@@ -25,9 +25,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -139,47 +138,125 @@ public class UserService {
     }
 
     public ResponseDTO handleGoogleLogin(String googleId, String email, String fullName, String userImage) {
-        User user = findByGoogleId(googleId);
-//        System.out.println(user);
-        String password = email.substring(0, email.indexOf("@")) + email.length(); // Generate a password
-
-        if (user == null) {
-            user = new User();
-            user.setUserGoogleId(googleId);
-            user.setUserUsername(email);
-            user.setUserPassword(password);
-            user.setUserPhone(user.getUserPhone());
-            user.setUserEmail(email);
-            user.setUserFullname(fullName);
-            user.setUserImage(userImage);
-            user.setUserPhone(null);
-            user.setRole(userRoleService.findById(2)); // Assuming role ID 2 is for users
-            user.setIsUserEnabled(true);
-            create(user); // Save user
-        }
-
-        if (rankService.hasRegistered(user) && rankService.isRankExpired(user)) {
-            if (rankService.checkDownRank(user)) rankService.downRank(user);
-        }
         ResponseDTO responseDTO = new ResponseDTO();
 
-        try {
-            authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(user.getUserUsername(), password));
-            User userCheck = userRepository.findByUserUsername(email).orElseThrow(() -> new CustomException("User not found", HttpStatus.NOT_FOUND));
-            var token = jwtUtil.generateUserToken(userCheck);
-            responseDTO.setStatusCode(HttpStatus.OK.value());
-            responseDTO.setToken(token);
-            responseDTO.setExpirationTime("1 Day");
-            responseDTO.setMessage("Successful");
-        } catch (CustomException e) {
-            responseDTO.setStatusCode(e.getStatusCode());
-            responseDTO.setMessage(e.getMessage());
-        } catch (Exception e) {
-            responseDTO.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value());
-            responseDTO.setMessage("Error During  " + e.getMessage());
+        User user = findByGoogleId(googleId);
+
+        // --- Case 1: User exists ---
+        if (user != null) {
+            // If the user exists but their account is disabled, they haven't activated it.
+            if (!user.getIsUserEnabled()) {
+                sendActivationEmail(user);
+                responseDTO.setStatusCode(HttpStatus.FORBIDDEN.value());
+                responseDTO.setMessage("Your account is not activated. We have sent another confirmation email.");
+                responseDTO.setEmail(user.getUserEmail());
+                return responseDTO;
+            }
+
+            // User is active, proceed with login
+            if (rankService.hasRegistered(user) && rankService.isRankExpired(user)) {
+                if (rankService.checkDownRank(user)) rankService.downRank(user);
+            }
+
+            try {
+                // For social logins, we don't need to authenticate with a password.
+                // We trust Google. We find the user and generate a token for them directly.
+                var token = jwtUtil.generateUserToken(user);
+                responseDTO.setStatusCode(HttpStatus.OK.value());
+                responseDTO.setToken(token);
+                responseDTO.setExpirationTime("1 Day");
+                responseDTO.setMessage("Successful");
+            } catch (Exception e) {
+                responseDTO.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value());
+                responseDTO.setMessage("Error during login: " + e.getMessage());
+            }
+            return responseDTO;
         }
-        return responseDTO;
+
+        // --- Case 2: New user via Google ---
+        else {
+            // Before creating, check if the email is already in use by a non-Google account
+            if (existsByEmail(email)) {
+                responseDTO.setStatusCode(HttpStatus.CONFLICT.value());
+                responseDTO.setMessage("An account with this email already exists. Please log in with your password.");
+                return responseDTO;
+            }
+
+            User newUser = new User();
+            newUser.setUserGoogleId(googleId);
+            newUser.setUserUsername(email);
+            newUser.setUserEmail(email);
+            newUser.setUserFullname(fullName);
+            newUser.setUserImage(userImage);
+
+
+            String generatedPassword = email.substring(0, email.indexOf("@")) + email.length();
+            newUser.setUserPassword(generatedPassword);
+
+            newUser.setRole(userRoleService.findById(2));
+            newUser.setIsUserEnabled(false);
+
+            User savedUser = create(newUser);
+
+            // Send the activation email
+            sendActivationEmail(savedUser);
+
+            responseDTO.setStatusCode(HttpStatus.CREATED.value());
+            responseDTO.setMessage("Account created. Please check your email to activate your account.");
+            responseDTO.setEmail(savedUser.getUserEmail());
+            return responseDTO;
+        }
+    }
+
+    /**
+     * Helper method to send a confirmation email.
+     * You can place this within your UserService.
+     */
+    private void sendActivationEmail(User user) {
+        // Generate JWT Token with user ID and expiration for email confirmation
+        String jwtToken = jwtUtil.generateStringToken(user.getUserId() + "registration", 7 * 24 * 60 * 60 * 1000);
+        String confirmationLink = "http://localhost:8080/api/auth/confirm-registration/" + user.getUserUsername() + "?token=" + jwtToken;
+
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        SimpleDateFormat yearFormat = new SimpleDateFormat("yyyy");
+        String currentDateTime = dateFormat.format(new Date());
+        String currentYear = yearFormat.format(new Date());
+
+        String htmlContent = "<!DOCTYPE html>"
+                + "<html lang=\"en\">"
+                + "<head>"
+                + "<meta charset=\"UTF-8\">"
+                + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
+                + "<title>Registration Confirmation</title>"
+                + "</head>"
+                + "<body style=\"margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;\">"
+                + "<table width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\">"
+                + "<tr>"
+                + "<td align=\"center\" style=\"padding: 20px;\">"
+                + "<table width=\"600\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);\">"
+                + "<tr>"
+                + "<td align=\"center\" style=\"padding: 30px;\">"
+                + "<h2 style=\"color: #4CAF50; margin-bottom: 20px;\">Registration Confirmation</h2>"
+                + "<p style=\"color: #555; font-size: 16px; line-height: 1.5;\">Hello " + user.getUserFullname() + ",</p>"
+                + "<p style=\"color: #555; font-size: 16px; line-height: 1.5; margin-bottom: 30px;\">Thank you for registering! Please click the button below to confirm your registration:</p>"
+                + "<a href=\"" + confirmationLink + "\" style=\"display: inline-block; padding: 12px 24px; font-size: 16px; color: white; background-color: #4CAF50; text-decoration: none; border-radius: 5px; font-weight: bold;\">Confirm Registration</a>"
+                + "<p style=\"color: #555; font-size: 14px; margin-top: 30px; line-height: 1.5;\">If you didn't register, please ignore this email.</p>"
+                + "<p style=\"color: #555; font-size: 14px; line-height: 1.5;\">Confirmation sent on: " + currentDateTime + "</p>"
+                + "</td>"
+                + "</tr>"
+                + "<tr>"
+                + "<td align=\"center\" style=\"padding: 20px; background-color: #f8f8f8;\">"
+                + "<p style=\"color: #999; font-size: 12px; margin: 0;\">© " + currentYear + " Unleashed Workshop. All rights reserved.</p>"
+                + "</td>"
+                + "</tr>"
+                + "</table>"
+                + "</td>"
+                + "</tr>"
+                + "</table>"
+                + "</body>"
+                + "</html>";
+
+        emailService.sendHtmlMessage(user.getUserEmail(), "Confirm Your Registration", htmlContent);
     }
 
     public User findByEmail(String userEmail) {
@@ -195,7 +272,7 @@ public class UserService {
     }
 
     public User findById(String userId) {
-        return userRepository.findById(userId).orElse(null);
+        return userRepository.findById(UUID.fromString(userId)).orElse(null);
     }
 
 
@@ -219,7 +296,7 @@ public class UserService {
 
     @Transactional
     public User updateUserInfo(String userId, UpdateUserDTO updatedUserInfo) {
-        Optional<User> existingUserOptional = userRepository.findById(userId);
+        Optional<User> existingUserOptional = userRepository.findById(UUID.fromString(userId));
 
         if (existingUserOptional.isPresent()) {
             User existingUser = existingUserOptional.get();
@@ -227,7 +304,14 @@ public class UserService {
             // Log toàn bộ dữ liệu từ frontend
 //            System.out.println(" Received from frontend: " + updatedUserInfo);
 
+            if (!existingUser.getUserUsername().equals(updatedUserInfo.getUsername())) {
+                if (userRepository.existsByUserUsername(updatedUserInfo.getUsername())) {
+                    throw new CustomException("Username is already taken. Please choose another.", HttpStatus.CONFLICT);
+                }
+            }
+
             // Cập nhật thông tin
+            existingUser.setUserUsername(updatedUserInfo.getUsername()); //hereeeeeeeee
             existingUser.setUserFullname(updatedUserInfo.getFullName());
             existingUser.setUserImage(updatedUserInfo.getUserImage());
 
@@ -272,7 +356,7 @@ public class UserService {
         List<User> users = userRepository.findAll();
         ViewUserMapper viewUserMapper;
         return users.stream()
-                .map(user -> new ViewInfoDTO(user.getUserId(),
+                .map(user -> new ViewInfoDTO(user.getUserId().toString(),
                         user.getUserUsername(),
                         user.getUserEmail(),
                         user.getUserFullname(),
@@ -284,7 +368,9 @@ public class UserService {
                         user.getUserAddress(),
                         user.getUserCreatedAt(),
                         user.getUserUpdatedAt(),
-                        user.getUserRank() == null ? null : user.getUserRank().getRank()))
+                        user.getUserRank() == null ? null : user.getUserRank().getRank(),
+                        user.getUserGoogleId() == null ? null : user.getUserGoogleId())
+                )
                 .collect(Collectors.toList());
     }
 
@@ -317,10 +403,10 @@ public class UserService {
 
     @Transactional
     public boolean deleteUserById(String userId) throws CustomException {
-        if (!userRepository.existsById(userId)) {
+        if (!userRepository.existsById(UUID.fromString(userId))) {
             throw new CustomException("User not found", HttpStatus.NOT_FOUND);
         }
-        userRepository.deleteById(userId);
+        userRepository.deleteById(UUID.fromString(userId));
         return true;
     }
 
@@ -369,7 +455,7 @@ public class UserService {
 
     private ViewInfoDTO mapUserToViewInfoDTO(User user) {
         ViewInfoDTO viewInfoDTO = new ViewInfoDTO();
-        viewInfoDTO.setUserId(user.getUserId());
+        viewInfoDTO.setUserId(user.getUserId().toString());
         viewInfoDTO.setUsername(user.getUserUsername());
         viewInfoDTO.setUserEmail(user.getUserEmail());
         viewInfoDTO.setFullName(user.getUserFullname());
@@ -382,20 +468,21 @@ public class UserService {
         viewInfoDTO.setUserCreatedAt(user.getUserCreatedAt());
         viewInfoDTO.setUserUpdatedAt(user.getUserUpdatedAt());
         viewInfoDTO.setRank(user.getUserRank() == null ? null : user.getUserRank().getRank());
+        viewInfoDTO.setUserGoogleId(user.getUserGoogleId());
         return viewInfoDTO;
     }
 
     public ViewInfoDTO getUserInfoById(String userId) {
-        Optional<User> userOptional = userRepository.findById(userId);
+        Optional<User> userOptional = userRepository.findById(UUID.fromString(userId));
         return userOptional.map(this::mapUserToViewInfoDTO).orElse(null);
     }
 
     public UserDTO getCurrentUser(String userId) {
-        User user = userRepository.findById(userId)
+        User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new CustomException("User not found", HttpStatus.NOT_FOUND));
 
         return new UserDTO(
-                user.getUserId(),
+                user.getUserId().toString(),
                 user.getUserUsername(),
                 null, // Không trả password
                 user.getUserEmail(), // Đảm bảo có userEmail
@@ -422,7 +509,7 @@ public class UserService {
             throw new CustomException("User ID is missing in request!", HttpStatus.BAD_REQUEST);
         }
 
-        User user = userRepository.findById(userId)
+        User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new CustomException("User not found", HttpStatus.NOT_FOUND));
 
         user.setUserEmail((String) updatedUserInfo.get("email"));
@@ -433,7 +520,7 @@ public class UserService {
         userRepository.save(user);
 
         return new UserDTO(
-                user.getUserId(),
+                user.getUserId().toString(),
                 user.getUserUsername(),
                 null,
                 user.getUserEmail(),
@@ -451,7 +538,7 @@ public class UserService {
     }
 
     public boolean disableAccount(String userId) {
-        Optional<User> userOptional = userRepository.findById(userId);
+        Optional<User> userOptional = userRepository.findById(UUID.fromString(userId));
         if (userOptional.isPresent()) {
             User user = userOptional.get();
             user.setIsUserEnabled(false);
@@ -464,4 +551,52 @@ public class UserService {
     public void logout(String token) {
         jwtUtil.revokeToken(token);
     }
+
+    /**
+     * Updates the address for a specific user.
+     * This method is called by the OrderService after an order is placed.
+     *
+     * @param userId     The ID of the user to update.
+     * @param newAddress The new address to be saved.
+     */
+    @Transactional
+    public void updateUserAddress(String userId, String newAddress) {
+        if (userId == null || newAddress == null || newAddress.trim().isEmpty()) {
+            // Return silently. The order creation is more critical than the address update.
+            // Throwing an exception here would cause the entire order to fail.
+            return;
+        }
+
+        // Find the user by their ID
+        Optional<User> userOptional = userRepository.findById(UUID.fromString(userId));
+
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+            user.setUserAddress(newAddress);
+            userRepository.save(user);
+        }
+    }
+
+
+    /**
+     * Updates the last used payment method for a specific user.
+     * This is called by the OrderService after an order is successfully placed.
+     *
+     * @param userId            The ID of the user to update.
+     * @param paymentMethodName The name of the payment method (e.g., "COD", "VNPAY").
+     */
+    @Transactional
+    public void updateUserPaymentMethod(String userId, String paymentMethodName) {
+        if (userId == null || paymentMethodName == null || paymentMethodName.trim().isEmpty()) {
+            return;
+        }
+
+        userRepository.findById(UUID.fromString(userId)).ifPresent(user -> {
+            user.setUserCurrentPaymentMethod(paymentMethodName);
+            userRepository.save(user);
+        });
+    }
+
+
+
 }

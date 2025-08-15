@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class ChatService {
@@ -24,14 +25,14 @@ public class ChatService {
 
     public Chat Chat(String userId) {
         if (userId != null && !userId.isEmpty()) {
-            User user = userRepository.findById(userId).orElseThrow(() ->
+            User user = userRepository.findById(UUID.fromString(userId)).orElseThrow(() ->
                     new IllegalArgumentException("User with ID " + userId + " not found."));
 
             if (user.getRole().getId() != 2) {
                 throw new IllegalArgumentException("User must be CUSTOMER.");
             }
 
-            Optional<Chat> existingChat = chatRepository.findChatsByUserId(userId).stream().findFirst(); // Corrected this
+            Optional<Chat> existingChat = chatRepository.findChatsByUserId(UUID.fromString(userId)).stream().findFirst();
             if (existingChat.isPresent()) {
                 return existingChat.get();
             }

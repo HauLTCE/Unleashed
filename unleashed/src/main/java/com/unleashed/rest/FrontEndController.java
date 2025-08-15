@@ -1,4 +1,4 @@
-package com.unleashed.controller;
+package com.unleashed.rest;
 
 import org.springframework.stereotype.Controller;
 

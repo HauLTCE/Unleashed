@@ -7,6 +7,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -14,7 +15,7 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class SimplifiedTransactionCardDTO {
     private Integer transactionId;
-    private String productId;
+    private UUID productId;
     private String variationImage;
     private String productName;
     private String stockName;

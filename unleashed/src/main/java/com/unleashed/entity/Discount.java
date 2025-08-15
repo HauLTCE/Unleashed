@@ -2,45 +2,52 @@ package com.unleashed.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.Nationalized;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "discount", schema = "public")
+@Table(name = "discount", schema = "dbo")
 public class Discount {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @ColumnDefault("nextval('discount_discount_id_seq')")
     @Column(name = "discount_id", nullable = false)
     private Integer discountId;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "discount_status_id")
-    private com.unleashed.entity.DiscountStatus discountStatus;
+    private DiscountStatus discountStatus;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "discount_type_id")
-    private com.unleashed.entity.DiscountType discountType;
+    private DiscountType discountType;
 
-    @Column(name = "discount_code", length = 20)
+    @Size(max = 20)
+    @NotNull
+    @Nationalized
+    @Column(name = "discount_code", nullable = false, length = 20)
     private String discountCode;
 
     @Column(name = "discount_value", precision = 10, scale = 2)
     private BigDecimal discountValue;
 
-    @Column(name = "discount_description", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Column(name = "discount_description")
     private String discountDescription;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "discount_rank_requirement")
     @JsonBackReference
-    private com.unleashed.entity.Rank discountRankRequirement;
+    private Rank discountRankRequirement;
 
     @Column(name = "discount_minimum_order_value", precision = 10, scale = 2)
     private BigDecimal discountMinimumOrderValue;
@@ -64,7 +71,6 @@ public class Discount {
     private OffsetDateTime discountUpdatedAt;
 
     @Column(name = "discount_usage_count")
-    @ColumnDefault("0")
     private Integer discountUsageCount;
 
 //
@@ -79,6 +85,9 @@ public class Discount {
     protected void onCreate() {
         setDiscountCreatedAt(OffsetDateTime.now());
         setDiscountUpdatedAt(OffsetDateTime.now());
+        if (this.discountUsageCount == null) {
+            this.discountUsageCount = 0;
+        }
     }
 
     @PreUpdate

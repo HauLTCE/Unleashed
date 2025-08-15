@@ -11,7 +11,7 @@ const UserSideMenu = () => {
 		{ path: '/user/information', label: 'User Information' },
 		{ path: '/user/orders', label: 'My Orders' },
 		{ path: '/user/discounts', label: 'Discounts' },
-		{ path: '/user/membership', label: 'Membership' },
+		// { path: '/user/membership', label: 'Membership' },
 		{ path: '/user/histoty-review', label: 'History Reviews' },
 		{ path: '/user/wish-list', label: 'Wishlist' },
 

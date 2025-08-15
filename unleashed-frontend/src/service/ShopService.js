@@ -36,10 +36,29 @@ export const getBrand = async () => {
     }
 };
 
-export const getProductList = async () => {
+export const getProductList = async (page, size, filters, inStockOnly = false) => {
     try {
-        const response = await apiClient.get("/api/products");
+        const params = new URLSearchParams({
+            page: page - 1,
+            size: size
+        });
+
+
+        if (filters.category) params.append('category', filters.category);
+        if (filters.brand) params.append('brand', filters.brand);
+        if (filters.priceOrder) params.append('priceOrder', filters.priceOrder);
+        if (filters.rating > 0) params.append('rating', filters.rating);
+        if (filters.query) {
+            params.append('query', filters.query);
+        }
+
+        if (inStockOnly) {
+            params.append('inStockOnly', 'true');
+        }
+
+        const response = await apiClient.get("/api/products", { params });
         return response.data;
+
     } catch (error) {
         toast.error(
             error.message ||
@@ -49,7 +68,7 @@ export const getProductList = async () => {
                 transition: Zoom,
             }
         );
-        return [];
+        return { content: [], totalPages: 0, totalElements: 0 };
     }
 };
 

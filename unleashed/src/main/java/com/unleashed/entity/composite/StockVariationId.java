@@ -1,23 +1,29 @@
-package com.unleashed.entity.ComposeKey;
+package com.unleashed.entity.composite;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
-import lombok.Getter;
-import lombok.Setter;
+import jakarta.validation.constraints.NotNull;
+import lombok.*;
 import org.hibernate.Hibernate;
 
+import java.io.Serializable;
 import java.util.Objects;
 
 @Getter
 @Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @Embeddable
-public class StockVariationId implements java.io.Serializable {
+public class StockVariationId implements Serializable {
     private static final long serialVersionUID = 5366573655920177816L;
-    @Column(name = "variation_id")
-    private Integer variationId;
-
-    @Column(name = "stock_id")
+    @NotNull
+    @Column(name = "stock_id", nullable = false)
     private Integer stockId;
+
+    @NotNull
+    @Column(name = "variation_id", nullable = false)
+    private Integer variationId;
 
     @Override
     public boolean equals(Object o) {

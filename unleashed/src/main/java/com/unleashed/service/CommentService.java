@@ -2,13 +2,16 @@ package com.unleashed.service;
 
 import com.unleashed.dto.CommentDTO;
 import com.unleashed.entity.*;
-import com.unleashed.entity.ComposeKey.CommentParentId;
+import com.unleashed.entity.composite.CommentParentId;
 import com.unleashed.repo.*;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class CommentService {
@@ -42,8 +45,8 @@ public class CommentService {
         }
         User user = userOptional.get();
         // 2. Check if the user has created a review
-        List<Review> reviewOptional = reviewRepository.findByUserAndProduct_ProductId(user, commentDTO.productId);
-        Optional<Product> reProduct = productRepository.findById(commentDTO.productId);
+        List<Review> reviewOptional = reviewRepository.findByUserAndProduct_ProductId(user, UUID.fromString(commentDTO.productId));
+        Optional<Product> reProduct = productRepository.findById(UUID.fromString(commentDTO.productId));
         if (reProduct.isEmpty()) {
             throw new RuntimeException("Product not found with id: " + commentDTO.productId);
         }
@@ -89,4 +92,47 @@ public class CommentService {
 
         return savedComment;
     }
+
+
+
+    /**
+     * --- NEW SERVICE LOGIC FOR REPLIES ---
+     * Adds a reply to a parent comment. Validation is simpler than a top-level review.
+     */
+    @Transactional
+    public Comment addCommentReply(CommentDTO commentDTO, User user) {
+        // Validation: Ensure the parent comment exists
+        Comment parentComment = commentRepository.findById(commentDTO.getCommentParentId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parent comment not found."));
+
+        // A reply is still linked to the original Review. We find it via the parent comment.
+        Review associatedReview = parentComment.getReview();
+        if (associatedReview == null) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not find the original review associated with this comment thread.");
+        }
+
+        // The user who is replying is the one making the new comment.
+        // We link this new comment to the same original review.
+        Review reviewForReply = new Review();
+        reviewForReply.setUser(user);
+        reviewForReply.setProduct(associatedReview.getProduct());
+        reviewForReply.setOrder(associatedReview.getOrder()); // Inherit the original order context
+        Review savedReview = reviewRepository.save(reviewForReply);
+
+        Comment newComment = new Comment();
+        newComment.setReview(savedReview);
+        newComment.setCommentContent(commentDTO.getComment().getCommentContent());
+
+        Comment savedComment = commentRepository.save(newComment);
+
+        // Link the new comment to its parent
+        commentRepository.createCommentParentLink(savedComment.getId(), parentComment.getId());
+
+        return savedComment;
+    }
+
+
+
+
+
 }

@@ -7,21 +7,22 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.hibernate.annotations.Nationalized;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "product", schema = "public")
+@Table(name = "product", schema = "dbo")
 public class Product {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @SequenceGenerator(name = "product_id_gen", sequenceName = "category_category_id_seq", allocationSize = 1)
-    @Column(name = "product_id", nullable = false, length = Integer.MAX_VALUE)
-    private String productId;
+    @Column(name = "product_id", nullable = false)
+    private UUID productId;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "brand_id")
@@ -31,13 +32,16 @@ public class Product {
     @JoinColumn(name = "product_status_id")
     private ProductStatus productStatus;
 
-    @Column(name = "product_name", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Column(name = "product_name", length = 255)
     private String productName;
 
-    @Column(name = "product_code", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Column(name = "product_code")
     private String productCode;
 
-    @Column(name = "product_description", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Column(name = "product_description")
     private String productDescription;
 
     @Column(name = "product_created_at")
@@ -46,9 +50,6 @@ public class Product {
     @Column(name = "product_updated_at")
     private OffsetDateTime productUpdatedAt;
 
-    //DON'T TOUCH
-    //I don't know how, but without this, half of the import code will turn into Jews
-    //Phat: It need to ignore, loop too much, please set it back to lazy
     @JsonIgnore
     @OneToMany(mappedBy = "product", fetch = FetchType.LAZY)
     @JsonView(Views.ProductView.class)
@@ -65,8 +66,6 @@ public class Product {
         setProductCreatedAt(OffsetDateTime.now());
         setProductUpdatedAt(OffsetDateTime.now());
 
-        //THIS IS USED TO GENERATE PRODUCT CODE
-        //IT RUNS AUTOMATICALLY SO PLEASE DON'T TOUCH
         if (this.productCode == null && this.productName != null) {
             String codePrefix = generateProductCodePrefix(this.productName);
             String randomNumbers = RandomStringUtils.randomNumeric(3);
@@ -79,7 +78,6 @@ public class Product {
         setProductUpdatedAt(OffsetDateTime.now());
     }
 
-    // HELPER TO GENERATE PRODUCT CODE
     private String generateProductCodePrefix(String productName) {
         StringBuilder prefix = new StringBuilder();
         int charCount = 0;

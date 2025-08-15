@@ -1,27 +1,27 @@
-package com.unleashed.entity.ComposeKey;
+package com.unleashed.entity.composite;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import org.hibernate.Hibernate;
 
+import java.io.Serializable;
 import java.util.Objects;
+import java.util.UUID;
 
 @Getter
 @Setter
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @Embeddable
-public class NotificationUserId implements java.io.Serializable {
-    private static final long serialVersionUID = 5482598538523939684L;
+public class NotificationUserId implements Serializable {
+    private static final long serialVersionUID = -1080626021950663728L;
     @Column(name = "notification_id")
     private Integer notificationId;
 
-    @Column(name = "user_id", length = Integer.MAX_VALUE)
-    private String userId;
+    @Column(name = "user_id")
+    private UUID userId;
 
     @Override
     public boolean equals(Object o) {

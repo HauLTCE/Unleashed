@@ -1,7 +1,8 @@
 package com.unleashed.entity;
 
-import com.unleashed.entity.ComposeKey.UserDiscountId;
+import com.unleashed.entity.composite.UserDiscountId;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -10,14 +11,24 @@ import java.time.OffsetDateTime;
 @Getter
 @Setter
 @Entity
-@Table(name = "user_discount", schema = "public")
+@Table(name = "user_discount", schema = "dbo")
 public class UserDiscount {
-    @SequenceGenerator(name = "user_discount_id_gen", sequenceName = "transaction_type_transaction_type_id_seq", allocationSize = 1)
     @EmbeddedId
     private UserDiscountId id;
 
-    @Column(name = "is_discount_used")
-    private Boolean isDiscountUsed;
+    @MapsId("discountId")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "discount_id", nullable = false)
+    private Discount discount;
+
+    @MapsId("userId")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @NotNull
+    @Column(name = "is_discount_used", nullable = false)
+    private Boolean isDiscountUsed = false;
 
     @Column(name = "discount_used_at")
     private OffsetDateTime discountUsedAt;

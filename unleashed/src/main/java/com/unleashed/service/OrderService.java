@@ -7,9 +7,10 @@ import com.unleashed.dto.PayOsLinkRequestBodyDTO;
 import com.unleashed.dto.mapper.OrderDetailMapper;
 import com.unleashed.dto.mapper.OrderMapper;
 import com.unleashed.dto.mapper.ProductVariationMapper;
-import com.unleashed.entity.ComposeKey.OrderVariationSingleId;
+import com.unleashed.entity.composite.OrderVariationSingleId;
 import com.unleashed.entity.*;
 import com.unleashed.repo.*;
+import com.unleashed.repo.specification.OrderSpecification;
 import jakarta.servlet.http.HttpServletRequest;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,8 +18,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
@@ -52,6 +55,7 @@ public class OrderService {
     private final OrderStatusRepository orderStatusRepository;
     private final RankService rankService;
     private final StockVariationRepository stockVariationRepository;
+    private final UserService userService;
     private boolean isCancellingOrder = false;
     private final ReviewRepository reviewRepository;
 
@@ -69,7 +73,7 @@ public class OrderService {
                         UserRepository userRepository,
                         ProductRepository productRepository,
                         ReviewRepository reviewRepository,
-                        DiscountService discountService, OrderStatusRepository orderStatusRepository, VariationSingleRepository variationSingleRepository, OrderVariationSingleRepository orderVariationSingleRepository, CartService cartService, RankService rankService, StockVariationRepository stockVariationRepository) { // thêm reviewRepository
+                        DiscountService discountService, OrderStatusRepository orderStatusRepository, VariationSingleRepository variationSingleRepository, OrderVariationSingleRepository orderVariationSingleRepository, CartService cartService, RankService rankService, StockVariationRepository stockVariationRepository, UserService userService) { // thêm reviewRepository
         this.orderRepository = orderRepository;
         this.orderMapper = orderMapper;
         this.orderDetailMapper = orderDetailMapper;
@@ -90,6 +94,7 @@ public class OrderService {
         this.cartService = cartService;
         this.rankService = rankService;
         this.stockVariationRepository = stockVariationRepository;
+        this.userService = userService;
     }
 
 
@@ -234,7 +239,7 @@ public class OrderService {
         Sort sort = Sort.by("orderUpdatedAt").descending();
         Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
 
-        Page<Order> ordersPage = orderRepository.findByUserId(userId, sortedPageable);
+        Page<Order> ordersPage = orderRepository.findByUserId(UUID.fromString(userId), sortedPageable);
 
         List<Map<String, Object>> ordersList = ordersPage.stream().map(order -> {
             Map<String, Object> orderJson = new HashMap<>();
@@ -394,24 +399,82 @@ public class OrderService {
     }
 
     @Transactional
+    public Map<String, Object> getOrders(String search, String sort, int page, int size) {
+        Specification<Order> spec = new OrderSpecification(search);
+
+        Pageable pageable;
+        if ("totalPrice_asc".equals(sort)) {
+            pageable = PageRequest.of(page, size, Sort.by("orderTotalAmount").ascending());
+        } else if ("totalPrice_desc".equals(sort)) {
+            pageable = PageRequest.of(page, size, Sort.by("orderTotalAmount").descending());
+        } else {
+            // Default sort is priority. We must check if a search is active.
+            if (StringUtils.hasText(search)) {
+                // When searching, a simple date sort is a good fallback.
+                pageable = PageRequest.of(page, size, Sort.by("orderUpdatedAt").descending());
+            } else {
+                // If NOT searching and using default sort, use the special priority query.
+                // This bypasses the specification, which is fine since the search term is empty.
+                Page<Order> ordersPage = orderRepository.findAllWithPriority(PageRequest.of(page, size));
+                return mapOrderPageToResponse(ordersPage);
+            }
+        }
+
+        Page<Order> ordersPage = orderRepository.findAll(spec, pageable);
+        return mapOrderPageToResponse(ordersPage);
+    }
+
+    // Helper method to map the Page<Order> to the response structure.
+    private Map<String, Object> mapOrderPageToResponse(Page<Order> ordersPage) {
+        List<Map<String, Object>> ordersList = ordersPage.getContent().stream()
+                .map(order -> {
+                    // This is your existing detailed mapping logic.
+                    Map<String, Object> orderJson = new HashMap<>();
+                    orderJson.put("orderId", order.getOrderId());
+                    orderJson.put("totalAmount", order.getOrderTotalAmount());
+                    orderJson.put("orderStatus", order.getOrderStatus().getOrderStatusName());
+                    orderJson.put("orderDate", order.getOrderDate());
+                    orderJson.put("billingAddress", order.getOrderBillingAddress());
+                    orderJson.put("shippingMethod", order.getShippingMethod().getShippingMethodName());
+                    orderJson.put("expectedDeliveryDate", order.getOrderExpectedDeliveryDate());
+                    orderJson.put("transactionReference", order.getOrderTransactionReference());
+                    orderJson.put("paymentMethod", order.getPaymentMethod().getPaymentMethodName());
+                    orderJson.put("trackingNumber", order.getOrderTrackingNumber());
+                    orderJson.put("customerUsername", order.getUser().getUsername());
+                    orderJson.put("notes", order.getOrderNote());
+                    orderJson.put("staffUsername",
+                            order.getInchargeEmployee() != null ? order.getInchargeEmployee().getUsername() : "N/A");
+                    return orderJson;
+                }).collect(Collectors.toList());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("orders", ordersList);
+        response.put("currentPage", ordersPage.getNumber());
+        response.put("totalItems", ordersPage.getTotalElements());
+        response.put("totalPages", ordersPage.getTotalPages());
+
+        return response;
+    }
+
+
+    @Transactional
     public Map<String, Object> getOrdersByUserId(String userId, Pageable pageable) {
         Page<Order> ordersPage;
 
-        // IF NULL = FETCH ALL
+        // IF userId NULL = FETCH ALL
         // very-very-very leaky approach but who am I to say
         // this thing runs on hopes and dreams 🫤
         // and I am not going to fix this. Too much work
         // let it leak
 
-        // a Sort object for descending orderUpdatedAt, this is the BEST approach
-        Sort sort = Sort.by("orderUpdatedAt").descending();
-        Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
-
-        // use the sorted Pageable in the repository query, cleanest and most efficient
         if (userId == null || userId.trim().isEmpty()) {
-            ordersPage = orderRepository.findAll(sortedPageable);
+            // For admins/staff fetching all orders, use the new query with status prioritization.
+            ordersPage = orderRepository.findAllWithPriority(pageable);
         } else {
-            ordersPage = orderRepository.findByUserId(userId, sortedPageable);
+            // For fetching a specific user's orders, sort by date as before.
+            Sort sort = Sort.by("orderUpdatedAt").descending();
+            Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
+            ordersPage = orderRepository.findByUserId(UUID.fromString(userId), sortedPageable);
         }
 
         List<Map<String, Object>> ordersList = ordersPage.getContent().stream()
@@ -549,7 +612,7 @@ public class OrderService {
 
         // 1. Khởi tạo Order từ DTO và lưu vào database
         Order order = Order.builder()
-                .user(userRepository.findById(orderDTO.getUserId()).orElse(null))
+                .user(userRepository.findById(UUID.fromString(orderDTO.getUserId())).orElse(null))
                 .orderDate(OffsetDateTime.now())
                 .orderNote(orderDTO.getNotes())
                 .discount(orderDTO.getDiscount())
@@ -570,6 +633,13 @@ public class OrderService {
                 .build();
         order = orderRepository.saveAndFlush(order);
 
+        if (orderDTO.getUserId() != null && orderDTO.getUserAddress() != null) {
+            userService.updateUserAddress(orderDTO.getUserId(), orderDTO.getUserAddress());
+        }
+
+        if (orderDTO.getUserId() != null && orderDTO.getPaymentMethod() != null) {
+            userService.updateUserPaymentMethod(orderDTO.getUserId(), orderDTO.getPaymentMethod().getPaymentMethodName());
+        }
 
         // 2. Kiểm tra Discount
         if (orderDTO.getDiscountCode() != null) {
@@ -666,7 +736,7 @@ public class OrderService {
     private void setUser(Order order, String userId) {
         if (userId != null) {
             User user = new User();
-            user.setUserId(userId);
+            user.setUserId(UUID.fromString(userId));
             order.setUser(user);
         }
     }
@@ -727,7 +797,7 @@ public class OrderService {
                 }
             });
 //            System.out.println("finish");
-            cartService.removeAllFromCart(order.getUser().getUserId());
+            cartService.removeAllFromCart(order.getUser().getUserId().toString());
         } catch (Exception e) {
             System.err.println("Failed to save order details: " + e.getMessage());
         }
@@ -1337,7 +1407,7 @@ public class OrderService {
 //            detailJson.put("discountAmount", detail.getDiscount());
             detailJson.put("productImage", variation.getVariationImage());
 
-            List<Map<String, Object>> reviews = reviewRepository.findReviewByProductId(variation.getProduct().getProductId())
+            List<Map<String, Object>> reviews = reviewRepository.findReviewByProductId(UUID.fromString(variation.getProduct().getProductId().toString()))
                     .stream()
                     .map(reviewData -> {
                         Map<String, Object> reviewJson = new HashMap<>();
@@ -1600,7 +1670,8 @@ public class OrderService {
         order.setOrderStatus(returnStatus);
         orderRepository.save(order);
         returnStock(order);
-        rankService.removeMoneySpent(order.getUser(), order.getOrderTotalAmount());
+
+        if(userService.getUserById(order.getUser().getUserId().toString()).getUserRank() != null) rankService.removeMoneySpent(order.getUser(), order.getOrderTotalAmount());
 
     }
 

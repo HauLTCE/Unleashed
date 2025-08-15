@@ -2,7 +2,9 @@ package com.unleashed.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
 import lombok.*;
+import org.hibernate.annotations.Nationalized;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -16,29 +18,30 @@ import java.util.Set;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "\"order\"", schema = "public")
+@Table(name = "\"order\"", schema = "dbo")
 public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "order_id", nullable = false, length = Integer.MAX_VALUE)
+    @Size(max = 255)
+    @Nationalized
+    @Column(name = "order_id", nullable = false)
     private String orderId;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id")
-    private com.unleashed.entity.User user;
+    private User user;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "order_status_id")
-    private com.unleashed.entity.OrderStatus orderStatus;
+    private OrderStatus orderStatus;
 
-    //REMOVE IN NEXT ITERATION
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "payment_method_id")
-    private com.unleashed.entity.PaymentMethod paymentMethod;
+    private PaymentMethod paymentMethod;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "shipping_method_id")
-    private com.unleashed.entity.ShippingMethod shippingMethod;
+    private ShippingMethod shippingMethod;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "discount_id")
@@ -46,7 +49,7 @@ public class Order {
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "incharge_employee_id")
-    private com.unleashed.entity.User inchargeEmployee;
+    private User inchargeEmployee;
 
     @Column(name = "order_date")
     private OffsetDateTime orderDate;
@@ -54,18 +57,26 @@ public class Order {
     @Column(name = "order_total_amount", precision = 10, scale = 2)
     private BigDecimal orderTotalAmount;
 
+    @Size(max = 50)
+    @Nationalized
     @Column(name = "order_tracking_number", length = 50)
     private String orderTrackingNumber;
 
-    @Column(name = "order_note", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Lob
+    @Column(name = "order_note")
     private String orderNote;
 
+    @Size(max = 255)
+    @Nationalized
     @Column(name = "order_billing_address")
     private String orderBillingAddress;
 
     @Column(name = "order_expected_delivery_date")
     private Date orderExpectedDeliveryDate;
 
+    @Size(max = 255)
+    @Nationalized
     @Column(name = "order_transaction_reference")
     private String orderTransactionReference;
 
@@ -77,10 +88,6 @@ public class Order {
 
     @Column(name = "order_updated_at")
     private OffsetDateTime orderUpdatedAt;
-
-//    @JsonIgnore
-//    @OneToMany(fetch = FetchType.LAZY)
-//    private Set<OrderVariationSingle> orderVariationSingles = new LinkedHashSet<>();
 
     @JsonIgnore
     @OneToMany(mappedBy = "order")
@@ -97,5 +104,4 @@ public class Order {
     protected void onUpdate() {
         setOrderUpdatedAt(OffsetDateTime.now());
     }
-
 }

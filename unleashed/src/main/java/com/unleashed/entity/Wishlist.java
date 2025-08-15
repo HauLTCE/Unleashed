@@ -1,9 +1,8 @@
 package com.unleashed.entity;
 
-import com.unleashed.entity.ComposeKey.WishlistId;
+import com.unleashed.entity.composite.WishlistId;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
-import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
@@ -11,10 +10,10 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "wishlist", schema = "public")
+@Table(name = "wishlist", schema = "dbo")
 public class Wishlist {
-    @SequenceGenerator(name = "wishlist_id_gen", sequenceName = "variation_single_variation_single_id_seq", allocationSize = 1)
     @EmbeddedId
     private WishlistId id;
 
+    //TODO [Reverse Engineering] generate columns from DB
 }

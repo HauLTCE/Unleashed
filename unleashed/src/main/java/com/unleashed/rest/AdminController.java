@@ -1,4 +1,4 @@
-package com.unleashed.controller;
+package com.unleashed.rest;
 
 import com.unleashed.dto.UserDTO;
 import com.unleashed.service.AdminService;
@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/admin") // API sẽ bắt đầu từ /api/admin
+@RequestMapping("/api/admin")
 public class AdminController {
 
     private final AdminService adminService;

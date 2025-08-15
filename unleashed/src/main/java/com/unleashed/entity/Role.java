@@ -3,19 +3,20 @@ package com.unleashed.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.Nationalized;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "role", schema = "public")
+@Table(name = "role", schema = "dbo")
 public class Role {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "role_id_gen")
-    @SequenceGenerator(name = "role_id_gen", sequenceName = "role_role_id_seq", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "role_id", nullable = false)
     private Integer id;
 
-    @Column(name = "role_name", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Column(name = "role_name")
     private String roleName;
 
 }

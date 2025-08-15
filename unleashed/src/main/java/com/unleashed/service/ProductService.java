@@ -4,12 +4,18 @@ import com.unleashed.dto.*;
 import com.unleashed.dto.mapper.ProductMapper;
 import com.unleashed.entity.*;
 import com.unleashed.repo.*;
+import com.unleashed.repo.specification.VariationSpecification;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -53,6 +59,30 @@ public class ProductService {
         return productRepository.findAll();
     }
 
+
+    @Transactional(readOnly = true)
+    public Page<VariationImportDTO> findAllVariationsForImport(String search, Integer stockId, Pageable pageable) {
+        Specification<Variation> spec = new VariationSpecification(search);
+        Page<Variation> variationPage = variationRepository.findAll(spec, pageable);
+        Page<VariationImportDTO> dtoPage = variationPage.map(VariationImportDTO::fromEntity);
+
+        if (stockId != null && dtoPage.hasContent()) {
+            List<Integer> variationIds = dtoPage.getContent().stream()
+                    .map(VariationImportDTO::getId)
+                    .collect(Collectors.toList());
+
+            List<StockVariation> stockLevels = stockVariationRepository.findById_StockIdAndId_VariationIdIn(stockId, variationIds);
+
+            Map<Integer, Integer> stockMap = stockLevels.stream()
+                    .collect(Collectors.toMap(sv -> sv.getId().getVariationId(), StockVariation::getStockQuantity));
+
+            dtoPage.getContent().forEach(dto -> {
+                dto.setCurrentStock(stockMap.getOrDefault(dto.getId(), 0));
+            });
+        }
+        return dtoPage;
+    }
+
     public Product findById(String id) {
         //THIS ONE IS USED TO FIND ALL VARIATIONS THAT BELONGS TO A PRODUCT
         //TO WHO THE F NAMED THESE, F YOU
@@ -68,17 +98,31 @@ public class ProductService {
 
 
 
-        return productRepository.findById(id).orElse(null);
+        return productRepository.findById(UUID.fromString(id)).orElse(null);
     }
 
 
-    public ProductItemDTO findProductItemById(String id) {
+    public ProductItemDTO findProductItemById(String idi) {
+        UUID id = UUID.fromString(idi);
         ProductItemDTO productItemDTO = new ProductItemDTO();
         Optional<Product> productOptional = productRepository.findById(id);
         SaleProduct saleProduct = saleProductRepository.findSaleProductByProductId(id);
 
-        // Lấy danh sách review (SỬA ĐỂ LẤY REVIEWS CÓ COMMENT CON)
-        List<ProductReviewDTO> productReviewDTOList = reviewService.getAllReviewsByProductId(id); // **SỬA ĐÂY: Gọi reviewService.getAllReviewsByProductId**
+        // --- THIS IS THE FIX ---
+
+        // 1. Define pagination for the initial load (fetch the first page of 10 reviews)
+        Pageable initialPage = PageRequest.of(0, 10);
+
+        // 2. Call the MODIFIED ReviewService method.
+        // We pass 'null' for the User because, at this stage, we don't need the
+        // "My Review First" logic. The frontend will handle that on its separate API call.
+        Page<ProductReviewDTO> reviewsPage = reviewService.getAllReviewsByProductId(id.toString(), initialPage, null);
+
+        // 3. Get the content from the returned Page object.
+        List<ProductReviewDTO> productReviewDTOList = reviewsPage.getContent();
+
+        // --- END OF FIX ---
+
 
         // Lấy tổng rating và trung bình rating
         List<Object[]> totalRating = reviewRepository.countAndAvgRatingByProductId(id);
@@ -132,7 +176,7 @@ public class ProductService {
             }
 
             // Cập nhật thông tin sản phẩm
-            productItemDTO.setProductId(id);
+            productItemDTO.setProductId(id.toString());
             productItemDTO.setProductName(product.getProductName());
             productItemDTO.setDescription(product.getProductDescription());
 
@@ -159,20 +203,22 @@ public class ProductService {
                     productItemDTO.setTotalRating((long) result[0]);
                     productItemDTO.setAvgRating((double) result[1]);
                 }
+            } else {
+                productItemDTO.setTotalRating(0L);
+                productItemDTO.setAvgRating(0.0);
             }
 
             productItemDTO.setSizes(sizes);
             productItemDTO.setColors(colors);
             productItemDTO.setVariations(variations);
         }
-        //System.out.println("product" + productItemDTO);
         return productItemDTO;
     }
 
 
     @Transactional
     public void deleteProduct(String id) {
-        productRepository.softDeleteProduct(id);
+        productRepository.softDeleteProduct(UUID.fromString(id));
     }
 
     @Transactional
@@ -225,7 +271,7 @@ public class ProductService {
 
     @Transactional
     public Product updateProduct(ProductDTO productDTO, String id) {
-        Optional<Product> existingProduct = productRepository.findById(id);
+        Optional<Product> existingProduct = productRepository.findById(UUID.fromString(id));
 
         if (existingProduct.isPresent()) {
             Product product = existingProduct.get();
@@ -253,7 +299,7 @@ public class ProductService {
 
         for (Product product : result) { // Iterate over Product entities directly
 
-            String productId = product.getProductId();
+            String productId = product.getProductId().toString();
 
             boolean exists = productList.stream()
                     .anyMatch(dto -> dto.getProductId().equals(productId));
@@ -274,7 +320,7 @@ public class ProductService {
                 productListDTO.setCategoryList(new ArrayList<>(product.getCategories())); // Get categories
 
                 // Get first variation for price and image
-                List<Variation> variations = variationRepository.findProductVariationByProductId(productId);
+                List<Variation> variations = variationRepository.findProductVariationByProductId(UUID.fromString(productId));
                 if (!variations.isEmpty()) {
                     Variation firstVariation = variations.get(0);
                     productListDTO.setProductPrice(firstVariation.getVariationPrice());
@@ -282,7 +328,7 @@ public class ProductService {
                 }
 
                 // Get Sale information
-                List<SaleProduct> saleProduct = saleProductRepository.findById_ProductId(productId);
+                List<SaleProduct> saleProduct = saleProductRepository.findById_ProductId(UUID.fromString(productId));
                 if (saleProduct != null && !saleProduct.isEmpty()) {
                     saleProduct.forEach(sp -> {
                         Sale sale = saleRepository.findById(sp.getId().getSaleId()).orElse(null);
@@ -295,7 +341,7 @@ public class ProductService {
                 }
 
                 // Get average rating and total ratings
-                List<Object[]> ratingData = reviewRepository.countAndAvgRatingByProductId(productId);
+                List<Object[]> ratingData = reviewRepository.countAndAvgRatingByProductId(UUID.fromString(productId));
                 if (!ratingData.isEmpty() && ratingData.get(0) != null) { // Check for null and empty
                     Object[] ratingResult = ratingData.get(0);
                     productListDTO.setTotalRatings((Long) ratingResult[0]);
@@ -307,7 +353,7 @@ public class ProductService {
 
 
                 // Calculate total quantity for the product (already implemented)
-                Integer totalQuantity = stockVariationRepository.getTotalStockQuantityForProduct(productId);
+                Integer totalQuantity = stockVariationRepository.getTotalStockQuantityForProduct(UUID.fromString(productId));
                 productListDTO.setQuantity(totalQuantity != null ? totalQuantity : 0);
 
                 productList.add(productListDTO);
@@ -319,7 +365,7 @@ public class ProductService {
 
     @Transactional
     public Product addVariationsToExistingProduct(String productId, List<ProductDTO.ProductVariationDTO> variationDTOs) {
-        Product product = productRepository.findById(productId)
+        Product product = productRepository.findById(UUID.fromString(productId))
                 .orElseThrow(() -> new EntityNotFoundException("Product not found"));
 
         List<Variation> existingVariations = product.getProductVariations(); // Lấy danh sách biến thể hiện có
@@ -365,7 +411,7 @@ public class ProductService {
 
             ProductListDTO productListDTO = new ProductListDTO(); // **Tạo ProductListDTO mới thủ công**
             // Map các fields từ Product entity vào ProductListDTO (bằng tay hoặc dùng mapper)
-            productListDTO.setProductId(product.getProductId());
+            productListDTO.setProductId(product.getProductId().toString());
             productListDTO.setProductName(product.getProductName());
             productListDTO.setProductDescription(product.getProductDescription());
 
@@ -384,11 +430,11 @@ public class ProductService {
 
     public List<ProductDetailDTO> getProductsInStock() {
         List<Product> products = productRepository.findProductsInStock();
-        List<String> productIdsInSale = saleProductRepository.findAllProductIdsInSale(); // Lấy danh sách productId đang trong sale
+        List<UUID> productIdsInSale = saleProductRepository.findAllProductIdsInSale();
         return products.stream()
-                .filter(product -> !productIdsInSale.contains(product.getProductId()))
+                .filter(product -> !productIdsInSale.contains(UUID.fromString(product.getProductId().toString())))
                 .map(product -> ProductDetailDTO.builder()
-                        .productId(product.getProductId())
+                        .productId(product.getProductId().toString())
                         .productName(product.getProductName())
                         .productCode(product.getProductCode())
                         .productDescription(product.getProductDescription())
@@ -400,6 +446,95 @@ public class ProductService {
                         .productVariations(product.getProductVariations())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    public Page<ProductListDTO> findProductsWithFilters(String query, String category, String brand, float rating, String priceOrder, boolean inStockOnly, Pageable pageable) {
+        Sort sort = Sort.unsorted();
+        if ("asc".equalsIgnoreCase(priceOrder)) {
+            sort = Sort.by("v.variationPrice").ascending();
+        } else if ("desc".equalsIgnoreCase(priceOrder)) {
+            sort = Sort.by("v.variationPrice").descending();
+        }
+
+        Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
+
+        // Pass the flag to the repository method
+        Page<Object[]> productPageResult = productRepository.findProductsWithFilters(query, category, brand, rating, inStockOnly, sortedPageable);
+
+        return productPageResult.map(result -> {
+            Product product = (Product) result[0];
+            Variation firstVariation = (Variation) result[1];
+            Double averageRating = (Double) result[2];
+            Long totalRatings = (Long) result[3];
+
+            ProductListDTO dto = new ProductListDTO();
+            dto.setProductId(product.getProductId().toString());
+            dto.setProductName(product.getProductName());
+            dto.setBrandName(product.getBrand().getBrandName());
+            dto.setCategoryList(new ArrayList<>(product.getCategories()));
+
+            if (firstVariation != null) {
+                dto.setProductPrice(firstVariation.getVariationPrice());
+                dto.setProductVariationImage(firstVariation.getVariationImage());
+            }
+
+            dto.setAverageRating(averageRating != null ? averageRating : 0.0);
+            dto.setTotalRatings(totalRatings != null ? totalRatings : 0L);
+
+            Integer totalQuantity = stockVariationRepository.getTotalStockQuantityForProduct(product.getProductId());
+            dto.setQuantity(totalQuantity != null ? totalQuantity : 0);
+
+            return dto;
+        });
+    }
+
+
+    @Transactional(readOnly = true)
+    public ProductDetailDTO getProductDetailById(String productId) {
+        Product product = this.findById(productId);
+        if (product == null) {
+            return null; // Or throw a custom NotFoundException
+        }
+
+        // Fetch available variations
+        List<Variation> availableVariations = variationRepository.findProductVariationByProductId(product.getProductId());
+
+        // Filter out variations with negative stock (business logic)
+        availableVariations.removeIf(variation -> {
+            Integer stock = stockVariationRepository.findStockProductByProductVariationId(variation.getId());
+            return stock != null && stock < 0;
+        });
+
+        return ProductDetailDTO.builder()
+                .productId(product.getProductId().toString())
+                .productName(product.getProductName())
+                .productCode(product.getProductCode())
+                .productDescription(product.getProductDescription())
+                .productStatusId(product.getProductStatus())
+                .productVariations(availableVariations)
+                .productCreatedAt(product.getProductCreatedAt())
+                .productUpdatedAt(product.getProductUpdatedAt())
+                .brand(product.getBrand())
+                .categories(product.getCategories())
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Variation> getAvailableVariationsForProduct(String productId) {
+        Product product = this.findById(productId);
+        if (product == null || product.getProductVariations() == null) {
+            return null; // Indicate that the product or its variations were not found
+        }
+
+        List<Variation> availableVariations = product.getProductVariations();
+
+        // Filter out variations with negative stock
+        availableVariations.removeIf(variation -> {
+            Integer stock = stockVariationRepository.findStockProductByProductVariationId(variation.getId());
+            return stock != null && stock < 0;
+        });
+
+        return availableVariations;
     }
 
 }

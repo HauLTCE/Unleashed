@@ -4,12 +4,14 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 public class WishlistDTO {
-    private String userId;
-    private String productId;
+    private UUID userId;
+    private UUID productId;
     private String productName;
     private String productImage;
     private Integer productStatus;

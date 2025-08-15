@@ -31,18 +31,15 @@ public class OrderRestController {
     @Autowired
     private UserService userService;
 
-    //KILL IT WITH FLAME
-    // AAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     @PreAuthorize("hasAnyAuthority('STAFF', 'ADMIN')")
     @GetMapping
     public ResponseEntity<Map<String, Object>> getOrders(
-            @RequestParam(value = "status", required = false) String status,
-            @RequestParam(value = "userId", required = false) String userId,
-            @RequestParam(value = "page", defaultValue = "0") int page,
-            @RequestParam(value = "size", defaultValue = "10") int size) {
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false, defaultValue = "priority_desc") String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
 
-        Pageable pageable = PageRequest.of(page, size);
-        Map<String, Object> ordersResponse = orderService.getOrdersByUserId(userId, pageable);
+        Map<String, Object> ordersResponse = orderService.getOrders(search, sort, page, size);
         return ResponseEntity.ok(ordersResponse);
     }
 
@@ -106,7 +103,7 @@ public class OrderRestController {
         }
 
         Pageable pageable = PageRequest.of(page, size);
-        Map<String, Object> ordersResponse = orderService.getOrdersByUserIdWithValidation(currentUser.getUserId(), pageable);
+        Map<String, Object> ordersResponse = orderService.getOrdersByUserIdWithValidation(currentUser.getUserId().toString(), pageable);
 
         return ResponseEntity.ok(ordersResponse);
     }
@@ -120,7 +117,7 @@ public class OrderRestController {
         if (authentication != null && authentication.getPrincipal() instanceof UserDetails) {
             currentUsername = ((UserDetails) authentication.getPrincipal()).getUsername();
         }
-        String userId = userService.findByUsername(currentUsername).getUserId();
+        String userId = userService.findByUsername(currentUsername).getUserId().toString();
         orderDTO.setUserId(userId);
         try {
             Map<String, Object> jsonResponse = orderService.createOrder(orderDTO, request);

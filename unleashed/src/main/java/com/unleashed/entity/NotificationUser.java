@@ -1,16 +1,18 @@
 package com.unleashed.entity;
 
-import com.unleashed.entity.ComposeKey.NotificationUserId;
-import jakarta.persistence.*;
+import com.unleashed.entity.composite.NotificationUserId;
+import jakarta.persistence.Column;
+import jakarta.persistence.EmbeddedId;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "notification_user", schema = "public")
+@Table(name = "notification_user", schema = "dbo")
 public class NotificationUser {
-    @SequenceGenerator(name = "notification_user_id_gen", sequenceName = "category_category_id_seq", allocationSize = 1)
     @EmbeddedId
     private NotificationUserId id;
 

@@ -10,7 +10,7 @@ import useSignOut from "react-auth-kit/hooks/useSignOut";
 import { jwtDecode } from "jwt-decode";
 import AppRoutes from "./routes/AppRoutes.js";
 import ScrollToTop from "./Scroll.js";
-import { ProductProvider } from "./components/Providers/Product.js";
+// import { ProductProvider } from "./components/Providers/Product.js";
 
 function App() {
   const location = useLocation();
@@ -97,7 +97,7 @@ function App() {
       path.startsWith("/orders") ||
       path === "/payment-options" ||
       path === "/privacy-policies" ||
-      path === "/return" 
+      path === "/return"
     ) {
       return "pt-[100px]";
     }
@@ -106,13 +106,13 @@ function App() {
 
   return (
     <>
-      <ProductProvider>
+      {/*<ProductProvider>*/}
         {HideNav && (showNavbar ? <Navbar /> : <NavLogin />)}
         <div className={applyPadding()}>
           <ScrollToTop />
           <AppRoutes toggleSidebar={toggleSidebar} isOpen={isOpen} />
         </div>
-      </ProductProvider>
+      {/*</ProductProvider>*/}
       <ToastContainer
         autoClose={2500}
         hideProgressBar={false}

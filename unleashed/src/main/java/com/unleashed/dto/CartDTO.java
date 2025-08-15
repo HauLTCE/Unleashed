@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 @Data
 @Builder
 public class CartDTO {
-    Variation variation;
+    VariationDTO variation;
     Integer quantity;
     Integer stockQuantity;
     Sale sale;

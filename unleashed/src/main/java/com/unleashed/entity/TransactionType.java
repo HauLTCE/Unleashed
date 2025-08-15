@@ -5,21 +5,21 @@ import com.unleashed.util.Views;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.Nationalized;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "transaction_type", schema = "public")
+@Table(name = "transaction_type", schema = "dbo")
 public class TransactionType {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "transaction_type_id_gen")
-    @SequenceGenerator(name = "transaction_type_id_gen", sequenceName = "transaction_type_transaction_type_id_seq", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "transaction_type_id", nullable = false)
     private Integer id;
 
-    @Column(name = "transaction_type_name", length = Integer.MAX_VALUE)
+    @Nationalized
+    @Column(name = "transaction_type_name")
     @JsonView(Views.TransactionView.class)
     private String transactionTypeName;
-
 
 }

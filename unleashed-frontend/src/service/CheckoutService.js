@@ -16,8 +16,9 @@ export const checkDiscount = async (discountCode, authHeader, totalOrder) => {
     toast.error(
       error.response?.data?.message || "Error when checking discount code! Try again.",
       {
-        position: "bottom-center",
+        position: "top-center",
         transition: Zoom,
+          autoClose: 2000
       }
     );
   }
@@ -43,7 +44,8 @@ export const checkoutOrder = async (checkoutItem, authHeader) => {
   } catch (error) {
     toast.error(error?.data || "Error when ordering", {
       position: "top-center",
-      transition: Zoom
+      transition: Zoom,
+        autoClose: 2000
     })
   }
 };
@@ -77,7 +79,8 @@ export const cancelOrder = async (orderId, authHeader) => {
   } catch (error) {
     toast.error(error?.data || "Error when cancel order", {
       position: "top-center",
-      transition: Zoom
+      transition: Zoom,
+        autoClose: 2000
     })
   } 
 };
@@ -93,7 +96,8 @@ export const getPaymentMethod = async (authHeader) => {
   } catch (error) {
     toast.error(error?.data || "Error fetching method", {
       position: "top-center",
-      transition: Zoom
+      transition: Zoom,
+        autoClose: 2000
     })
   }
 };
@@ -109,7 +113,8 @@ export const getShippingMethod = async (authHeader) => {
   } catch (error) {
     toast.error(error?.data || "Error fetching method", {
       position: "top-center",
-      transition: Zoom
+      transition: Zoom,
+        autoClose: 2000
     })
   }
 }
