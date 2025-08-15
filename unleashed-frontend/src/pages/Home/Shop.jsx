@@ -49,7 +49,7 @@ export function Shop() {
             setLoading(true);
             setError(null);
             try {
-                const data = await getProductList(page, itemsPerPage, filter);
+                const data = await getProductList(page, itemsPerPage, filter, true);
                 setProducts(data.content || []);
                 setPageCount(data.totalPages || 0);
                 setTotalProducts(data.totalElements || 0);

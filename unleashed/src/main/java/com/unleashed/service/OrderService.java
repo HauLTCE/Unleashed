@@ -633,6 +633,13 @@ public class OrderService {
                 .build();
         order = orderRepository.saveAndFlush(order);
 
+        if (orderDTO.getUserId() != null && orderDTO.getUserAddress() != null) {
+            userService.updateUserAddress(orderDTO.getUserId(), orderDTO.getUserAddress());
+        }
+
+        if (orderDTO.getUserId() != null && orderDTO.getPaymentMethod() != null) {
+            userService.updateUserPaymentMethod(orderDTO.getUserId(), orderDTO.getPaymentMethod().getPaymentMethodName());
+        }
 
         // 2. Kiểm tra Discount
         if (orderDTO.getDiscountCode() != null) {

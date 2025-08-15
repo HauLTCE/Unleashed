@@ -551,4 +551,52 @@ public class UserService {
     public void logout(String token) {
         jwtUtil.revokeToken(token);
     }
+
+    /**
+     * Updates the address for a specific user.
+     * This method is called by the OrderService after an order is placed.
+     *
+     * @param userId     The ID of the user to update.
+     * @param newAddress The new address to be saved.
+     */
+    @Transactional
+    public void updateUserAddress(String userId, String newAddress) {
+        if (userId == null || newAddress == null || newAddress.trim().isEmpty()) {
+            // Return silently. The order creation is more critical than the address update.
+            // Throwing an exception here would cause the entire order to fail.
+            return;
+        }
+
+        // Find the user by their ID
+        Optional<User> userOptional = userRepository.findById(UUID.fromString(userId));
+
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+            user.setUserAddress(newAddress);
+            userRepository.save(user);
+        }
+    }
+
+
+    /**
+     * Updates the last used payment method for a specific user.
+     * This is called by the OrderService after an order is successfully placed.
+     *
+     * @param userId            The ID of the user to update.
+     * @param paymentMethodName The name of the payment method (e.g., "COD", "VNPAY").
+     */
+    @Transactional
+    public void updateUserPaymentMethod(String userId, String paymentMethodName) {
+        if (userId == null || paymentMethodName == null || paymentMethodName.trim().isEmpty()) {
+            return;
+        }
+
+        userRepository.findById(UUID.fromString(userId)).ifPresent(user -> {
+            user.setUserCurrentPaymentMethod(paymentMethodName);
+            userRepository.save(user);
+        });
+    }
+
+
+
 }

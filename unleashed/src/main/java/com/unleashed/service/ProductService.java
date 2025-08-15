@@ -433,9 +433,8 @@ public class ProductService {
                 .collect(Collectors.toList());
     }
 
-    public Page<ProductListDTO> findProductsWithFilters(String query, String category, String brand, float rating, String priceOrder, Pageable pageable) {
+    public Page<ProductListDTO> findProductsWithFilters(String query, String category, String brand, float rating, String priceOrder, boolean inStockOnly, Pageable pageable) {
         Sort sort = Sort.unsorted();
-        // The property "v.variationPrice" must match an alias or field in the JPQL query
         if ("asc".equalsIgnoreCase(priceOrder)) {
             sort = Sort.by("v.variationPrice").ascending();
         } else if ("desc".equalsIgnoreCase(priceOrder)) {
@@ -444,9 +443,9 @@ public class ProductService {
 
         Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
 
-        Page<Object[]> productPageResult = productRepository.findProductsWithFilters(query, category, brand, rating, sortedPageable);
+        // Pass the flag to the repository method
+        Page<Object[]> productPageResult = productRepository.findProductsWithFilters(query, category, brand, rating, inStockOnly, sortedPageable);
 
-        // Map the raw Page<Object[]> to Page<ProductListDTO>
         return productPageResult.map(result -> {
             Product product = (Product) result[0];
             Variation firstVariation = (Variation) result[1];
@@ -475,6 +474,52 @@ public class ProductService {
     }
 
 
+    @Transactional(readOnly = true)
+    public ProductDetailDTO getProductDetailById(String productId) {
+        Product product = this.findById(productId);
+        if (product == null) {
+            return null; // Or throw a custom NotFoundException
+        }
 
+        // Fetch available variations
+        List<Variation> availableVariations = variationRepository.findProductVariationByProductId(product.getProductId());
+
+        // Filter out variations with negative stock (business logic)
+        availableVariations.removeIf(variation -> {
+            Integer stock = stockVariationRepository.findStockProductByProductVariationId(variation.getId());
+            return stock != null && stock < 0;
+        });
+
+        return ProductDetailDTO.builder()
+                .productId(product.getProductId().toString())
+                .productName(product.getProductName())
+                .productCode(product.getProductCode())
+                .productDescription(product.getProductDescription())
+                .productStatusId(product.getProductStatus())
+                .productVariations(availableVariations)
+                .productCreatedAt(product.getProductCreatedAt())
+                .productUpdatedAt(product.getProductUpdatedAt())
+                .brand(product.getBrand())
+                .categories(product.getCategories())
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Variation> getAvailableVariationsForProduct(String productId) {
+        Product product = this.findById(productId);
+        if (product == null || product.getProductVariations() == null) {
+            return null; // Indicate that the product or its variations were not found
+        }
+
+        List<Variation> availableVariations = product.getProductVariations();
+
+        // Filter out variations with negative stock
+        availableVariations.removeIf(variation -> {
+            Integer stock = stockVariationRepository.findStockProductByProductVariationId(variation.getId());
+            return stock != null && stock < 0;
+        });
+
+        return availableVariations;
+    }
 
 }

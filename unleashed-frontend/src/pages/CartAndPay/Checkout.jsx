@@ -39,7 +39,6 @@ const CheckoutPage = () => {
     const [paymentMethod, setPaymentMethod] = useState();
     const [shippingMethods, setShippingMethods] = useState([]);
     const [shippingMethod, setShippingMethod] = useState();
-    // Destructure cartTotal which is already calculated correctly
     const { items, isEmpty, cartTotal } = useCart();
     const [discountApply, setDiscountApply] = useState({ discountType: "", discountValue: 0, maximumDiscountValue: 0 });
     const [userData, setUserData] = useState({});
@@ -47,7 +46,6 @@ const CheckoutPage = () => {
     const navigate = useNavigate();
     const [discountCode, setDiscountCode] = useState("");
     const [discountMinus, setDiscountMinus] = useState(0);
-    // We can now use cartTotal directly instead of subTT
     const [shippingFee, setShippingFee] = useState(0);
     const [finalTotal, setFinalTotal] = useState(0);
     const userState = useAuthUser();
@@ -71,26 +69,22 @@ const CheckoutPage = () => {
     }, [isEmpty, navigate]);
 
     useEffect(() => {
-        const fetchMethods = async () => {
-            try {
-                const [paymentRes, shippingRes] = await Promise.all([
-                    getPaymentMethod(authHeader),
-                    getShippingMethod(authHeader)
-                ]);
-                setPaymentMethods(paymentRes.data || []);
-                setShippingMethods(shippingRes.data || []);
-            } catch (e) {
-                toast.error("Failed to fetch payment or shipping methods", { position: "top-center", autoClose: 2000 });
-            }
-        };
-        fetchMethods();
-    }, [authHeader]);
+        const fetchInitialData = async () => {
+            if (!authHeader) return;
 
-    useEffect(() => {
-        const fetchUserInfo = async () => {
             try {
-                const response = await GetUserInfo(authHeader);
-                const userInfo = response.data;
+                const [methodsResponse, userInfoResponse] = await Promise.all([
+                    Promise.all([getPaymentMethod(authHeader), getShippingMethod(authHeader)]),
+                    GetUserInfo(authHeader)
+                ]);
+
+                const [paymentRes, shippingRes] = methodsResponse;
+                const userInfo = userInfoResponse.data;
+
+                const availablePaymentMethods = paymentRes.data || [];
+                setPaymentMethods(availablePaymentMethods);
+                setShippingMethods(shippingRes.data || []);
+
                 setUserData({
                     userId: userInfo.userId || "",
                     email: userInfo.userEmail || "",
@@ -99,26 +93,46 @@ const CheckoutPage = () => {
                     userAddress: userInfo.userAddress === "Address not provided" ? "" : userInfo.userAddress,
                     currentPaymentMethod: userInfo.userCurrentPaymentMethod || null,
                 });
-                if (userInfo.userAddress && userInfo.userAddress !== "Address not provided") {
-                    setHouseNumber(userInfo.userAddress);
+
+                const fullAddress = userInfo.userAddress;
+                if (fullAddress && fullAddress !== "Address not provided") {
+                    const addressParts = fullAddress.split(',').map(part => part.trim());
+                    if (addressParts.length >= 4) {
+                        const houseAndStreet = addressParts.slice(0, addressParts.length - 3).join(', ');
+                        setHouseNumber(houseAndStreet);
+                    } else {
+                        setHouseNumber(fullAddress);
+                    }
                 }
-            } catch (error) {
-                toast.error("Failed to load user data.", { position: "top-center", autoClose: 2000 });
+
+                const savedMethodName = userInfo.userCurrentPaymentMethod;
+                if (savedMethodName && availablePaymentMethods.length > 0) {
+                    const defaultMethod = availablePaymentMethods.find(
+                        (pm) => pm.paymentMethodName === savedMethodName
+                    );
+                    if (defaultMethod) {
+                        setPaymentMethod(defaultMethod);
+                    }
+                }
+
+            } catch (e) {
+                toast.error("Failed to load checkout information. Please refresh the page.", { position: "top-center", autoClose: 2000 });
             }
         };
-        if(authHeader) fetchUserInfo();
-    }, [authHeader]);
+
+        fetchInitialData();
+    }, [authHeader, navigate]);
 
     useEffect(() => {
         const fetchRank = async () => {
-            if (userState?.username) {
+            if (userState?.username && authHeader) {
                 const response = await fetchMembership(authHeader, userState.username);
                 if (response.data.rankStatus === 1) {
                     setRank(response.data.rank);
                 }
             }
         };
-        if(authHeader) fetchRank();
+        fetchRank();
     }, [authHeader, userState]);
 
     useEffect(() => {
@@ -182,11 +196,11 @@ const CheckoutPage = () => {
 
     const calculateDiscount = (originalPrice, discount) => {
         if (!discount || !discount.discountType) return 0;
-        if (discount.discountType.id === 1) { // Percentage
+        if (discount.discountType.id === 1) {
             const calculatedDiscount = (originalPrice * discount.discountValue) / 100;
             return Math.min(calculatedDiscount, discount.maximumDiscountValue || Infinity);
         }
-        if (discount.discountType.id === 2) { // Fixed Amount
+        if (discount.discountType.id === 2) {
             return discount.discountValue;
         }
         return 0;
@@ -199,7 +213,7 @@ const CheckoutPage = () => {
         quantity: item.quantity,
         size: item.size,
         color: item.color,
-        price: item.price, // This is now the final, correct price.
+        price: item.price,
     }));
 
     const fullAddress = useMemo(() => {

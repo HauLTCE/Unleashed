@@ -263,8 +263,18 @@ export const UserProfile = () => {
                                 />
                             </Grid>
                             <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                <Button type="submit" variant="contained" startIcon={<Save />}
-                                        disabled={!formik.dirty || !formik.isValid || formik.isSubmitting}>
+                                <Button
+                                    type="submit"
+                                    variant="contained"
+                                    startIcon={<Save />}
+                                    disabled={!formik.dirty || !formik.isValid || formik.isSubmitting}
+                                    sx={{
+                                        fontFamily: "Montserrat",
+                                        width: "170px",
+                                        textTransform: "none",
+                                        borderRadius: "8px",
+                                    }}
+                                >
                                     Save Changes
                                 </Button>
                             </Grid>

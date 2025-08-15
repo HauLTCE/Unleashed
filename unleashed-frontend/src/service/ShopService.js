@@ -36,25 +36,25 @@ export const getBrand = async () => {
     }
 };
 
-export const getProductList = async (page, size, filters) => {
+export const getProductList = async (page, size, filters, inStockOnly = false) => {
     try {
         const params = new URLSearchParams({
             page: page - 1,
             size: size
         });
 
-        // Add the existing filters if they are present
+
         if (filters.category) params.append('category', filters.category);
         if (filters.brand) params.append('brand', filters.brand);
         if (filters.priceOrder) params.append('priceOrder', filters.priceOrder);
         if (filters.rating > 0) params.append('rating', filters.rating);
-
-        // --- THIS IS THE FIX ---
-        // Add the search query parameter if it exists
         if (filters.query) {
             params.append('query', filters.query);
         }
-        // -------------------------
+
+        if (inStockOnly) {
+            params.append('inStockOnly', 'true');
+        }
 
         const response = await apiClient.get("/api/products", { params });
         return response.data;
