@@ -1,46 +1,55 @@
 import { toast, Zoom } from "react-toastify";
-import { apiClient } from "../core/api"
+import { apiClient } from "../core/api";
 
-export const createReview = async (review, authHeader) => {
-    // console.log(review);
-    // console.log(authHeader);
+export const getProductReviews = async (productId, page = 0, size = 5, authHeader) => {
     try {
-        const response = apiClient.post("/api/reviews", {
-            productId: review.productId,
-            reviewComment: review.reviewComment,
-            reviewRating: review.reviewRating,
-            userId: review.userId,
-            variationSingleId: review.variationSingleId,
-            orderId: review.orderId
-        },
-        {
-            headers: {
-                Authorization: authHeader
-            },
-        },
-    )
-    return response;
-} catch (error) {
-    console.error("Error during review product:", error); // Log error
-    toast.error("Error during review product: " + error?.response?.data, {
-        position: "top-center",
-        transition: Zoom
-    })
-    throw error; // Re-throw error to be handled in component
-}
-};
-
-export const getDashboardReviews = async (page = 0, size = 50, authHeader) => {
-    try {
-        const response = await apiClient.get(`/api/reviews/get-all?page=${page}&size=${size}`, {
-            headers: {
-                Authorization: authHeader
+        const response = await apiClient.get(`/api/reviews/product/${productId}`, {
+            headers: authHeader ? { Authorization: authHeader } : {},
+            params: {
+                page,
+                size,
             },
         });
-        return response.data; // API trả về Page<DashboardReviewDTO>, nên response.data sẽ là object Page
+        return response.data;
+    } catch (error) {
+        console.error(`Error fetching reviews for product ${productId}:`, error);
+        throw error;
+    }
+};
+
+export const getDashboardReviews = async (page, size, authHeader, search, sort) => {
+    try {
+        const response = await apiClient.get('/api/reviews/get-all', {
+            headers: { Authorization: authHeader },
+            params: {
+                page: page,
+                size: size,
+                search: search,
+                sort: sort,
+            },
+        });
+        return response.data;
     } catch (error) {
         console.error("Error fetching dashboard reviews:", error);
-        toast.error("Error fetching dashboard reviews: " + error?.response?.data, {
+        throw error;
+    }
+};
+
+export const getDashboardProductReviews = async (productId, authHeaderString, page = 0, size = 10) => {
+    try {
+        const response = await apiClient.get(`/api/reviews/dashboard/product/${productId}`, {
+            headers: {
+                Authorization: authHeaderString
+            },
+            params: {
+                page,
+                size
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching dashboard product reviews:", error);
+        toast.error("Error fetching dashboard product reviews: " + error?.response?.data?.message, {
             position: "top-center",
             transition: Zoom
         });
@@ -48,21 +57,31 @@ export const getDashboardReviews = async (page = 0, size = 50, authHeader) => {
     }
 };
 
-export const getDashboardProductReviews = async (productId, authHeaderString) => { // Đổi tên tham số thành authHeaderString
-    // console.log("authHeaderString in getDashboardProductReviews:", authHeaderString); // Log giá trị authHeaderString
+export const getReviewEligibility = async (productId, authHeader) => {
     try {
-        const response = await apiClient.get(`/api/reviews/dashboard/product/${productId}`, {
-            headers: {
-                Authorization: authHeaderString // Sử dụng authHeaderString trực tiếp, không gọi ()
-            },
+        const response = await apiClient.get('/api/reviews/eligibility', {
+            params: { productId },
+            headers: { Authorization: authHeader },
         });
         return response.data;
     } catch (error) {
-        console.error("Error fetching dashboard product reviews:", error);
-        toast.error("Error fetching dashboard product reviews: " + error?.response?.data, {
+        console.error("Error fetching review eligibility:", error);
+        throw error;
+    }
+};
+
+export const postReview = async (reviewData, authHeader) => {
+    try {
+        const response = await apiClient.post('/api/reviews', reviewData, {
+            headers: { Authorization: authHeader },
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Error posting review:", error);
+        toast.error(error.response?.data?.message || "Failed to submit review.", {
             position: "top-center",
             transition: Zoom
         });
-        throw error;
+        throw error.response?.data?.message || "Failed to submit review.";
     }
 };

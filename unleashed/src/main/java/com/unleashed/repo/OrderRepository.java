@@ -147,5 +147,25 @@ public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecif
             countQuery = "SELECT count(o) FROM Order o")
     Page<Order> findAllWithPriority(Pageable pageable);
 
+    /**
+     * Finds all completed orders for a given user that contain a specific product.
+     * This query is crucial for determining if a user is eligible to write a review.
+     *
+     * @param userId    The ID of the user.
+     * @param productId The ID of the product.
+     * @return A list of eligible Order entities.
+     */
+    @Query("""
+            SELECT o FROM Order o
+            JOIN o.orderVariationSingles ovs
+            JOIN ovs.variationSingle vs
+            JOIN Variation v ON SUBSTRING(vs.variationSingleCode, 1, LOCATE('-', vs.variationSingleCode) - 1) = v.product.productCode
+            WHERE o.user.userId = :userId
+            AND v.product.productId = :productId
+            AND o.orderStatus.orderStatusName = 'COMPLETED'
+            """)
+    List<Order> findCompletedOrdersByUserAndProduct(@Param("userId") UUID userId, @Param("productId") UUID productId);
+
+
 
 }

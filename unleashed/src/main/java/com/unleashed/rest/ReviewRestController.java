@@ -1,12 +1,11 @@
 package com.unleashed.rest;
 
-import com.unleashed.dto.CommentUpdateRequestDTO;
-import com.unleashed.dto.DashboardReviewDTO;
-import com.unleashed.dto.ProductReviewDTO;
-import com.unleashed.dto.ReviewDTO;
+import com.unleashed.dto.*;
 import com.unleashed.entity.Comment;
 import com.unleashed.entity.Review;
+import com.unleashed.entity.User;
 import com.unleashed.service.ReviewService;
+import com.unleashed.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -15,9 +14,15 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.util.HashMap;
 import java.util.List;
@@ -29,6 +34,9 @@ public class ReviewRestController {
 
     @Autowired
     private ReviewService reviewService;
+
+    @Autowired
+    private UserService userService;
 
     @GetMapping
     public ResponseEntity<List<Review>> getAllReviews() {
@@ -42,13 +50,42 @@ public class ReviewRestController {
 //        return ResponseEntity.ok(reviews);
 //    }
 
-    // Endpoint mới: Lấy TẤT CẢ reviews của sản phẩm (KHÔNG phân trang) - cho trang ALL REVIEWS (ĐÃ CHỈNH SỬA)
+    /**
+     * Fetches top-level reviews for a product with pagination.
+     * The user's own review will be prioritized at the top of the first page.
+     */
     @GetMapping("/product/{productId}")
-    public ResponseEntity<List<ProductReviewDTO>> getAllReviewsByProductId(@PathVariable String productId) {
-        List<ProductReviewDTO> reviewList = reviewService.getAllReviewsByProductId(productId);
-        return (reviewList == null || reviewList.isEmpty())
-                ? ResponseEntity.notFound().build()
-                : ResponseEntity.ok(reviewList);
+    public ResponseEntity<Page<ProductReviewDTO>> getAllReviewsByProductId(
+            @PathVariable String productId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        User currentUser = null;
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        // Check if user is authenticated and not an anonymous user
+        if (authentication != null && authentication.getPrincipal() instanceof UserDetails) {
+            String currentUsername = ((UserDetails) authentication.getPrincipal()).getUsername();
+            currentUser = userService.findByUsername(currentUsername);
+        }
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ProductReviewDTO> reviewPage = reviewService.getAllReviewsByProductId(productId, pageable, currentUser);
+
+        return ResponseEntity.ok(reviewPage);
+    }
+
+    /**
+     * Fetches the direct child comments (replies) for a given parent comment.
+     */
+    @GetMapping("/comments/{commentId}/replies")
+    public ResponseEntity<Page<ProductReviewDTO>> getCommentReplies(
+            @PathVariable Integer commentId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ProductReviewDTO> repliesPage = reviewService.getRepliesForComment(commentId, pageable);
+        return ResponseEntity.ok(repliesPage);
     }
 
     @GetMapping("/order-details")
@@ -125,23 +162,58 @@ public class ReviewRestController {
     @GetMapping("/get-all")
     @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
     public ResponseEntity<Page<DashboardReviewDTO>> getDashboardReviews(
-            @RequestParam(defaultValue = "0") int page, // Tham số trang, mặc định là trang đầu tiên (0)
-            @RequestParam(defaultValue = "50") int size // Tham số kích thước trang, mặc định là 50
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false, defaultValue = "date_desc") String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
     ) {
-        if (size > 50) { // Giới hạn kích thước trang tối đa là 50
+        if (size > 50) {
             size = 50;
         }
-        Pageable pageable = PageRequest.of(page, size); // Tạo đối tượng Pageable từ page và size
-        Page<DashboardReviewDTO> dashboardReviewsPage = reviewService.getAllDashboardReviews(pageable);
+        Pageable pageable = PageRequest.of(page, size);
+        Page<DashboardReviewDTO> dashboardReviewsPage = reviewService.getAllDashboardReviews(pageable, search, sort);
         return ResponseEntity.ok(dashboardReviewsPage);
     }
 
+    /**
+     * It now accepts pagination parameters and returns a Page object.
+     */
     @GetMapping("/dashboard/product/{productId}")
     @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
-    public ResponseEntity<List<ProductReviewDTO>> getAllReviewsByProductIdDashboard(@PathVariable String productId) {
-        List<ProductReviewDTO> reviewList = reviewService.getAllReviewsByProductId(productId);
-        return (reviewList == null || reviewList.isEmpty())
-                ? ResponseEntity.notFound().build()
-                : ResponseEntity.ok(reviewList);
+    public ResponseEntity<Page<ProductReviewDTO>> getAllReviewsByProductIdDashboard(
+            @PathVariable String productId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ProductReviewDTO> reviewPage = reviewService.getAllReviewsByProductId(productId, pageable, null);
+        return ResponseEntity.ok(reviewPage);
     }
+
+
+    /**
+     * Checks if the current authenticated user is eligible to write a review for a given product.
+     *
+     * @param productId The ID of the product to check.
+     * @return A list of eligible orders (as DTOs) or an empty list.
+     */
+    @GetMapping("/eligibility")
+    @PreAuthorize("hasAuthority('CUSTOMER')")
+    public ResponseEntity<List<ReviewEligibilityDTO>> checkEligibility(@RequestParam String productId) {
+        // Get the currently authenticated user
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String currentUsername = ((UserDetails) authentication.getPrincipal()).getUsername();
+        User currentUser = userService.findByUsername(currentUsername);
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        List<ReviewEligibilityDTO> eligibility = reviewService.getReviewEligibility(productId, currentUser);
+        return ResponseEntity.ok(eligibility);
+    }
+
+
+
+
+
 }

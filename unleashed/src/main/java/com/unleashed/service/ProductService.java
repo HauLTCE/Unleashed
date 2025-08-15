@@ -13,8 +13,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import java.math.BigDecimal;
@@ -108,8 +108,21 @@ public class ProductService {
         Optional<Product> productOptional = productRepository.findById(id);
         SaleProduct saleProduct = saleProductRepository.findSaleProductByProductId(id);
 
-        // Lấy danh sách review (SỬA ĐỂ LẤY REVIEWS CÓ COMMENT CON)
-        List<ProductReviewDTO> productReviewDTOList = reviewService.getAllReviewsByProductId(id.toString()); // **SỬA ĐÂY: Gọi reviewService.getAllReviewsByProductId**
+        // --- THIS IS THE FIX ---
+
+        // 1. Define pagination for the initial load (fetch the first page of 10 reviews)
+        Pageable initialPage = PageRequest.of(0, 10);
+
+        // 2. Call the MODIFIED ReviewService method.
+        // We pass 'null' for the User because, at this stage, we don't need the
+        // "My Review First" logic. The frontend will handle that on its separate API call.
+        Page<ProductReviewDTO> reviewsPage = reviewService.getAllReviewsByProductId(id.toString(), initialPage, null);
+
+        // 3. Get the content from the returned Page object.
+        List<ProductReviewDTO> productReviewDTOList = reviewsPage.getContent();
+
+        // --- END OF FIX ---
+
 
         // Lấy tổng rating và trung bình rating
         List<Object[]> totalRating = reviewRepository.countAndAvgRatingByProductId(id);
@@ -190,13 +203,15 @@ public class ProductService {
                     productItemDTO.setTotalRating((long) result[0]);
                     productItemDTO.setAvgRating((double) result[1]);
                 }
+            } else {
+                productItemDTO.setTotalRating(0L);
+                productItemDTO.setAvgRating(0.0);
             }
 
             productItemDTO.setSizes(sizes);
             productItemDTO.setColors(colors);
             productItemDTO.setVariations(variations);
         }
-        //System.out.println("product" + productItemDTO);
         return productItemDTO;
     }
 

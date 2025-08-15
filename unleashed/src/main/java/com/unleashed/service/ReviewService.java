@@ -1,15 +1,10 @@
 package com.unleashed.service;
 
-import com.unleashed.dto.CommentUpdateRequestDTO;
-import com.unleashed.dto.DashboardReviewDTO;
-import com.unleashed.dto.ProductReviewDTO;
-import com.unleashed.dto.ReviewDTO;
+import com.unleashed.dto.*;
 import com.unleashed.entity.*;
 import com.unleashed.repo.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,57 +45,80 @@ public class ReviewService {
         return reviewRepository.findReviewByProductId(UUID.fromString(productId));
     }
 
-    public List<ProductReviewDTO> getAllReviewsByProductId(String productId) {
-        List<ProductReviewDTO> productReviewDTOList = new ArrayList<>();
+    // Helper method to convert a Review/Comment to a DTO
+    private ProductReviewDTO convertToProductReviewDTO(Review review) {
+        ProductReviewDTO dto = new ProductReviewDTO();
+        dto.setReviewId(review.getId());
+        dto.setFullName(review.getUser().getUsername());
+        dto.setReviewRating(review.getReviewRating());
+        dto.setUserImage(review.getUser().getUserImage());
 
-        // 1 Lấy tất cả review theo productId
-        List<Review> allReviews = reviewRepository.findAllReviewsByProductId(UUID.fromString(productId));
-        if (allReviews.isEmpty()) return productReviewDTOList; // Trả về danh sách rỗng nếu không có review nào
-
-        // 2 Lấy danh sách reviewId để tìm comment
-        List<Integer> reviewIds = allReviews.stream().map(Review::getId).collect(Collectors.toList());
-
-        // 3 Lấy tất cả comments liên quan đến reviewIds
-        List<Comment> allCommentsForReviews = reviewRepository.findAllCommentsByReviewIds(reviewIds);
-        List<Integer> commentIds = allCommentsForReviews.stream().map(Comment::getId).toList();
-
-        // 4 Lấy comment gốc từ danh sách comment
-        List<Comment> rootComments = reviewRepository.findRootCommentsByCommentIds(commentIds);
-
-        List<Review> rootReviews = new ArrayList<>();
-        for (Review review : allReviews) {
-            if (review.getReviewRating() != null) {
-                rootReviews.add(review);
-            }
+        // Find the root comment for this review
+        Comment rootComment = commentRepository.findRootCommentByReviewId(review.getId()).orElse(null);
+        if (rootComment != null) {
+            dto.setReviewComment(rootComment.getCommentContent());
+            dto.setCreatedAt(rootComment.getCommentCreatedAt());
+            dto.setUpdatedAt(rootComment.getCommentUpdatedAt());
+            dto.setCommentId(rootComment.getId());
         }
+        return dto;
+    }
 
-        // 5 Duyệt qua từng review và ánh xạ dữ liệu vào DTO
-        for (Review review : rootReviews) {
-            ProductReviewDTO dto = new ProductReviewDTO();
-            dto.setReviewId(review.getId());
-            dto.setFullName(review.getUser().getUsername()); // Lấy username từ review
-            dto.setReviewRating(review.getReviewRating());
-            dto.setUserImage(review.getUser().getUserImage()); // Lấy userImage từ review
+    // Helper method to convert a Comment to a DTO
+    private ProductReviewDTO convertToProductReviewDTO(Comment comment) {
+        ProductReviewDTO dto = new ProductReviewDTO();
+        dto.setCommentId(comment.getId());
+        dto.setReviewComment(comment.getCommentContent());
+        dto.setCreatedAt(comment.getCommentCreatedAt());
+        dto.setUpdatedAt(comment.getCommentUpdatedAt());
+        dto.setFullName(comment.getReview().getUser().getUsername());
+        dto.setUserImage(comment.getReview().getUser().getUserImage());
+        return dto;
+    }
 
 
+    /**
+     * Fetches paginated top-level reviews and implements "My Review First" logic.
+     */
+    public Page<ProductReviewDTO> getAllReviewsByProductId(String productId, Pageable pageable, User currentUser) {
+        Page<Review> reviewPage = reviewRepository.findTopLevelReviewsByProductId(UUID.fromString(productId), pageable);
+        List<ProductReviewDTO> dtos = reviewPage.getContent().stream()
+                .map(this::convertToProductReviewDTO)
+                .collect(Collectors.toList());
 
-            // 6 Tìm comment gốc của review này
-            for (Comment rootComment : rootComments) {
-                if (rootComment.getReview().getId().equals(review.getId())) {
-                    dto.setReviewComment(rootComment.getCommentContent());
-                    dto.setCreatedAt(rootComment.getCommentCreatedAt());
-                    dto.setUpdatedAt(rootComment.getCommentUpdatedAt());
-                    dto.setCommentId(rootComment.getId());
+        // "My Review First" logic
+        if (currentUser != null && pageable.getPageNumber() == 0 && !dtos.isEmpty()) {
+            ProductReviewDTO myReview = null;
+            int myReviewIndex = -1;
 
-                    // 7 Lấy comment con (dùng đệ quy tối đa 5 cấp)
-                    List<ProductReviewDTO> childComments = getChildComments(rootComment.getId(), 5);
-                    dto.setChildComments(childComments);
-                    break; // Chỉ có một comment gốc nên thoát khỏi vòng lặp
+            for (int i = 0; i < dtos.size(); i++) {
+                if (dtos.get(i).getFullName().equals(currentUser.getUsername())) {
+                    myReview = dtos.get(i);
+                    myReviewIndex = i;
+                    break;
                 }
             }
-            productReviewDTOList.add(dto);
+
+            if (myReview != null && myReviewIndex > 0) {
+                dtos.remove(myReviewIndex);
+                dtos.add(0, myReview);
+            }
         }
-        return productReviewDTOList;
+
+        return new PageImpl<>(dtos, pageable, reviewPage.getTotalElements());
+    }
+
+    /**
+     * --- NEW METHOD for fetching replies ---
+     * Fetches paginated replies for a parent comment.
+     */
+    public Page<ProductReviewDTO> getRepliesForComment(Integer commentId, Pageable pageable) {
+        Page<Comment> commentPage = reviewRepository.findChildCommentsPaginated(commentId, pageable);
+        List<ProductReviewDTO> dtos = commentPage.getContent().stream()
+                .map(this::convertToProductReviewDTO)
+                .collect(Collectors.toList());
+
+        return new PageImpl<>(dtos, pageable, commentPage.getTotalElements());
     }
 
     private List<ProductReviewDTO> getChildComments(Integer parentId, int level) {
@@ -151,6 +169,10 @@ public class ReviewService {
         User user = userRepository.findById(UUID.fromString(review.getUserId())).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
 
+        if (!"COMPLETED".equalsIgnoreCase(order.getOrderStatus().getOrderStatusName())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only review products from completed orders.");
+        }
+
         if (review.getReviewRating() < 1 || review.getReviewRating() > 5) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Review rating must be between 1 and 5.");
         }
@@ -163,10 +185,12 @@ public class ReviewService {
 
         try {
             Review savedReview = reviewRepository.save(newReview);
-            Comment newComment = new Comment();
-            newComment.setReview(savedReview);
-            newComment.setCommentContent(review.getReviewComment());
-            commentRepository.save(newComment);
+            if (review.getReviewComment() != null && !review.getReviewComment().trim().isEmpty()) {
+                Comment newComment = new Comment();
+                newComment.setReview(savedReview);
+                newComment.setCommentContent(review.getReviewComment());
+                commentRepository.save(newComment);
+            }
             return savedReview;
         } catch (Exception e) {
             System.err.println("Error saving review and comment: " + e.getMessage());
@@ -210,24 +234,30 @@ public class ReviewService {
         return reviewRepository.existsByProduct_ProductIdAndOrder_OrderIdAndUser_UserId(UUID.fromString(productId), orderId, UUID.fromString(userId));
     }
 
-    public Page<DashboardReviewDTO> getAllDashboardReviews(Pageable pageable) {
-        // Gọi repository để lấy dữ liệu từ database
-        Page<DashboardReviewDTO> pageResult = reviewRepository.findAllDashboardReviewsOrderByCreatedAtDesc(pageable);
-        // Xử lý mỗi review để chỉ lấy một variationImage duy nhất
+    public Page<DashboardReviewDTO> getAllDashboardReviews(Pageable pageable, String search, String sort) {
+
+        // Create a Sort object based on the sort parameter
+        Sort sorting = Sort.by("commentCreatedAt").descending();
+        if ("date_asc".equals(sort)) {
+            sorting = Sort.by("commentCreatedAt").ascending();
+        }
+
+        Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sorting);
+
+        Page<DashboardReviewDTO> pageResult = reviewRepository.findAllDashboardReviews(sortedPageable, search);
+
         List<DashboardReviewDTO> processedContent = pageResult.getContent().stream()
                 .map(reviewDTO -> {
-                    // Nếu reviewDTO có nhiều variationImage, chỉ lấy phần tử đầu tiên
                     if (reviewDTO.getVariationImage() != null && !reviewDTO.getVariationImage().isEmpty()) {
-                        reviewDTO.setVariationImage(reviewDTO.getVariationImage()); // Lấy ảnh variation đầu tiên
+                        reviewDTO.setVariationImage(reviewDTO.getVariationImage());
                     }
-                    boolean isMaxReply = findCommentLevel(reviewDTO.getCommentId(), 1); // Bắt đầu đệ quy từ level 1
+                    boolean isMaxReply = findCommentLevel(reviewDTO.getCommentId(), 1);
                     reviewDTO.setMaxReply(isMaxReply);
                     return reviewDTO;
                 })
                 .collect(Collectors.toList());
 
-        // Tạo một Page mới với danh sách đã được xử lý
-        return new PageImpl<>(processedContent, pageable, pageResult.getTotalElements());
+        return new PageImpl<>(processedContent, sortedPageable, pageResult.getTotalElements());
     }
 
     public boolean findCommentLevel(Integer commentId, int level) {
@@ -241,4 +271,30 @@ public class ReviewService {
             return false; // Không có comment cha, hoặc đã đến gốc và chưa đạt level 5
         }
     }
+
+    /**
+     * Checks which orders a user is eligible to leave a review for, for a specific product.
+     *
+     * @param productId The product being reviewed.
+     * @param user      The currently authenticated user.
+     * @return A list of DTOs containing eligible order IDs and their dates.
+     */
+    public List<ReviewEligibilityDTO> getReviewEligibility(String productId, User user) {
+        // 1. Find all completed orders for this user and product
+        List<Order> eligibleOrders = orderRepository.findCompletedOrdersByUserAndProduct(user.getUserId(), UUID.fromString(productId));
+
+        // 2. Filter out orders that already have a review from this user for this product
+        return eligibleOrders.stream()
+                .filter(order -> !reviewRepository.existsByProduct_ProductIdAndOrder_OrderIdAndUser_UserId(
+                        UUID.fromString(productId),
+                        order.getOrderId(),
+                        user.getUserId()
+                ))
+                .map(order -> new ReviewEligibilityDTO(order.getOrderId(), order.getOrderDate())) // Map to DTO
+                .collect(Collectors.toList());
+    }
+
+
+
+
 }

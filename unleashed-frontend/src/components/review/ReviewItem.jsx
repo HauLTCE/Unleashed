@@ -1,268 +1,134 @@
-import React, { useState, useEffect } from 'react'
-import ReviewStars from '../../components/reviewStars/ReviewStars'
-import CommentItem from './CommentItem' // Import CommentItem
-import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader'
-import { jwtDecode } from 'jwt-decode' // Import thư viện decode JWT
-import { apiClient } from '../../core/api'
-import { toast } from 'react-toastify'
-import { Zoom } from 'react-toastify'
-import unleashed from '../../assets/images/logo.png'
-const ReviewItem = ({ review, product }) => {
-	const [isReplying, setIsReplying] = useState(false)
-	const [replyContent, setReplyContent] = useState('')
-	const [comments, setComments] = useState(review.childComments || []) // Dữ liệu comment ban đầu từ props
-	const [showAllReplies, setShowAllReplies] = useState(false); // Thêm state này
+import React, { useState } from 'react';
+import ReviewStars from '../reviewStars/ReviewStars';
+import CommentItem from './CommentItem';
+import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader';
+import useAuthUser from 'react-auth-kit/hooks/useAuthUser';
+import { postReply, getReplies } from '../../service/CommentService';
+import { Button, TextField, Box, CircularProgress, Typography } from '@mui/material';
 
-	const [isEditingReview, setIsEditingReview] = useState(false) // Thêm state cho chỉnh sửa review
-	const [editedReviewContent, setEditedReviewContent] = useState(review.reviewComment || '') // State cho nội dung chỉnh sửa review
+const ReviewItem = ({ review, productId }) => {
+    const authHeader = useAuthHeader();
+    const authUser = useAuthUser();
 
-	const handleReplyClick = () => {
-		setIsReplying(!isReplying)
-	}
+    const [isReplying, setIsReplying] = useState(false);
+    const [replyContent, setReplyContent] = useState('');
 
-	const authHeader = useAuthHeader()
-	const token = authHeader ? authHeader.split(' ')[1] : null
-	const username = token ? jwtDecode(token).sub : null
+    const [replies, setReplies] = useState([]);
+    const [repliesPage, setRepliesPage] = useState(0);
+    const [hasMoreReplies, setHasMoreReplies] = useState(true);
+    const [isLoadingReplies, setIsLoadingReplies] = useState(false);
+    const [areRepliesVisible, setAreRepliesVisible] = useState(false);
 
-	// Fetch danh sách comment từ API
-	const fetchComments = async () => {
-		try {
-			const response = await apiClient.get(`/api/reviews/${review.reviewId}/comments`)
-			setComments(response.data) // Cập nhật danh sách comment
-		} catch (error) {
-			console.error('Failed to fetch comments:', error)
-		}
-	}
+    const fetchReplies = async (pageToFetch) => {
+        if (!hasMoreReplies && pageToFetch > 0) return;
+        setIsLoadingReplies(true);
+        try {
+            const data = await getReplies(review.commentId, pageToFetch, 5);
+            setReplies(prev => pageToFetch === 0 ? data.content : [...prev, ...data.content]);
+            setHasMoreReplies(!data.last);
+            setRepliesPage(pageToFetch);
+        } catch (error) {
+            console.error("Failed to fetch replies.");
+        } finally {
+            setIsLoadingReplies(false);
+        }
+    };
 
-	// Gửi comment mới lên API
-	const handleSubmitReply = async () => {
-		if (!replyContent.trim()) return
+    const handleToggleReplies = () => {
+        const newVisibility = !areRepliesVisible;
+        setAreRepliesVisible(newVisibility);
+        if (newVisibility && replies.length === 0) {
+            fetchReplies(0);
+        }
+    };
 
-		const newCommentData = {
-			username: username,
-			commentParentId: review.commentId, // Đặt parent là reviewId (comment gốc)
-			productId: product,
-			comment: {
-				id: 0,
-				commentContent: replyContent,
-				commentCreatedAt: new Date().toISOString(),
-				commentUpdatedAt: new Date().toISOString(),
-			},
-		}
-		//console.log(newCommentData)
+    const handleLoadMoreReplies = () => {
+        fetchReplies(repliesPage + 1);
+    };
 
-		try {
-			await apiClient.post('/api/comments', newCommentData)
-			toast.success('Comment posted successfully!', { position: 'top-left', transition: Zoom })
-			// Cập nhật danh sách comment sau khi post thành công
-			setReplyContent('')
-			setIsReplying(false)
-			setTimeout(() => {
-				window.location.reload()
-			}, 1) // Chờ 0.5s để toast hiển thị trước khi reload
-		} catch (error) {
-			toast.error(error.response?.data?.message || 'Failed to post comment! Please try again.', {
-				position: 'top-left',
-				transition: Zoom,
-			})
-		}
-	}
+    const handleSubmitReply = async () => {
+        if (!replyContent.trim()) return;
+        const newCommentData = {
+            commentParentId: review.commentId,
+            productId: productId,
+            comment: { commentContent: replyContent },
+        };
+        try {
+            await postReply(newCommentData, authHeader);
+            setReplyContent('');
+            setIsReplying(false);
+            setReplies([]);
+            setRepliesPage(0);
+            setHasMoreReplies(true);
+            if (areRepliesVisible) {
+                fetchReplies(0);
+            }
+        } catch (error) {
+            // Error is handled by the service
+        }
+    };
 
-	useEffect(() => {
-		fetchComments() // Lấy danh sách comment khi component mount
-	}, [])
+    return (
+        <div className='py-6 border-b border-gray-200 last:border-b-0'>
+            <div className='flex items-start space-x-4'>
+                <img
+                    src={review.userImage || 'https://placehold.co/48x48'}
+                    alt={`${review.fullName}'s Profile`}
+                    className='w-12 h-12 rounded-full object-cover'
+                />
+                <div className='flex-1'>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <p className='font-semibold text-gray-800'>{review.fullName}</p>
+                            <p className='text-xs text-gray-500'>
+                                {new Date(review.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                            </p>
+                        </div>
+                        {review.reviewRating != null && review.reviewRating > 0 && (
+                            <ReviewStars rating={review.reviewRating} />
+                        )}
+                    </div>
+                    {review.reviewComment && (
+                        <p className='text-gray-700 break-words mt-2 text-base'>{review.reviewComment}</p>
+                    )}
+                    <div className='mt-3 flex items-center gap-4 text-xs'>
+                        {authUser && (
+                            <button className="font-semibold text-gray-600 hover:underline" onClick={() => setIsReplying(!isReplying)}>
+                                {isReplying ? 'Cancel' : 'Reply'}
+                            </button>
+                        )}
+                        <button className="font-semibold text-gray-600 hover:underline" onClick={handleToggleReplies}>
+                            {areRepliesVisible ? 'Hide Replies' : 'View Replies'}
+                        </button>
+                    </div>
 
-	const handleUpdateReviewClick = () => {
-		setIsEditingReview(true)
-		setEditedReviewContent(review.reviewComment) // Khởi tạo nội dung chỉnh sửa
-	}
+                    {isReplying && (
+                        <Box sx={{ mt: 2 }}>
+                            <TextField fullWidth multiline rows={2} label="Write your reply..." value={replyContent} onChange={(e) => setReplyContent(e.target.value)} variant="outlined" size="small" />
+                            <Button sx={{ mt: 1 }} variant="contained" size="small" onClick={handleSubmitReply}>Submit Reply</Button>
+                        </Box>
+                    )}
 
-	const handleCancelUpdateReview = () => {
-		setIsEditingReview(false)
-	}
+                    {areRepliesVisible && (
+                        <div className='mt-4'>
+                            {replies.map((reply) => (
+                                <CommentItem key={reply.commentId} comment={reply} productId={productId} />
+                            ))}
+                            {isLoadingReplies && <CircularProgress size={24} sx={{ display: 'block', mx: 'auto', my: 2 }} />}
+                            {hasMoreReplies && !isLoadingReplies && (
+                                <Button size="small" sx={{ mt: 1 }} onClick={handleLoadMoreReplies}>
+                                    Load More Replies
+                                </Button>
+                            )}
+                            {!isLoadingReplies && replies.length === 0 && (
+                                <Typography variant="caption" color="text.secondary">No replies yet.</Typography>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
 
-	const handleSaveUpdateReview = async () => {
-		try {
-			const response = await apiClient.put(
-				`/api/reviews/comments/${review.commentId}?username=${username}`,
-				{
-					commentContent: editedReviewContent,
-				}
-			)
-			if (response.status === 200) {
-				toast.success('Review updated successfully!', { position: 'top-left', transition: Zoom })
-				setIsEditingReview(false)
-				// Cập nhật lại review hiển thị (có thể fetch lại review hoặc cập nhật state cục bộ)
-				review.reviewComment = editedReviewContent // Cập nhật trực tiếp để hiển thị ngay lập tức
-				// Có thể cần cập nhật lại commentUpdatedAt để nút Update biến mất nếu cần logic chặt chẽ hơn
-				review.updatedAt = new Date().toISOString() // Cập nhật updatedAt
-			} else {
-				toast.error('Failed to update review.', { position: 'top-left', transition: Zoom })
-			}
-		} catch (error) {
-			toast.error(error.response?.data?.message || 'Failed to update review! Please try again.', {
-				position: 'top-left',
-				transition: Zoom,
-			})
-		}
-	}
-
-	const isReviewUpdated =
-		review.updatedAt !== undefined && review.createdAt.toString() !== review.updatedAt.toString()
-
-	return (
-		<div className='mb-6 last:mb-0 pb-6 last:pb-6 border border-gray-300 rounded-lg p-6 bg-gray-100'>
-			<div className='mb-4 p-3 rounded-md bg-gray-50 border border-gray-200'>
-				<div className='flex justify-between items-start mb-2'>
-					<div className='flex items-center'>
-						<h4 className='font-semibold text-lg mr-2'>{review.fullName}</h4>
-						{review.userImage && (
-							<img
-								src={review.userImage}
-								alt={`${review.fullName}'s Profile`}
-								className='w-8 h-8 rounded-full object-cover'
-								onError={(e) => {
-									e.target.onerror = null
-									e.target.src = unleashed
-								}}
-							/>
-						)}
-					</div>
-					<div className='flex items-center'>
-						{review.reviewRating != null && review.reviewRating > 0 && (
-							<ReviewStars rating={review.reviewRating} />
-						)}
-					</div>
-				</div>
-				{isEditingReview ? (
-					<textarea
-						value={editedReviewContent}
-						onChange={(e) => setEditedReviewContent(e.target.value)}
-						className='w-full p-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
-						rows='3'
-					/>
-				) : (
-					review.reviewComment && (
-						<>
-							<p className='text-sm text-gray-500 mt-1 text-left'>
-								{new Date(review.createdAt).toLocaleDateString()}
-								{isReviewUpdated && (
-									<span className='text-gray-500 text-xs ml-1'>
-										(Updated at: {new Date(review.updatedAt).toLocaleDateString()})
-									</span>
-								)}
-							</p>
-							<p className='mt-2 text-gray-700 break-words'>{review.reviewComment}</p>
-						</>
-					)
-				)}
-			</div>
-
-			<div className='mt-2 flex items-center'>
-				{username === review.fullName && !isReplying && !isEditingReview && !isReviewUpdated && (
-					<button
-						onClick={handleUpdateReviewClick}
-						className='border border-gray-300 text-black font-semibold text-base px-3 py-1 rounded hover:scale-105 active:scale-100 transition-transform focus:outline-none mr-2'
-					>
-						Update
-					</button>
-				)}
-				{isEditingReview && (
-					<>
-						<button
-							onClick={handleSaveUpdateReview}
-							className='bg-blue-500 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-600 focus:outline-none mr-2'
-						>
-							Save
-						</button>
-						<button
-							onClick={handleCancelUpdateReview}
-							className='text-gray-500 hover:underline text-sm focus:outline-none'
-						>
-							Cancel
-						</button>
-					</>
-				)}
-				{username && !isEditingReview && !isReplying && (
-					<button
-						onClick={handleReplyClick}
-						className='border border-gray-300 text-black font-semibold text-base px-3 py-1 rounded hover:scale-105 active:scale-100 transition-transform focus:outline-none'
-					>
-						Reply
-					</button>
-				)}
-			</div>
-
-			{isReplying && (
-				<div className='ml-0 mt-2'>
-					<textarea
-						placeholder='Write your reply...'
-						value={replyContent}
-						onChange={(e) => setReplyContent(e.target.value)}
-						className='w-full p-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
-						rows='2'
-					/>
-					<div className='mt-2 flex items-center'>
-						<button
-							onClick={handleSubmitReply}
-							className='bg-blue-500 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-600 focus:outline-none mr-2'
-						>
-							Submit Reply
-						</button>
-						<button
-							onClick={() => setIsReplying(false)}
-							className='ml-2 text-gray-500 hover:underline text-sm focus:outline-none'
-						>
-							Cancel
-						</button>
-					</div>
-				</div>
-			)}
-
-{comments.length > 0 && (
-    <div className='ml-6 mt-4 relative' style={{ position: 'relative' }}>
-        <div
-            style={{
-                position: 'absolute',
-                top: -10, // Điều chỉnh để đường thẳng bắt đầu từ trên comment cha
-                left: -15, // Điều chỉnh vị trí đường thẳng
-                bottom: 0,
-                borderLeft: '2px dashed #ccc', // Màu và kiểu đường thẳng
-            }}
-        ></div>
-        {showAllReplies ? (
-            <>
-                {comments.map((childComment, index) => (
-                    <CommentItem key={index} comment={childComment} name={username} product={product} />
-                ))}
-                {comments.length > 3 && (
-                    <button
-                        onClick={() => setShowAllReplies(false)}
-                        className='border border-gray-300 text-black-500 font-semibold px-3 hover:scale-105 transition-transform text-xs focus:outline-none mt-2 block'
-                    >
-                        Show less replies
-                    </button>
-                )}
-            </>
-        ) : (
-            <>
-                {comments.slice(0, 3).map((childComment, index) => (
-                    <CommentItem key={index} comment={childComment} name={username} product={product} />
-                ))}
-                {comments.length > 3 && (
-                    <button
-                        onClick={() => setShowAllReplies(true)}
-                        className='border border-gray-300 text-black-500 font-semibold px-3 hover:scale-105 transition-transform text-xs focus:outline-none mt-2 block'
-                    >
-                        Read all replies ({comments.length - 3}+)
-                    </button>
-                )}
-            </>
-        )}
-    </div>
-)}
-		</div>
-	)
-}
-
-export default ReviewItem
+export default ReviewItem;
