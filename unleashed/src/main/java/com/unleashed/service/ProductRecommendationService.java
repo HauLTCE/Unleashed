@@ -63,6 +63,7 @@ public class ProductRecommendationService {
         this.saleRepository = saleRepository;
     }
 
+
     @Transactional(readOnly = true)
     public List<ProductDTO> getRecommendedProducts(String username,
                                                    String currentProductIdStr) {
@@ -84,7 +85,7 @@ public class ProductRecommendationService {
         UUID userId = user.getUserId();
 
         List<Product> allProducts = productRepository.findAll();
-        Map<UUID, Product> productMap = allProducts.stream().collect(Collectors.toMap(p -> p.getProductId(), Function.identity()));
+        Map<UUID, Product> productMap = allProducts.stream().collect(Collectors.toMap(Product::getProductId, Function.identity()));
 
         allProducts.removeIf(p -> p.getProductId().equals(currentProductId));
 
@@ -104,7 +105,7 @@ public class ProductRecommendationService {
 
         Map<UUID, Long> productStockMap = allProducts.stream()
                 .collect(Collectors.toMap(
-                        p -> p.getProductId(),
+                        Product::getProductId,
                         product -> (long) Optional.ofNullable(stockVariationRepository.getTotalStockQuantityForProduct(product.getProductId())).orElse(0)
                 ));
 
@@ -528,7 +529,7 @@ public class ProductRecommendationService {
         String currentProductName = currentProduct.getProductName();
 
         List<Product> allProducts = productRepository.findAll();
-        Map<UUID, Product> productMap = allProducts.stream().collect(Collectors.toMap(p -> p.getProductId(), Function.identity()));
+        Map<UUID, Product> productMap = allProducts.stream().collect(Collectors.toMap(Product::getProductId, Function.identity()));
 
         allProducts.remove(currentProduct);
 
@@ -545,7 +546,7 @@ public class ProductRecommendationService {
 
         Map<UUID, Long> productStockMap = allProducts.stream()
                 .collect(Collectors.toMap(
-                        p -> p.getProductId(),
+                        Product::getProductId,
                         product -> (long) Optional.ofNullable(stockVariationRepository.getTotalStockQuantityForProduct(product.getProductId())).orElse(0)
                 ));
 

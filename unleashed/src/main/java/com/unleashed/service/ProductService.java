@@ -60,6 +60,54 @@ public class ProductService {
     }
 
 
+    @Transactional
+    public void performScheduledStockUpdates() {
+        // Fetch statuses
+        ProductStatus outOfStock = productStatusRepository.findById(1).orElseThrow(() -> new EntityNotFoundException("Status 1 not found"));
+        ProductStatus available = productStatusRepository.findById(3).orElseThrow(() -> new EntityNotFoundException("Status 3 not found"));
+        ProductStatus runningOut = productStatusRepository.findById(4).orElseThrow(() -> new EntityNotFoundException("Status 4 not found"));
+        ProductStatus newStatus = productStatusRepository.findById(5).orElseThrow(() -> new EntityNotFoundException("Status 5 not found"));
+
+        // 1. Mark products as RUNNING OUT
+        List<Product> productsToMarkRunningOut = productRepository.findProductsByStatusInAndStockLessThanEqual(Arrays.asList(3, 5), 100L); // AVAILABLE or NEW
+        productsToMarkRunningOut.forEach(p -> p.setProductStatus(runningOut));
+
+        // 2. Mark products as OUT OF STOCK
+        List<Product> productsToMarkOutOfStock = productRepository.findProductsByStatusInAndStockLessThanEqual(Arrays.asList(3, 4, 5), 0L); // AVAILABLE, RUNNING OUT, or NEW
+        productsToMarkOutOfStock.forEach(p -> p.setProductStatus(outOfStock));
+
+        // 3. Mark restocked products as AVAILABLE
+        List<Product> productsToMarkAvailable = productRepository.findProductsByStatusInAndStockGreaterThan(Collections.singletonList(1), 0L); // OUT OF STOCK
+        productsToMarkAvailable.forEach(p -> p.setProductStatus(available));
+
+        // Combine all changes and save once
+        List<Product> allProductsToUpdate = new ArrayList<>();
+        allProductsToUpdate.addAll(productsToMarkRunningOut);
+        allProductsToUpdate.addAll(productsToMarkOutOfStock);
+        allProductsToUpdate.addAll(productsToMarkAvailable);
+
+        if (!allProductsToUpdate.isEmpty()) {
+            productRepository.saveAll(allProductsToUpdate);
+        }
+    }
+
+
+    @Transactional
+    public void performScheduledAgingUpdate() {
+        List<UUID> productIds = productRepository.findProductIdsToAgeFromNewToAvailable();
+        if (!productIds.isEmpty()) {
+            ProductStatus availableStatus = productStatusRepository.findById(3)
+                    .orElseThrow(() -> new EntityNotFoundException("Status 3 not found"));
+            List<Product> productsToUpdate = productRepository.findAllById(productIds);
+            productsToUpdate.forEach(p -> p.setProductStatus(availableStatus));
+            productRepository.saveAll(productsToUpdate);
+        }
+    }
+
+
+
+
+
     @Transactional(readOnly = true)
     public Page<VariationImportDTO> findAllVariationsForImport(String search, Integer stockId, Pageable pageable) {
         Specification<Variation> spec = new VariationSpecification(search);
@@ -231,7 +279,8 @@ public class ProductService {
         product.setProductName(productDTO.getProductName());
         product.setProductDescription(productDTO.getProductDescription());
 
-        product.setProductStatus(productStatusRepository.findById(2).orElse(null));
+        product.setProductStatus(productStatusRepository.findById(2)
+                .orElseThrow(() -> new EntityNotFoundException("CRITICAL: Product Status 'IMPORTING' (ID 2) not found.")));
 
         product.setBrand(brandRepository.findById(productDTO.getBrandId()).orElse(null));
         product = productRepository.save(product);

@@ -1,15 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-    Button,
-    CircularProgress,
-    Container,
-    Grid,
-    MenuItem,
-    Paper,
-    TextField,
-    Typography
-} from "@mui/material";
+import { Button, CircularProgress, Container, Grid, MenuItem, Paper, TextField, Typography } from "@mui/material";
 import { Field, Form, Formik } from "formik";
 import * as Yup from "yup";
 import { apiClient } from "../../core/api";
@@ -20,9 +11,7 @@ const formatDateTimeForInput = (dateString) => {
     if (!dateString) return '';
     try {
         const date = new Date(dateString);
-        const timezoneOffset = date.getTimezoneOffset() * 60000;
-        const localDate = new Date(date.getTime() - timezoneOffset);
-        return localDate.toISOString().slice(0, 16);
+        return new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
     } catch (error) {
         return '';
     }
@@ -45,7 +34,6 @@ const validationSchema = Yup.object({
         }),
     startDate: Yup.date().required("Start date is required"),
     endDate: Yup.date().required("End date is required").min(Yup.ref("startDate"), "End date must be after start date"),
-    discountStatus: Yup.number().required("Discount status is required").oneOf([1, 2, 3, 4]),
     discountDescription: Yup.string().nullable(),
     minimumOrderValue: Yup.number().min(0, "Cannot be negative").nullable(),
     maximumDiscountValue: Yup.number()
@@ -78,7 +66,7 @@ const DashboardEditDiscount = () => {
                         discountValue: discount.discountValue || "",
                         startDate: formatDateTimeForInput(discount.startDate),
                         endDate: formatDateTimeForInput(discount.endDate),
-                        discountStatus: discount.discountStatus?.id || 1,
+                        discountStatusName: discount.discountStatus?.discountStatusName || "N/A",
                         discountDescription: discount.discountDescription || "",
                         minimumOrderValue: discount.minimumOrderValue || "",
                         maximumDiscountValue: discount.maximumDiscountValue || "",
@@ -87,12 +75,8 @@ const DashboardEditDiscount = () => {
                         usageCount: discount.usageCount || 0,
                     });
                 })
-                .catch((error) => {
-                    toast.error("Failed to load discount details.", { position: "bottom-right", transition: Zoom });
-                })
-                .finally(() => {
-                    setLoading(false);
-                });
+                .catch(() => toast.error("Failed to load discount details.", { position: "bottom-right", transition: Zoom }))
+                .finally(() => setLoading(false));
         }
     }, [discountId, varToken]);
 
@@ -103,7 +87,6 @@ const DashboardEditDiscount = () => {
             discountValue: values.discountValue,
             startDate: convertToOffsetDateTime(values.startDate),
             endDate: convertToOffsetDateTime(values.endDate),
-            discountStatus: { id: values.discountStatus },
             discountDescription: values.discountDescription,
             minimumOrderValue: values.minimumOrderValue || null,
             maximumDiscountValue: values.maximumDiscountValue || null,
@@ -117,9 +100,7 @@ const DashboardEditDiscount = () => {
                 toast.success("Discount updated successfully!", { position: "bottom-right", transition: Zoom });
                 navigate("/Dashboard/Discounts");
             })
-            .catch((error) => {
-                toast.error("Failed to update discount.", { position: "bottom-right", transition: Zoom });
-            })
+            .catch(() => toast.error("Failed to update discount.", { position: "bottom-right", transition: Zoom }))
             .finally(() => setSubmitting(false));
     };
 
@@ -173,14 +154,14 @@ const DashboardEditDiscount = () => {
                                            helperText={touched.endDate && errors.endDate} />
                                 </Grid>
                                 <Grid item xs={12} sm={6}>
-                                    <Field as={TextField} name="discountStatus" label="Discount Status" select fullWidth
-                                           required error={touched.discountStatus && !!errors.discountStatus}
-                                           helperText={touched.discountStatus && errors.discountStatus}>
-                                        <MenuItem value={2}>Active</MenuItem>
-                                        <MenuItem value={1}>Inactive</MenuItem>
-                                        <MenuItem value={3} disabled>Expired</MenuItem>
-                                        <MenuItem value={4} disabled>Used</MenuItem>
-                                    </Field>
+                                    <TextField
+                                        name="discountStatusName"
+                                        label="Current Status"
+                                        value={values.discountStatusName}
+                                        fullWidth
+                                        disabled
+                                        InputLabelProps={{ shrink: true }}
+                                    />
                                 </Grid>
                                 <Grid item xs={12} sm={6}>
                                     <Field as={TextField} name="usageLimit" label="Usage Limit" type="number" fullWidth

@@ -137,7 +137,7 @@ const DashboardDiscounts = () => {
                         <TableRow>
                             <TableCell sx={{ fontWeight: 'bold' }}>Code</TableCell>
                             <TableCell sx={{ fontWeight: 'bold' }}>Type</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>Rank Req.</TableCell>
+                            {/*<TableCell sx={{ fontWeight: 'bold' }}>Rank Req.</TableCell>*/}
                             <TableCell sx={{ fontWeight: 'bold' }}>Value</TableCell>
                             <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
                             <TableCell sx={{ fontWeight: 'bold' }}>Usage</TableCell>
@@ -149,7 +149,7 @@ const DashboardDiscounts = () => {
                             <TableRow key={d.discountId} hover>
                                 <TableCell sx={{ fontWeight: 'medium' }}>{d.discountCode}</TableCell>
                                 <TableCell>{d.discountType?.discountTypeName}</TableCell>
-                                <TableCell>{d.rank?.rankName || 'Any'}</TableCell>
+                                {/*<TableCell>{d.rank?.rankName || 'Any'}</TableCell>*/}
                                 <TableCell>{d.discountType?.id === 1 ? `${d.discountValue}%` : formatPrice(d.discountValue)}</TableCell>
                                 <TableCell>
                                     <Chip label={d.discountStatus?.discountStatusName} color={getStatusChipColor(d.discountStatus?.discountStatusName)} size="small" />
