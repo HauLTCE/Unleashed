@@ -2,15 +2,9 @@ package com.unleashed.service;
 
 import com.unleashed.dto.ProductSaleDTO;
 import com.unleashed.dto.ResponseDTO;
-import com.unleashed.entity.Product;
-import com.unleashed.entity.Sale;
-import com.unleashed.entity.SaleProduct;
-import com.unleashed.entity.SaleStatus;
+import com.unleashed.entity.*;
 import com.unleashed.entity.composite.SaleProductId;
-import com.unleashed.repo.ProductRepository;
-import com.unleashed.repo.SaleProductRepository;
-import com.unleashed.repo.SaleRepository;
-import com.unleashed.repo.SaleStatusRepository;
+import com.unleashed.repo.*;
 import com.unleashed.repo.specification.ProductSpecification;
 import com.unleashed.repo.specification.SaleSpecification;
 import jakarta.persistence.EntityNotFoundException;
@@ -37,13 +31,29 @@ public class SaleService {
     private final ProductRepository productRepository;
     private final SaleProductRepository saleProductRepository;
     private final SaleStatusRepository saleStatusRepository;
+    private final SaleTypeRepository saleTypeRepository;
 
-    public SaleService(SaleRepository saleRepository, ProductRepository productRepository, SaleProductRepository saleProductRepository, SaleStatusRepository saleStatusRepository) {
+    public SaleService(SaleRepository saleRepository, ProductRepository productRepository, SaleProductRepository saleProductRepository, SaleStatusRepository saleStatusRepository, SaleTypeRepository saleTypeRepository) {
         this.saleRepository = saleRepository;
         this.productRepository = productRepository;
         this.saleProductRepository = saleProductRepository;
         this.saleStatusRepository = saleStatusRepository;
+        this.saleTypeRepository = saleTypeRepository;
     }
+
+    /**
+     * This is the main "self-healing" method that the scheduler will run.
+     * It finds and updates the status of sales that need to be activated or expired.
+     * It is transactional, so if any part fails, all changes are rolled back.
+     */
+    @Transactional
+    public void performScheduledStatusUpdates() {
+        updateSalesToActive();
+        updateSalesToExpired();
+    }
+
+
+
 
     @Transactional
     public List<Sale> findAll() {
@@ -109,15 +119,10 @@ public class SaleService {
 
     @Transactional(readOnly = true)
     public Page<ProductSaleDTO> getProductsNotInSale(int saleId, String search, Pageable pageable) {
-        List<String> productIdsInSale = saleProductRepository.findByIdSaleId(saleId).stream()
-                .map(sp -> sp.getId().getProductId().toString())
-                .collect(Collectors.toList());
-
-        // --- APPLY THE NEW STOCK FILTER ---
         Specification<Product> spec = Specification
-                .where(ProductSpecification.notInProductIds(productIdsInSale))
+                .where(ProductSpecification.isNotInAnySale())
                 .and(ProductSpecification.hasNameLike(search))
-                .and(ProductSpecification.hasStock()); // Only show products with stock > 0
+                .and(ProductSpecification.hasStock());
 
         Page<Product> productPage = productRepository.findAll(spec, pageable);
         return productPage.map(ProductSaleDTO::fromEntity);
@@ -154,35 +159,81 @@ public class SaleService {
     }
 
 
+    /**
+     * Creates a new Sale, automatically setting its initial status based on its start and end dates.
+     * A sale is 'ACTIVE' if its start date is in the past or present, and its end date is in the future or present.
+     * Otherwise, it is 'INACTIVE'.
+     *
+     * @param sale The sale object to be created. Must not be null.
+     * @return The persisted Sale entity with its status correctly set.
+     * @throws IllegalArgumentException if the sale object is null.
+     * @throws EntityNotFoundException if the required 'ACTIVE' or 'INACTIVE' statuses are not found in the database.
+     */
     @Transactional
     public Sale createSale(Sale sale) {
         if (sale == null) {
             throw new IllegalArgumentException("Sale data must not be null");
         }
-        sale.setSaleCreatedAt(OffsetDateTime.now());
+
+        // Use a single, consistent timestamp for the entire operation
+        final OffsetDateTime now = OffsetDateTime.now();
+
+        // Set the creation timestamp for auditing
+        sale.setSaleCreatedAt(now);
+
+        // Encapsulate the status logic in a private helper method for clarity
+        setInitialSaleStatus(sale, now);
+
         return saleRepository.save(sale);
     }
 
-    @Transactional
-    public ResponseEntity<?> updateSale(Integer saleId, Sale saleData) {
-        ResponseDTO responseDTO = new ResponseDTO();
-        responseDTO.setMessage("Updated sale Successfully");
-        Sale existingSale = saleRepository.findById(saleId).orElse(null);
+    /**
+     * A private helper method to determine and set the correct initial status of a sale.
+     * This centralizes the business logic for new sales.
+     *
+     * @param sale The sale entity to be updated.
+     * @param now The consistent timestamp for the creation event.
+     */
+    private void setInitialSaleStatus(Sale sale, OffsetDateTime now) {
+        SaleStatus activeStatus = saleStatusRepository.findById(2)
+                .orElseThrow(() -> new EntityNotFoundException("Critical error: ACTIVE status (ID 2) not found in database."));
 
-        if (existingSale == null) {
-            responseDTO.setMessage("Sale not found");
-            responseDTO.setStatusCode(HttpStatus.NOT_FOUND.value());
-            return ResponseEntity.status(responseDTO.getStatusCode()).body(responseDTO);
+        SaleStatus inactiveStatus = saleStatusRepository.findById(1)
+                .orElseThrow(() -> new EntityNotFoundException("Critical error: INACTIVE status (ID 1) not found in database."));
+
+        boolean isAlreadyStarted = !sale.getSaleStartDate().isAfter(now);
+        boolean isNotYetEnded = !sale.getSaleEndDate().isBefore(now);
+
+        if (isAlreadyStarted && isNotYetEnded) {
+            sale.setSaleStatus(activeStatus);
+        } else {
+            sale.setSaleStatus(inactiveStatus);
         }
-        existingSale.setSaleType(saleData.getSaleType());
-        existingSale.setSaleValue(saleData.getSaleValue());
-        existingSale.setSaleStartDate(saleData.getSaleStartDate());
-        existingSale.setSaleEndDate(saleData.getSaleEndDate());
-        existingSale.setSaleStatus(saleData.getSaleStatus());
-        existingSale.setSaleUpdatedAt(OffsetDateTime.now());
-        Sale EditedSale = saleRepository.save(existingSale);
+    }
 
-        return ResponseEntity.ok().body(EditedSale);
+    @Transactional
+    public ResponseEntity<?> updateSale(Integer saleId, Sale saleDataFromRequest) {
+        // 1. Fetch the existing, managed Sale from the database
+        Sale existingSale = saleRepository.findById(saleId)
+                .orElseThrow(() -> new EntityNotFoundException("Sale not found with id: " + saleId));
+
+        // 2. Look up the REAL SaleType entity from the database
+        //    We get the name from the transient object sent by the frontend.
+        String saleTypeName = saleDataFromRequest.getSaleType().getSaleTypeName();
+        SaleType managedSaleType = saleTypeRepository.findBySaleTypeName(saleTypeName)
+                .orElseThrow(() -> new EntityNotFoundException("SaleType not found with name: " + saleTypeName));
+
+        // 3. Update the existingSale with the managed SaleType and other data
+        existingSale.setSaleType(managedSaleType);
+        existingSale.setSaleValue(saleDataFromRequest.getSaleValue());
+        existingSale.setSaleStartDate(saleDataFromRequest.getSaleStartDate());
+        existingSale.setSaleEndDate(saleDataFromRequest.getSaleEndDate());
+        existingSale.setSaleUpdatedAt(OffsetDateTime.now());
+
+        Sale updatedSale = saleRepository.save(existingSale);
+
+        // Using a ResponseDTO is good, but for simplicity, let's return the updated entity
+        return ResponseEntity.ok(updatedSale);
     }
 
     @Transactional
@@ -295,5 +346,57 @@ public class SaleService {
     public ResponseEntity<?> getListProductsInSales() {
         return ResponseEntity.status(HttpStatus.OK).body(saleProductRepository.getAllProductsInSales());
     }
+
+
+    /**
+     * Finds INACTIVE sales that should now be ACTIVE and updates them.
+     */
+    private void updateSalesToActive() {
+        // Assuming your status IDs are: 1=INACTIVE, 2=ACTIVE
+        SaleStatus inactiveStatus = saleStatusRepository.findById(1).orElse(null);
+        SaleStatus activeStatus = saleStatusRepository.findById(2).orElse(null);
+
+        if (inactiveStatus == null || activeStatus == null) {
+            return;
+        }
+
+        OffsetDateTime now = OffsetDateTime.now();
+        List<Sale> salesToActivate = saleRepository.findBySaleStatusAndSaleStartDateBeforeAndSaleEndDateAfter(inactiveStatus, now, now);
+
+        if (!salesToActivate.isEmpty()) {
+
+            for (Sale sale : salesToActivate) {
+                sale.setSaleStatus(activeStatus);
+            }
+            saleRepository.saveAll(salesToActivate);
+        }
+    }
+
+    /**
+     * Finds sales that have passed their end date and marks them as EXPIRED.
+     */
+    private void updateSalesToExpired() {
+        // Assuming your status ID for EXPIRED is 3
+        SaleStatus expiredStatus = saleStatusRepository.findById(3).orElse(null);
+        if (expiredStatus == null) {
+            return;
+        }
+
+        OffsetDateTime now = OffsetDateTime.now();
+        List<Sale> salesToExpire = saleRepository.findAllBySaleEndDateBeforeAndSaleStatusIdNot(now, expiredStatus.getId());
+
+        if (!salesToExpire.isEmpty()) {
+
+            for (Sale sale : salesToExpire) {
+                sale.setSaleStatus(expiredStatus);
+            }
+            saleRepository.saveAll(salesToExpire);
+        }
+    }
+
+
+
+
+
 
 }

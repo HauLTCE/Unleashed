@@ -172,5 +172,32 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
     @Query("SELECT SUM(sv.stockQuantity) FROM StockVariation sv WHERE sv.variation.product.productId = :productId")
     Integer findTotalStockForProduct(@Param("productId") UUID productId);
 
+    @Query("SELECT p FROM Product p WHERE p.productStatus.id IN :statusIds AND " +
+            "(SELECT SUM(sv.stockQuantity) FROM StockVariation sv WHERE sv.variation.product = p) <= :stockThreshold")
+    List<Product> findProductsByStatusInAndStockLessThanEqual(List<Integer> statusIds, long stockThreshold);
+
+    // Finds products with specific statuses and stock > threshold
+    @Query("SELECT p FROM Product p WHERE p.productStatus.id IN :statusIds AND " +
+            "(SELECT SUM(sv.stockQuantity) FROM StockVariation sv WHERE sv.variation.product = p) > :stockThreshold")
+    List<Product> findProductsByStatusInAndStockGreaterThan(List<Integer> statusIds, long stockThreshold);
+
+
+    @Query(value =
+            "WITH FirstImport AS (" +
+                    "    SELECT v.product_id, MIN(t.transaction_date) as first_import_date " +
+                    "    FROM dbo.\"transaction\" t " +
+                    "    JOIN dbo.variation v ON t.variation_id = v.variation_id " +
+                    "    WHERE t.transaction_type_id = 1 " +
+                    "    GROUP BY v.product_id " +
+                    ") " +
+                    "SELECT p.product_id FROM dbo.product p " +
+                    "JOIN FirstImport fi ON p.product_id = fi.product_id " +
+                    "WHERE p.product_status_id = 5 " +
+                    "AND fi.first_import_date < DATEADD(day, -30, GETDATE())",
+            nativeQuery = true)
+    List<UUID> findProductIdsToAgeFromNewToAvailable();
+
+
+
 
 }

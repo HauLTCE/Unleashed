@@ -121,8 +121,10 @@ public class StockTransactionService {
             TransactionType transactionType = transactionTypeRepository.findById(1) // Assuming 1 is for "IN"
                     .orElseThrow(() -> new IllegalStateException("Transaction Type with ID 1 not found."));
 
-            ProductStatus productStatus = productStatusRepository.findById(3) // Assuming 3 is for "IN STOCK"
-                    .orElseThrow(() -> new IllegalStateException("Product Status with ID 3 not found."));
+            ProductStatus newStatus = productStatusRepository.findById(5) // 5 = NEW
+                    .orElseThrow(() -> new IllegalStateException("Product Status 'NEW' (ID 5) not found."));
+            ProductStatus availableStatus = productStatusRepository.findById(3) // 3 = AVAILABLE
+                    .orElseThrow(() -> new IllegalStateException("Product Status 'AVAILABLE' (ID 3) not found."));
 
             for (StockTransactionDTO.ProductVariationQuantity variationQuantity : stockTransactionDTO.getVariations()) {
                 Variation variation = variationRepository.findById(variationQuantity.getProductVariationId())
@@ -156,7 +158,14 @@ public class StockTransactionService {
                 }
 
                 Product product = variation.getProduct();
-                product.setProductStatus(productStatus);
+                Integer currentStatusId = product.getProductStatus().getId();
+
+                if (currentStatusId.equals(2)) {
+                    product.setProductStatus(newStatus);
+                }
+                else if (currentStatusId.equals(1)) {
+                    product.setProductStatus(availableStatus);
+                }
                 productRepository.save(product);
             }
         } catch (IllegalArgumentException | IllegalStateException e) {

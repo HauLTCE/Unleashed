@@ -15,7 +15,6 @@ const DashboardCreateDiscount = () => {
     const [isCheckingCode, setIsCheckingCode] = useState(false);
     const [isCodeAvailable, setIsCodeAvailable] = useState(true);
     const debouncedCode = useDebounce(codeToCheck, 500);
-
     const varToken = useAuthHeader();
     const navigate = useNavigate();
 
@@ -24,9 +23,7 @@ const DashboardCreateDiscount = () => {
             setIsCheckingCode(true);
             setIsCodeAvailable(false);
             apiClient.get(`/api/discounts/check-code?code=${debouncedCode}`, { headers: { Authorization: varToken } })
-                .then(response => {
-                    setIsCodeAvailable(!response.data);
-                })
+                .then(response => setIsCodeAvailable(!response.data))
                 .catch(() => setIsCodeAvailable(false))
                 .finally(() => setIsCheckingCode(false));
         } else {
@@ -45,26 +42,18 @@ const DashboardCreateDiscount = () => {
             .oneOf([1, 2], "Invalid discount type"),
         discountValue: Yup.number()
             .required("Discount value is required")
-            .min(1, "Discount value cannot be negative")
+            .min(1, "Discount value must be at least 1")
             .max(99999999, "Maximum value cannot exceed 99999999")
             .when("discountType", {
                 is: 1,
-                then: (schema) =>
-                    schema
-                        .min(1, "Discount value cannot be negative")
-                        .max(100, "Discount value cannot be greater than 100")
-                        .required("Discount value is required"),
+                then: (schema) => schema.max(100, "Percentage value cannot exceed 100"),
             }),
         startDate: Yup.date()
-            .required("Start date is required")
-            .min(new Date(), "Start date cannot be in the past"),
+            .required("Start date is required"),
         endDate: Yup.date()
             .required("End date is required")
             .min(Yup.ref("startDate"), "End date must be after start date"),
-        discountStatus: Yup.number()
-            .required("Discount status is required")
-            .oneOf([1, 2], "Invalid discount status"),
-        discountDescription: Yup.string(),
+        discountDescription: Yup.string().nullable(),
         minimumOrderValue: Yup.number()
             .min(0, "Minimum order value cannot be negative")
             .max(99999999, "Maximum value cannot exceed 99999999")
@@ -75,17 +64,12 @@ const DashboardCreateDiscount = () => {
             .nullable()
             .when("discountType", {
                 is: 2,
-                then: (schema) =>
-                    schema.test(
-                        "is-null",
-                        "For fixed amount, Maximum discount value should be null",
-                        (value) => value === null || value === undefined
-                    ),
+                then: (schema) => schema.test("is-null", "Max value must be null for Fixed Amount", (v) => v === null || v === undefined || v === ''),
             }),
         usageLimit: Yup.number()
-            .min(1, "Usage limit must be positive")
+            .min(1, "Usage limit must be at least 1")
             .max(99999999, "Maximum value cannot exceed 99999999")
-            .required("Usage limit cannot be null"),
+            .required("Usage limit is required"),
         discountRank: Yup.number()
             .required("Discount rank is required")
             .oneOf([1, 2, 3, 4, 5], "Invalid discount rank"),
@@ -104,7 +88,6 @@ const DashboardCreateDiscount = () => {
             discountValue: values.discountValue,
             startDate: new Date(values.startDate).toISOString(),
             endDate: new Date(values.endDate).toISOString(),
-            discountStatus: { id: values.discountStatus },
             discountDescription: values.discountDescription,
             minimumOrderValue: values.minimumOrderValue || null,
             maximumDiscountValue: values.maximumDiscountValue || null,
@@ -143,7 +126,6 @@ const DashboardCreateDiscount = () => {
                     discountValue: "",
                     startDate: "",
                     endDate: "",
-                    discountStatus: 2,
                     discountDescription: "",
                     minimumOrderValue: "",
                     maximumDiscountValue: "",
@@ -235,22 +217,6 @@ const DashboardCreateDiscount = () => {
                         </Box>
                         <Box sx={{ mb: 2 }}>
                             <Field
-                                name="discountStatus"
-                                as={TextField}
-                                label="Discount Status"
-                                variant="outlined"
-                                select
-                                fullWidth
-                                required
-                                error={touched.discountStatus && Boolean(errors.discountStatus)}
-                                helperText={touched.discountStatus && errors.discountStatus}
-                            >
-                                <MenuItem value={2}>Active</MenuItem>
-                                <MenuItem value={1}>Inactive</MenuItem>
-                            </Field>
-                        </Box>
-                        <Box sx={{ mb: 2 }}>
-                            <Field
                                 name="discountDescription"
                                 as={TextField}
                                 label="Discount Description"
@@ -299,9 +265,7 @@ const DashboardCreateDiscount = () => {
                                 helperText={touched.usageLimit && errors.usageLimit}
                             />
                         </Box>
-
                         <Field type="hidden" name="discountRank" />
-
                         <div className="flex items-center justify-center">
                             <Button
                                 type="submit"
