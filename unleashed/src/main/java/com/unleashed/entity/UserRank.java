@@ -32,7 +32,7 @@ public class UserRank {
     @JoinColumn(name = "rank_id", nullable = false)
     private Rank rank;
 
-    @Column(name = "money_spent", precision = 10, scale = 2)
+    @Column(name = "money_spent", precision = 22, scale = 2)
     private BigDecimal moneySpent;
 
     @NotNull

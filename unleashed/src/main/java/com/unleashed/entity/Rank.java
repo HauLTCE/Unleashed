@@ -28,7 +28,7 @@ public class Rank {
     @Column(name = "rank_num")
     private Integer rankNum;
 
-    @Column(name = "rank_payment_requirement", precision = 10, scale = 2)
+    @Column(name = "rank_payment_requirement", precision = 22, scale = 2)
     private BigDecimal rankPaymentRequirement;
 
     @Column(name = "rank_base_discount", precision = 3, scale = 2)

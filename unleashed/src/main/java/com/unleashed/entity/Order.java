@@ -54,7 +54,7 @@ public class Order {
     @Column(name = "order_date")
     private OffsetDateTime orderDate;
 
-    @Column(name = "order_total_amount", precision = 10, scale = 2)
+    @Column(name = "order_total_amount", precision = 22, scale = 2)
     private BigDecimal orderTotalAmount;
 
     @Size(max = 50)

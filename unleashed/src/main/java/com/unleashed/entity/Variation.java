@@ -42,7 +42,7 @@ public class Variation {
     @JsonView(Views.ProductView.class)
     private String variationImage;
 
-    @Column(name = "variation_price", precision = 10, scale = 2)
+    @Column(name = "variation_price", precision = 22, scale = 2)
     @JsonView(Views.ProductView.class)
     private BigDecimal variationPrice;
 
