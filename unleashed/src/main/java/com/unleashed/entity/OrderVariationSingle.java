@@ -32,7 +32,7 @@ public class OrderVariationSingle {
     private Integer saleId;
 
     @NotNull
-    @Column(name = "variation_price_at_purchase", nullable = false, precision = 10, scale = 2)
+    @Column(name = "variation_price_at_purchase", nullable = false, precision = 22, scale = 2)
     private BigDecimal variationPriceAtPurchase;
 
 }

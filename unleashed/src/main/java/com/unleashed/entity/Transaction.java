@@ -53,7 +53,7 @@ public class Transaction {
     @JsonView(Views.TransactionView.class)
     private LocalDate transactionDate;
 
-    @Column(name = "transaction_product_price", precision = 10, scale = 2)
+    @Column(name = "transaction_product_price", precision = 22, scale = 2)
     @JsonView(Views.TransactionView.class)
     private BigDecimal transactionProductPrice;
 

@@ -37,7 +37,7 @@ public class Discount {
     @Column(name = "discount_code", nullable = false, length = 20)
     private String discountCode;
 
-    @Column(name = "discount_value", precision = 10, scale = 2)
+    @Column(name = "discount_value", precision = 22, scale = 2)
     private BigDecimal discountValue;
 
     @Nationalized
@@ -49,10 +49,10 @@ public class Discount {
     @JsonBackReference
     private Rank discountRankRequirement;
 
-    @Column(name = "discount_minimum_order_value", precision = 10, scale = 2)
+    @Column(name = "discount_minimum_order_value", precision = 22, scale = 2)
     private BigDecimal discountMinimumOrderValue;
 
-    @Column(name = "discount_maximum_value", precision = 10, scale = 2)
+    @Column(name = "discount_maximum_value", precision = 22, scale = 2)
     private BigDecimal discountMaximumValue;
 
     @Column(name = "discount_usage_limit")
