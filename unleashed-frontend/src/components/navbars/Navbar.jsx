@@ -33,7 +33,7 @@ export function Navbar() {
 
       <div className="navitem grid grid-cols-1 md:grid-cols-3 items-center relative z-10">
         {" "}
-        {/* Added `relative z-10` here */}
+
         <div className="nav-left flex items-center justify-start pl-4 md:pl-10 relative">
           <NavLink to="/" >
             <img src={logonavbar} alt="Unleashed Logo" className="logo w-32 md:w-48 absolute" />
@@ -42,25 +42,27 @@ export function Navbar() {
 
         <div className="nav-center justify-center hidden md:flex">
           <ul className="flex space-x-6 md:space-x-20 items-center">
-            <li>
-              <NavLink
-                to="/"
-                className={({ isActive }) =>
-                  `font-poppins text-sm md:text-base hover:text-base-300 transition duration-300 relative ${
-                    isActive ? "text-base-300" : ""
-                  }`
-                }
-              >
-                Home
-                <span
-                  className={({ isActive }) =>
-                    `absolute left-0 bottom-[-2px] w-full h-[2px] bg-base-300 transition-transform duration-300 ${
-                      isActive ? "scale-x-100" : "scale-x-0"
-                    }`
-                  }
-                ></span>
-              </NavLink>
-            </li>
+
+            {/*<li>*/}
+            {/*  <NavLink*/}
+            {/*    to="/"*/}
+            {/*    className={({ isActive }) =>*/}
+            {/*      `font-poppins text-sm md:text-base hover:text-base-300 transition duration-300 relative ${*/}
+            {/*        isActive ? "text-base-300" : ""*/}
+            {/*      }`*/}
+            {/*    }*/}
+            {/*  >*/}
+            {/*    Home*/}
+            {/*    <span*/}
+            {/*      className={({ isActive }) =>*/}
+            {/*        `absolute left-0 bottom-[-2px] w-full h-[2px] bg-base-300 transition-transform duration-300 ${*/}
+            {/*          isActive ? "scale-x-100" : "scale-x-0"*/}
+            {/*        }`*/}
+            {/*      }*/}
+            {/*    ></span>*/}
+            {/*  </NavLink>*/}
+            {/*</li>*/}
+
             <li>
               <NavLink
                 to="/shop"
