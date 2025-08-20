@@ -239,4 +239,83 @@ public class StockTransactionService {
         );
     }
 
+    /**
+     * Creates "OUT" transactions for all items in an order when it is shipped.
+     * This method aggregates individual items (VariationSingle) into parent
+     * Variations with a total quantity.
+     *
+     * @param order The order that has been approved for shipping.
+     */
+    @Transactional
+    public void createShippingTransactionsForOrder(Order order) {
+        // 1. Retrieve the "OUT" transaction type (ID = 2)
+        TransactionType outTransactionType = transactionTypeRepository.findById(2)
+                .orElseThrow(() -> new IllegalStateException("Transaction Type with ID 2 (OUT) not found."));
+
+        // 2. Aggregate quantities for each parent Variation in the order
+        Map<Variation, Integer> variationQuantities = new HashMap<>();
+        for (OrderVariationSingle ovs : order.getOrderVariationSingles()) {
+            Variation parentVariation = findParentVariationForSingle(ovs.getVariationSingle());
+            if (parentVariation != null) {
+                variationQuantities.put(parentVariation, variationQuantities.getOrDefault(parentVariation, 0) + 1);
+            }
+        }
+
+        // 3. Create and save a transaction for each aggregated variation
+        for (Map.Entry<Variation, Integer> entry : variationQuantities.entrySet()) {
+            Variation variation = entry.getKey();
+            Integer quantity = entry.getValue();
+
+            // Find the stock location. We'll use the first one found for this variation.
+            List<StockVariation> stockLocations = stockVariationRepository.findByVariationId(variation.getId());
+            if (stockLocations.isEmpty()) {
+                System.err.println("Warning: No stock location found for Variation ID: " + variation.getId() + ". Cannot create OUT transaction.");
+                continue; // Skip if no stock is associated
+            }
+            Stock stock = stockLocations.get(0).getStock();
+
+            // Build the new transaction
+            Transaction transaction = new Transaction();
+            transaction.setVariation(variation);
+            transaction.setTransactionQuantity(quantity);
+            transaction.setTransactionType(outTransactionType);
+            transaction.setStock(stock);
+            transaction.setInchargeEmployee(order.getInchargeEmployee()); // Employee who approved shipping
+            transaction.setProvider(null); // This is a sale, not an import from a provider
+
+            transactionRepository.save(transaction);
+        }
+    }
+
+    /**
+     * Helper method to find the parent Variation based on a VariationSingle's code.
+     * This bridges the gap where VariationSingle has no direct foreign key to Variation.
+     *
+     * @param variationSingle The specific item instance.
+     * @return The parent Variation object, or null if not found.
+     */
+    private Variation findParentVariationForSingle(VariationSingle variationSingle) {
+        String code = variationSingle.getVariationSingleCode();
+        if (code == null) {
+            return null;
+        }
+        // Example code format: "PRODUCTCODE-COLOR-SIZE-RANDOM"
+        String[] parts = code.split("-");
+        if (parts.length < 4) {
+            System.err.println("Invalid variationSingleCode format: " + code);
+            return null;
+        }
+
+        String productCode = parts[0];
+        // Normalize color name (e.g., "BLACK" -> "Black") to match database records
+        String colorName = parts[1].substring(0, 1).toUpperCase() + parts[1].substring(1).toLowerCase();
+        String sizeName = parts[2];
+
+        return variationRepository.findByProduct_ProductCodeAndColor_ColorNameAndSize_SizeName(
+                productCode, colorName, sizeName
+        ).orElse(null);
+    }
+
+
+
 }

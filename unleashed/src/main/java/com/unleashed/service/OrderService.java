@@ -58,6 +58,7 @@ public class OrderService {
     private final UserService userService;
     private boolean isCancellingOrder = false;
     private final ReviewRepository reviewRepository;
+    private final StockTransactionService stockTransactionService;
 
     @Autowired
     public OrderService(OrderRepository orderRepository,
@@ -73,7 +74,15 @@ public class OrderService {
                         UserRepository userRepository,
                         ProductRepository productRepository,
                         ReviewRepository reviewRepository,
-                        DiscountService discountService, OrderStatusRepository orderStatusRepository, VariationSingleRepository variationSingleRepository, OrderVariationSingleRepository orderVariationSingleRepository, CartService cartService, RankService rankService, StockVariationRepository stockVariationRepository, UserService userService) { // thêm reviewRepository
+                        DiscountService discountService,
+                        OrderStatusRepository orderStatusRepository,
+                        VariationSingleRepository variationSingleRepository,
+                        OrderVariationSingleRepository orderVariationSingleRepository,
+                        CartService cartService,
+                        RankService rankService,
+                        StockVariationRepository stockVariationRepository,
+                        UserService userService,
+                        StockTransactionService stockTransactionService) {
         this.orderRepository = orderRepository;
         this.orderMapper = orderMapper;
         this.orderDetailMapper = orderDetailMapper;
@@ -95,6 +104,7 @@ public class OrderService {
         this.rankService = rankService;
         this.stockVariationRepository = stockVariationRepository;
         this.userService = userService;
+        this.stockTransactionService = stockTransactionService;
     }
 
 
@@ -1116,6 +1126,7 @@ public class OrderService {
                 OrderStatus processingStatus = orderStatusRepository.findById(3)
                         .orElseThrow(() -> new IllegalStateException("OrderStatus với ID 3 (SHIPPING) không tìm thấy."));
                 order.setOrderStatus(processingStatus);
+                stockTransactionService.createShippingTransactionsForOrder(order);
             } else {
 //                System.out.println(isApproved);
                 // Lấy trạng thái RETURNED theo ID (7)

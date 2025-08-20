@@ -113,16 +113,19 @@ public class NotificationService {
 
     public List<NotificationDTO> getListNotificationDrawer() {
         return notificationRepository.findAllByOrderByIdDesc().stream()
+                .filter(notification -> notification.getUserIdSender() == null || !"System-chan".equals(notification.getUserIdSender().getUsername()))
                 .map(notification -> {
                     NotificationDTO dto = new NotificationDTO();
                     dto.setNotificationId(notification.getId());
                     dto.setNotificationTitle(notification.getNotificationTitle());
                     dto.setNotificationContent(notification.getNotificationContent());
+
                     if (notification.getUserIdSender() != null) {
                         dto.setUserName(notification.getUserIdSender().getUsername());
                     } else {
                         dto.setUserName("Unknown");
                     }
+
                     dto.setNotificationDraft(notification.getIsNotificationDraft());
                     DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss Z").withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
                     dto.setCreatedAt(notification.getNotificationCreatedAt() != null ? notification.getNotificationCreatedAt().format(formatter) : "No Date");
