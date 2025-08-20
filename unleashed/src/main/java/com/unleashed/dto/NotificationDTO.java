@@ -34,6 +34,8 @@ public class NotificationDTO {
 
     private boolean isNotificatonViewed;
 
+    private String notificationLink; //new field
+
     @JsonView(Views.ListView.class)
     private String createdAt;
 

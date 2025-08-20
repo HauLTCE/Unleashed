@@ -9,59 +9,55 @@ const EnhancedPagination = ({ currentPage, totalPages, onPageChange, isLoading =
         e.preventDefault();
         const pageNumber = parseInt(inputPage, 10);
         if (pageNumber >= 1 && pageNumber <= totalPages) {
-            onPageChange(pageNumber);
+            onPageChange(pageNumber - 1);
             setInputPage("");
         }
     };
 
     const paginationRange = useMemo(() => {
-        if (totalPages <= 7) {
+        const totalPageNumbers = 7;
+        if (totalPages <= totalPageNumbers) {
             return Array.from({ length: totalPages }, (_, i) => i + 1);
         }
 
         const siblingCount = 1;
-        const leftSiblingIndex = Math.max(currentPage - siblingCount, 1);
-        const rightSiblingIndex = Math.min(currentPage + siblingCount, totalPages);
+        const leftSiblingIndex = Math.max(currentPage - siblingCount, 0);
+        const rightSiblingIndex = Math.min(currentPage + siblingCount, totalPages - 1);
 
-        const shouldShowLeftDots = leftSiblingIndex > 2;
-        const shouldShowRightDots = rightSiblingIndex < totalPages - 1;
+        const shouldShowLeftDots = leftSiblingIndex > 1;
+        const shouldShowRightDots = rightSiblingIndex < totalPages - 2;
 
         const firstPageIndex = 1;
         const lastPageIndex = totalPages;
         const ELLIPSIS = "...";
 
-        // Case 1: No left dots, but right dots needed
         if (!shouldShowLeftDots && shouldShowRightDots) {
             let leftItemCount = 3 + 2 * siblingCount;
             let leftRange = Array.from({ length: leftItemCount }, (_, i) => i + 1);
             return [...leftRange, ELLIPSIS, totalPages];
         }
 
-        // Case 2: No right dots, but left dots needed
         if (shouldShowLeftDots && !shouldShowRightDots) {
             let rightItemCount = 3 + 2 * siblingCount;
             let rightRange = Array.from({ length: rightItemCount }, (_, i) => totalPages - rightItemCount + 1 + i);
             return [firstPageIndex, ELLIPSIS, ...rightRange];
         }
 
-        // Case 3: Both left and right dots needed
         if (shouldShowLeftDots && shouldShowRightDots) {
-            let middleRange = Array.from({ length: rightSiblingIndex - leftSiblingIndex + 1 }, (_, i) => leftSiblingIndex + i);
+            let middleRange = Array.from({ length: rightSiblingIndex - leftSiblingIndex + 1 }, (_, i) => leftSiblingIndex + i + 1);
             return [firstPageIndex, ELLIPSIS, ...middleRange, ELLIPSIS, lastPageIndex];
         }
-
-        // Default case (should not be reached with the first check, but as a fallback)
         return [];
     }, [currentPage, totalPages]);
 
+
     return (
         <div className="flex flex-col sm:flex-row justify-center items-center mt-6 gap-2 text-sm">
-            {/* Page Buttons */}
             <div className="flex items-center gap-1">
-                <IconButton onClick={() => onPageChange(1)} disabled={currentPage === 1 || isLoading} size="small" title="First Page">
+                <IconButton onClick={() => onPageChange(0)} disabled={currentPage === 0 || isLoading} size="small" title="First Page">
                     <FirstPage />
                 </IconButton>
-                <IconButton onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1 || isLoading} size="small" title="Previous Page">
+                <IconButton onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 0 || isLoading} size="small" title="Previous Page">
                     <ChevronLeft />
                 </IconButton>
 
@@ -71,8 +67,8 @@ const EnhancedPagination = ({ currentPage, totalPages, onPageChange, isLoading =
                     ) : (
                         <Button
                             key={page}
-                            onClick={() => onPageChange(page)}
-                            variant={currentPage === page ? 'contained' : 'outlined'}
+                            onClick={() => onPageChange(page - 1)}
+                            variant={currentPage === page - 1 ? 'contained' : 'outlined'}
                             size="small"
                             disabled={isLoading}
                             sx={{ minWidth: '36px', padding: '4px 8px' }}
@@ -82,15 +78,14 @@ const EnhancedPagination = ({ currentPage, totalPages, onPageChange, isLoading =
                     )
                 )}
 
-                <IconButton onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages || isLoading} size="small" title="Next Page">
+                <IconButton onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages - 1 || isLoading} size="small" title="Next Page">
                     <ChevronRight />
                 </IconButton>
-                <IconButton onClick={() => onPageChange(totalPages)} disabled={currentPage === totalPages || isLoading} size="small" title="Last Page">
+                <IconButton onClick={() => onPageChange(totalPages - 1)} disabled={currentPage === totalPages - 1 || isLoading} size="small" title="Last Page">
                     <LastPage />
                 </IconButton>
             </div>
 
-            {/* Jump to Page Input */}
             <form onSubmit={handleGoToPage} className="flex items-center gap-2 ml-4">
                 <TextField
                     type="number"
@@ -99,10 +94,10 @@ const EnhancedPagination = ({ currentPage, totalPages, onPageChange, isLoading =
                     variant="outlined"
                     value={inputPage}
                     onChange={(e) => setInputPage(e.target.value)}
-                    disabled={isLoading}
+                    disabled={isLoading || totalPages === 0}
                     inputProps={{ min: 1, max: totalPages, style: { width: '50px' } }}
                 />
-                <Button type="submit" variant="contained" size="small" disabled={isLoading}>
+                <Button type="submit" variant="contained" size="small" disabled={isLoading || totalPages === 0}>
                     Go
                 </Button>
             </form>

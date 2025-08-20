@@ -3,7 +3,6 @@ import {
     Box,
     Button,
     Card,
-    CircularProgress,
     Container,
     Divider,
     Grid,
@@ -25,12 +24,12 @@ import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader';
 import useAuthUser from 'react-auth-kit/hooks/useAuthUser';
 import UserSideMenu from '../../components/menus/UserMenu';
 import { getMyReviews } from '../../service/UserService';
+import EnhancedPagination from '../../components/pagination/EnhancedPagination';
+import useDebounce from '../../components/hooks/useDebounce';
 
-// --- Helper Component: Skeleton Loader ---
-// Shows a placeholder UI while data is being fetched
 const ReviewTableSkeleton = () => (
     <>
-        {[...Array(3)].map((_, index) => (
+        {[...Array(5)].map((_, index) => (
             <TableRow key={index}>
                 <TableCell sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Skeleton variant="circular" width={40} height={40} />
@@ -51,8 +50,6 @@ const ReviewTableSkeleton = () => (
     </>
 );
 
-// --- Helper Component: Empty State ---
-// Shows a friendly message when there are no reviews
 const EmptyReviews = () => (
     <Card variant="outlined" sx={{ mt: 4, textAlign: 'center', p: 4, borderStyle: 'dashed' }}>
         <RateReviewOutlined sx={{ fontSize: 60, color: 'text.secondary', mb: 2 }} />
@@ -60,11 +57,10 @@ const EmptyReviews = () => (
             No Reviews Yet
         </Typography>
         <Typography color="text.secondary">
-            You haven't reviewed any products. Your feedback helps others!
+            You haven't rated any products yet. Your feedback helps others!
         </Typography>
     </Card>
 );
-
 
 const ReviewHistory = () => {
     const authHeader = useAuthHeader();
@@ -72,35 +68,45 @@ const ReviewHistory = () => {
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    const [page, setPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
+    const debouncedPage = useDebounce(page, 500);
+
     useEffect(() => {
         const fetchReviews = async () => {
             if (user?.username) {
+                setLoading(true);
                 try {
-                    const response = await getMyReviews(authHeader, user.username);
+                    const response = await getMyReviews(authHeader, user.username, debouncedPage, 5);
                     if (response?.data) {
-                        setReviews(response.data);
+                        setReviews(response.data.content);
+                        setTotalPages(response.data.totalPages);
                     }
                 } catch (error) {
                     console.error('Error fetching reviews:', error);
+                    setReviews([]);
                 } finally {
                     setLoading(false);
                 }
             } else {
                 setLoading(false);
+                setReviews([]);
             }
         };
         fetchReviews();
-    }, [authHeader, user]);
+    }, [authHeader, user, debouncedPage]);
+
+    const handlePageChange = (newPage) => {
+        setPage(newPage);
+    };
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4 }}>
             <Grid container spacing={4}>
-                {/* Side Menu */}
                 <Grid item xs={12} md={3}>
                     <UserSideMenu />
                 </Grid>
 
-                {/* Main Content */}
                 <Grid item xs={12} md={9}>
                     <Typography variant="h4" fontWeight="bold" gutterBottom>
                         Review History
@@ -121,26 +127,24 @@ const ReviewHistory = () => {
                                     <ReviewTableSkeleton />
                                 ) : reviews.length > 0 ? (
                                     reviews.map((review) => (
-                                        <TableRow key={review.productId} hover>
-                                            {/* Column 1: Product Info */}
+                                        <TableRow key={review.id} hover>
                                             <TableCell sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                                 <Avatar
                                                     variant="rounded"
-                                                    src={review.product.imageUrl || '/default-product-image.jpg'} // Assuming an image URL exists
-                                                    alt={review.product.productName}
+                                                    src={review.product?.imageUrl || '/default-product-image.jpg'}
+                                                    alt={review.product?.productName}
                                                 />
                                                 <Box>
                                                     <Typography variant="subtitle2" fontWeight="bold" noWrap>
-                                                        {review.product.productName}
+                                                        {review.product?.productName}
                                                     </Typography>
-                                                    {review.comments.length > 0 && (
+                                                    {review.comments.find(c => c.commentParentId === null) && (
                                                         <Typography variant="caption" color="text.secondary">
-                                                            {new Date(review.comments[0].commentCreatedAt).toLocaleDateString()}
+                                                            {new Date(review.comments.find(c => c.commentParentId === null)?.commentCreatedAt).toLocaleDateString()}
                                                         </Typography>
                                                     )}
                                                 </Box>
                                             </TableCell>
-                                            {/* Column 2: Rating & Comment */}
                                             <TableCell>
                                                 <Rating value={review.reviewRating} readOnly size="small" />
                                                 <Typography
@@ -155,16 +159,13 @@ const ReviewHistory = () => {
                                                         textOverflow: 'ellipsis',
                                                     }}
                                                 >
-                                                    {review.comments.length > 0
-                                                        ? review.comments[0].commentContent
-                                                        : 'No comment provided.'}
+                                                    {review.comments.find(c => c.commentParentId === null)?.commentContent || 'No comment provided.'}
                                                 </Typography>
                                             </TableCell>
-                                            {/* Column 3: Action Button */}
                                             <TableCell align="center">
                                                 <Button
                                                     component={Link}
-                                                    to={`/shop/product/${review.product.productId}`}
+                                                    to={`/shop/product/${review.product?.productId}`}
                                                     variant="outlined"
                                                     size="small"
                                                 >
@@ -183,6 +184,14 @@ const ReviewHistory = () => {
                             </TableBody>
                         </Table>
                     </TableContainer>
+                    {totalPages > 1 && (
+                        <EnhancedPagination
+                            currentPage={page}
+                            totalPages={totalPages}
+                            onPageChange={handlePageChange}
+                            isLoading={loading}
+                        />
+                    )}
                 </Grid>
             </Grid>
         </Container>
