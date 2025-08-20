@@ -2,6 +2,8 @@ package com.unleashed.repo;
 
 import com.unleashed.entity.composite.NotificationUserId;
 import com.unleashed.entity.NotificationUser;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -26,4 +28,6 @@ public interface NotificationUserRepository extends JpaRepository<NotificationUs
     @Modifying
     @Query("DELETE FROM NotificationUser nu WHERE nu.id.notificationId = :notificationId")
     void deleteByNotificationId(@Param("notificationId") Integer notificationId);
+
+    Page<NotificationUser> findByIdUserIdAndIsNotificationDeletedFalse(UUID userId, Pageable pageable);
 }

@@ -1,11 +1,15 @@
 package com.unleashed.util;
 
 import com.unleashed.service.*;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
+import java.time.Duration;
+import java.time.Instant;
 
 /**
  * A central scheduler to run all recurring background tasks for the application.
@@ -20,6 +24,7 @@ public class AppTaskScheduler {
     private final SaleService saleService;
     private final DiscountService discountService;
     private final ProductService productService;
+    private final UserService userService;
 
     /**
      * Constructor-based dependency injection. Spring will automatically provide
@@ -30,16 +35,29 @@ public class AppTaskScheduler {
     @Autowired
     public AppTaskScheduler(SaleService saleService,
                             DiscountService discountService,
-                            ProductService productService) {
+                            ProductService productService,
+                            UserService userService) {
         this.saleService = saleService;
         this.discountService = discountService;
         this.productService = productService;
+        this.userService = userService;
     }
+
+    @PostConstruct
+    public void initializeSystemUser() {
+        logger.info("Checking for 'System' user on application startup...");
+        try {
+            userService.findOrCreateSystemUser();
+            logger.info("'System' user initialized successfully.");
+        } catch (Exception e) {
+            logger.error("Failed to initialize 'System' user.", e);
+        }
+    }
+
 
     /**
      * This method runs at the beginning of every minute, aligned with the server's clock.
      * It uses a cron expression to achieve this precise timing.
-     *
      * Cron Expression Breakdown: "0 * * * * *"
      *  - 0:  At the 0th second (i.e., the start of the minute)
      *  - *:  Every minute
@@ -47,12 +65,12 @@ public class AppTaskScheduler {
      *  - *:  Every day of the month
      *  - *:  Every month
      *  - *:  Every day of the week
-     *
      * By default, this uses the server's local time zone.
      */
     @Scheduled(cron = "0 * * * * *")
     public void performMinute_lyTasks() {
         logger.info("Scheduler triggered: Starting background tasks...");
+        Instant start = Instant.now();
         try {
             // tasks
             saleService.performScheduledStatusUpdates();
@@ -62,11 +80,14 @@ public class AppTaskScheduler {
         } catch (Exception e) {
             // Catching a broad exception is acceptable here to prevent the scheduler from dying
             logger.error("An unexpected error occurred during a scheduled task.", e);
+        } finally {
+            Instant end = Instant.now();
+            long duration = Duration.between(start, end).toMillis();
+            logger.info("Scheduler finished: All tasks completed in {} ms.", duration);
         }
-        logger.info("Scheduler finished: All tasks completed.");
     }
 
-    @Scheduled(cron = "0 0 1 * * *") // Every day at 1:00 AM
+    @Scheduled(cron = "0 0 1 * * *")
     public void performDailyTasks() {
         logger.info("Daily scheduler started: Starting background tasks...");
         try {
@@ -75,6 +96,7 @@ public class AppTaskScheduler {
             logger.error("An unexpected error occurred during a scheduled task.", e);
         }
         logger.info("Daily scheduler finished: All tasks completed.");
+
     }
 
 

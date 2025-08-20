@@ -1,6 +1,7 @@
 package com.unleashed.service;
 
 
+import com.unleashed.config.SystemUserProperties;
 import com.unleashed.dto.*;
 import com.unleashed.dto.mapper.UserMapper;
 import com.unleashed.dto.mapper.ViewUserMapper;
@@ -44,11 +45,22 @@ public class UserService {
     private final UserRoleService userRoleService;
     private final EmailService emailService;
     private final ViewUserMapper viewUserMapper;
+    private final SystemUserProperties systemUserProperties;
+
+
     @Autowired
     private RankService rankService;
 
     @Autowired
-    public UserService(UserRepository userRepository, UserRoleRepository userRoleRepository, JwtUtil jwtUtil, AuthenticationManager authenticationManager, UserMapper userMapper, UserRoleService userRoleService, EmailService emailService, ViewUserMapper viewUserMapper) {
+    public UserService(UserRepository userRepository,
+                       UserRoleRepository userRoleRepository,
+                       JwtUtil jwtUtil,
+                       AuthenticationManager authenticationManager,
+                       UserMapper userMapper,
+                       UserRoleService userRoleService,
+                       EmailService emailService,
+                       ViewUserMapper viewUserMapper,
+                       SystemUserProperties systemUserProperties) {
         this.userRepository = userRepository;
         this.userRoleRepository = userRoleRepository;
         this.jwtUtil = jwtUtil;
@@ -57,6 +69,7 @@ public class UserService {
         this.userRoleService = userRoleService;
         this.emailService = emailService;
         this.viewUserMapper = viewUserMapper;
+        this.systemUserProperties = systemUserProperties;
     }
 
     @Transactional
@@ -595,6 +608,27 @@ public class UserService {
             user.setUserCurrentPaymentMethod(paymentMethodName);
             userRepository.save(user);
         });
+    }
+
+
+    @Transactional
+    public User findOrCreateSystemUser() {
+        String systemUsername = systemUserProperties.username();
+
+        return userRepository.findByUserUsername(systemUsername)
+                .orElseGet(() -> {
+                    User systemUser = new User();
+                    systemUser.setUserUsername(systemUserProperties.username());
+                    systemUser.setUserFullname(systemUserProperties.fullname());
+                    systemUser.setUserEmail(systemUserProperties.email());
+                    systemUser.setUserPassword(systemUserProperties.password());
+                    systemUser.setIsUserEnabled(false);
+                    Role customerRole = new Role();
+                    customerRole.setId(2);
+                    systemUser.setRole(customerRole);
+
+                    return userRepository.save(systemUser);
+                });
     }
 
 

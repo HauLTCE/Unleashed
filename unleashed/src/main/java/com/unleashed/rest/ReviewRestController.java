@@ -95,24 +95,38 @@ public class ReviewRestController {
     }
 
     @GetMapping("/user/{userName}")
-    public ResponseEntity<List<Review>> getReviewsByUserName(@PathVariable String userName) {
-//        System.out.println(reviewService.getReviewsByUserName(userName).get(0));
-        return ResponseEntity.ok(reviewService.getReviewsByUserName(userName));
+    public ResponseEntity<Page<Review>> getReviewsByUserName(
+            @PathVariable String userName,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Review> reviews = reviewService.getReviewsByUserName(userName, pageable);
+        return ResponseEntity.ok(reviews);
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('CUSTOMER')") // Ensure only customers can post reviews
     public ResponseEntity<?> addReview(@Valid @RequestBody ReviewDTO review) {
         try {
-            Review createdReview = reviewService.addReview(review);
+            // Get the currently authenticated user from the security context
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String currentUsername = ((UserDetails) authentication.getPrincipal()).getUsername();
+            User currentUser = userService.findByUsername(currentUsername);
+
+            if (currentUser == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "User not found or not authenticated."));
+            }
+
+            // Call the service with the DTO and the authenticated User object
+            Review createdReview = reviewService.addReview(review, currentUser);
             return ResponseEntity.ok(createdReview);
+
         } catch (ResponseStatusException e) {
-            // Trả về mã status và message từ exception
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("status", e.getStatusCode().value());
             errorResponse.put("message", e.getReason());
             return ResponseEntity.status(e.getStatusCode()).body(errorResponse);
         } catch (Exception e) {
-            // Trường hợp ngoại lệ khác (ví dụ lỗi hệ thống)
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
                     "status", 500,
                     "message", "Error occurred while processing the request."

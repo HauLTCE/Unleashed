@@ -1,21 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Carousel from 'react-material-ui-carousel';
 import { useCart } from 'react-use-cart';
-import { NavLink, useParams, useNavigate } from 'react-router-dom';
+import { NavLink, useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
     Rating,
     Skeleton,
     Breadcrumbs,
     CircularProgress,
     Button,
-    TextField,
-    Select,
-    MenuItem,
-    FormControl,
-    InputLabel,
     Box,
-    Typography,
-    Paper,
+    Typography
 } from '@mui/material';
 import { formatPrice } from '../../components/format/formats';
 import { getProductItem, getProductRecommendations } from '../../service/ShopService';
@@ -24,18 +18,21 @@ import { addToCart } from '../../service/UserService';
 import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader';
 import useAuthUser from 'react-auth-kit/hooks/useAuthUser';
 import ReviewItem from '../../components/review/ReviewItem';
+import ReviewInputBox from '../../components/review/ReviewInputBox';
 import {
     checkWishlist,
     addToWishlist,
     removeFromWishlist,
 } from '../../service/WishlistService';
 import { toast } from "react-toastify";
-import { getReviewEligibility, postReview, getProductReviews } from '../../service/ReviewService';
+import { getProductReviews } from '../../service/ReviewService';
+import { getCommentAncestors } from '../../service/CommentService';
 
 const ProductDetailPage = () => {
     const { addItem } = useCart();
     const { id: productId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const authHeader = useAuthHeader();
     const authUser = useAuthUser();
 
@@ -49,17 +46,16 @@ const ProductDetailPage = () => {
     const [loadingRecommendations, setLoadingRecommendations] = useState(false);
     const [isInWishlist, setIsInWishlist] = useState(false);
 
-    const [eligibleOrders, setEligibleOrders] = useState([]);
-    const [showReviewForm, setShowReviewForm] = useState(false);
-    const [newRating, setNewRating] = useState(0);
-    const [newComment, setNewComment] = useState("");
-    const [selectedOrderForReview, setSelectedOrderForReview] = useState("");
-    const [isSubmittingReview, setIsSubmittingReview] = useState(false);
-
     const [reviews, setReviews] = useState([]);
     const [reviewsPage, setReviewsPage] = useState(0);
     const [hasMoreReviews, setHasMoreReviews] = useState(true);
     const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+    const [reviewBoxKey, setReviewBoxKey] = useState(0);
+
+    const [expansionState, setExpansionState] = useState({
+        targetId: null,
+        path: [],
+    });
 
     const fetchProductDetails = useCallback(async () => {
         try {
@@ -72,7 +68,10 @@ const ProductDetailPage = () => {
         }
     }, [productId, navigate]);
 
+    // THE FIX IS APPLIED HERE
     const fetchReviews = useCallback(async (pageToFetch) => {
+        // This check can now use a state value that might be one render cycle old,
+        // which is acceptable for pagination control.
         if (!hasMoreReviews && pageToFetch > 0) return;
         setIsLoadingReviews(true);
         try {
@@ -81,40 +80,58 @@ const ProductDetailPage = () => {
             setHasMoreReviews(!data.last);
             setReviewsPage(pageToFetch);
         } catch (error) {
-            toast.error("Could not load reviews.");
+            console.error("Could not load reviews:", error);
         } finally {
             setIsLoadingReviews(false);
         }
-    }, [productId, authHeader, hasMoreReviews]);
+    }, [productId, authHeader]); // <-- 'hasMoreReviews' is removed from this array to break the loop.
+
+
+    useEffect(() => {
+        const handleAutoExpand = async () => {
+            const params = new URLSearchParams(location.search);
+            const replyId = params.get('replyId');
+            if (replyId) {
+                try {
+                    const ancestorIds = await getCommentAncestors(replyId);
+                    setExpansionState({
+                        targetId: parseInt(replyId, 10),
+                        path: ancestorIds,
+                    });
+                } catch (error) {
+                    toast.error("Could not trace the replied comment.");
+                }
+            }
+        };
+        handleAutoExpand();
+    }, [location.search]);
 
     const handleLoadMoreReviews = () => {
         fetchReviews(reviewsPage + 1);
     };
 
-    const fetchEligibility = useCallback(async () => {
-        if (authUser?.id && productId) {
-            try {
-                const orders = await getReviewEligibility(productId, authHeader);
-                setEligibleOrders(orders);
-            } catch (error) {
-                setEligibleOrders([]);
-            }
-        }
-    }, [authUser, productId, authHeader]);
+    const handleRefreshReviews = () => {
+        setReviewsPage(0);
+        setHasMoreReviews(true);
+        // We must fetch reviews *after* state is reset.
+        // We can leverage a useEffect for this or call it directly.
+        // Calling directly is fine here.
+        fetchReviews(0);
+        fetchProductDetails();
+        setReviewBoxKey(prevKey => prevKey + 1);
+    };
 
     useEffect(() => {
-        const initialFetch = async () => {
-            setLoading(true);
-            await fetchProductDetails();
-            await fetchReviews(0);
-            setLoading(false);
-        };
-        initialFetch();
-    }, [fetchProductDetails, fetchReviews]);
+        setLoading(true);
+        setReviews([]);
+        setReviewsPage(0);
+        setHasMoreReviews(true);
+        setExpansionState({ targetId: null, path: [] });
 
-    useEffect(() => {
-        fetchEligibility();
-    }, [fetchEligibility]);
+        fetchProductDetails();
+        fetchReviews(0);
+        setLoading(false);
+    }, [productId, fetchProductDetails, fetchReviews]);
 
     useEffect(() => {
         if (product && !selectedColor && product.colors?.length > 0) {
@@ -275,36 +292,6 @@ const ProductDetailPage = () => {
         }
     };
 
-    const handleSubmitReview = async () => {
-        if (newRating === 0 || !selectedOrderForReview) {
-            toast.warn("Please select an order and provide a star rating.");
-            return;
-        }
-        setIsSubmittingReview(true);
-        try {
-            const reviewData = {
-                productId: productId,
-                orderId: selectedOrderForReview,
-                userId: authUser.id,
-                reviewRating: newRating,
-                reviewComment: newComment,
-            };
-            await postReview(reviewData, authHeader);
-            toast.success("Your review has been submitted!");
-            setShowReviewForm(false);
-            setNewRating(0);
-            setNewComment("");
-            setSelectedOrderForReview("");
-            await fetchProductDetails();
-            await fetchEligibility();
-            await fetchReviews(0);
-        } catch (error) {
-            toast.error(error);
-        } finally {
-            setIsSubmittingReview(false);
-        }
-    };
-
     if (loading || !product) {
         return (
             <div className='ProductDetail'>
@@ -407,79 +394,37 @@ const ProductDetailPage = () => {
                 <div className='reviews-section mb-8'>
                     <h2 className='text-2xl font-bold mb-4'>Customer Reviews</h2>
 
-                    {eligibleOrders.length > 0 && !showReviewForm && (
-                        <Box sx={{ mb: 4, display: 'flex', justifyContent: 'center' }}>
-                            <Button variant="contained" onClick={() => setShowReviewForm(true)}>
-                                Write a Review
-                            </Button>
-                        </Box>
-                    )}
-
-                    {showReviewForm && (
-                        <Paper elevation={3} sx={{ p: 4, mb: 4, mt: 2 }}>
-                            <Typography variant="h6" gutterBottom>Your Review</Typography>
-                            <FormControl fullWidth sx={{ mb: 2 }}>
-                                <InputLabel>Which purchase are you reviewing?</InputLabel>
-                                <Select
-                                    value={selectedOrderForReview}
-                                    label="Which purchase are you reviewing?"
-                                    onChange={(e) => setSelectedOrderForReview(e.target.value)}
-                                >
-                                    {eligibleOrders.map((order) => (
-                                        <MenuItem key={order.orderId} value={order.orderId}>
-                                            Order from {new Date(order.orderDate).toLocaleDateString()}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                            <Box sx={{ mb: 2 }}>
-                                <Typography component="legend">Your Rating*</Typography>
-                                <Rating
-                                    name="new-review-rating"
-                                    value={newRating}
-                                    precision={1}
-                                    onChange={(event, newValue) => setNewRating(newValue)}
-                                />
-                            </Box>
-                            <TextField
-                                label="Your Comment (Optional)"
-                                multiline
-                                rows={4}
-                                fullWidth
-                                value={newComment}
-                                onChange={(e) => setNewComment(e.target.value)}
-                                variant="outlined"
-                                sx={{ mb: 2 }}
-                            />
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                                <Button variant="text" onClick={() => setShowReviewForm(false)}>Cancel</Button>
-                                <Button
-                                    variant="contained"
-                                    onClick={handleSubmitReview}
-                                    disabled={isSubmittingReview}
-                                >
-                                    {isSubmittingReview ? <CircularProgress size={24} /> : "Submit Review"}
-                                </Button>
-                            </Box>
-                        </Paper>
-                    )}
+                    <Box sx={{ mb: 4 }}>
+                        <ReviewInputBox
+                            key={reviewBoxKey}
+                            productId={productId}
+                            onReviewPosted={handleRefreshReviews}
+                        />
+                    </Box>
 
                     <div className='content px-6 border-2 border-gray-300 rounded-lg p-6'>
                         {reviews && reviews.length > 0 ? (
-                            reviews.map((review, index) => (
-                                <ReviewItem key={review.reviewId || index} review={review} productId={productId} />
+                            reviews.map((review) => (
+                                <ReviewItem
+                                    key={review.reviewId || review.commentId}
+                                    review={review}
+                                    productId={productId}
+                                    onCommentAction={handleRefreshReviews}
+                                    expansionPath={expansionState.path}
+                                    targetId={expansionState.targetId}
+                                />
                             ))
                         ) : (
-                            <Typography>No reviews yet. Be the first to write one!</Typography>
+                            !isLoadingReviews && <Typography>No reviews yet.</Typography>
                         )}
-                        {hasMoreReviews && (
+                        {isLoadingReviews && <Box sx={{ display: 'flex', justifyContent: 'center', p: 2}}><CircularProgress /></Box>}
+                        {hasMoreReviews && !isLoadingReviews && reviews.length > 0 && (
                             <div className="text-center mt-4">
                                 <Button
                                     onClick={handleLoadMoreReviews}
-                                    disabled={isLoadingReviews}
                                     variant="outlined"
                                 >
-                                    {isLoadingReviews ? 'Loading...' : 'Load More Reviews'}
+                                    Load More Reviews
                                 </Button>
                             </div>
                         )}

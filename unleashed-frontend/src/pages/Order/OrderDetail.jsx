@@ -16,7 +16,7 @@ import useAuthHeader from "react-auth-kit/hooks/useAuthHeader";
 import { confirmOrder, getOrderById, returnOrder } from "../../service/OrderSevice";
 import { cancelOrder } from "../../service/CheckoutService";
 import ReviewModal from "../../components/modals/Review";
-import { postReview } from "../../service/ReviewService"; // <-- FIXED IMPORT
+import { postReview } from "../../service/ReviewService";
 import { toast } from "react-toastify";
 
 function OrderDetail() {

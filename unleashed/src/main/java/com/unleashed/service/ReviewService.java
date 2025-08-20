@@ -151,23 +151,27 @@ public class ReviewService {
     }
 
     @Transactional
-    public Review addReview(ReviewDTO review) {
-        boolean reviewExists = checkReviewExists(review.getProductId(), review.getOrderId(), review.getUserId());
+    public Review addReview(ReviewDTO review, User user) { // Signature changed to accept User object
+        // Check if a review already exists for this specific order
+        boolean reviewExists = reviewRepository.existsByProduct_ProductIdAndOrder_OrderIdAndUser_UserId(
+                UUID.fromString(review.getProductId()),
+                review.getOrderId(),
+                user.getUserId() // Use the User object directly
+        );
         if (reviewExists) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User has already reviewed this product for this order.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You have already reviewed this product for this specific order.");
         }
 
-        // Kiểm tra productId có tồn tại không
-        Product product = productRepository.findById(UUID.fromString(review.getProductId())).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
+        Product product = productRepository.findById(UUID.fromString(review.getProductId()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
 
-        // Kiểm tra orderId có tồn tại không
-        Order order = orderRepository.findById(review.getOrderId()).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found."));
+        Order order = orderRepository.findById(review.getOrderId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found."));
 
-        // Kiểm tra userId có tồn tại không
-        User user = userRepository.findById(UUID.fromString(review.getUserId())).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
+        // Security check: ensure the order belongs to the user submitting the review
+        if (!order.getUser().getUserId().equals(user.getUserId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only review products from your own orders.");
+        }
 
         if (!"COMPLETED".equalsIgnoreCase(order.getOrderStatus().getOrderStatusName())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only review products from completed orders.");
@@ -181,7 +185,7 @@ public class ReviewService {
         newReview.setReviewRating(review.getReviewRating());
         newReview.setProduct(product);
         newReview.setOrder(order);
-        newReview.setUser(user);
+        newReview.setUser(user); // Set the user from the authenticated context
 
         try {
             Review savedReview = reviewRepository.save(newReview);
@@ -203,15 +207,12 @@ public class ReviewService {
     @Transactional
     public Comment updateComment(Integer commentId, String username, CommentUpdateRequestDTO updateRequestDTO) {
         Comment comment = commentRepository.findById(commentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Comment not found with id: " + commentId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Comment not found..."));
 
-        // Kiểm tra xem user có tồn tại trong database không
         if (!userRepository.existsByUserUsername(username)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
 
-
-        // Kiểm tra xem người dùng có phải là người tạo comment không
         if (!comment.getReview().getUser().getUsername().equals(username)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not authorized to update this comment.");
         }
@@ -226,8 +227,8 @@ public class ReviewService {
     }
 
 
-    public List<Review> getReviewsByUserName(String userName) {
-        return reviewRepository.findAllByUser_Username(userName);
+    public Page<Review> getReviewsByUserName(String userName, Pageable pageable) {
+        return reviewRepository.findAllByUser_Username(userName, pageable);
     }
 
     public boolean checkReviewExists(String productId, String orderId, String userId) {

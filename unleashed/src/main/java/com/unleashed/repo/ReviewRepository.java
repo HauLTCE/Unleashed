@@ -131,7 +131,11 @@ public interface ReviewRepository extends JpaRepository<Review, Integer> {
     Page<Comment> findChildCommentsPaginated(@Param("commentId") Integer commentId, Pageable pageable);
 
 
-
+    @Query(
+            value = "SELECT r FROM Review r WHERE r.user.userUsername = :userUsername AND r.reviewRating IS NOT NULL",
+            countQuery = "SELECT COUNT(r) FROM Review r WHERE r.user.userUsername = :userUsername AND r.reviewRating IS NOT NULL"
+    )
+    Page<Review> findAllByUser_Username(String userUsername, Pageable pageable);
 
 
 

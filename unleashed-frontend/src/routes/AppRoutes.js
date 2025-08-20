@@ -78,6 +78,8 @@ import DashboardReviewProduct from '../pages/Dashboard/DashboardReviewProduct.js
 import { useEffect } from 'react'
 import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader'
 import { checkStatus } from '../service/AuthService.js'
+import NotificationPage from '../pages/User/NotificationPage';
+import NotificationDetailPage from '../pages/Notification/NotificationDetail';
 
 
 const AppRoutes = ({ toggleSidebar, isOpen }) => {
@@ -784,6 +786,11 @@ const AppRoutes = ({ toggleSidebar, isOpen }) => {
 					</PrivateRoute>
 				}
 			/>
+
+            <Route path="/user/notifications" element={<NotificationPage />} />
+
+            <Route path="/user/notifications/:notificationId" element={<NotificationDetailPage />} />
+
 		</Routes>
 	)
 }
