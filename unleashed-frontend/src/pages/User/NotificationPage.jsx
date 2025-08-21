@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Container, Grid, Typography, Divider, Paper, List, ListItem, ListItemText,
+    Typography, Divider, Paper, List, ListItem, ListItemText,
     IconButton, Skeleton, Card, Box
 } from '@mui/material';
 import { NotificationsOff, Delete } from '@mui/icons-material';
@@ -9,8 +9,6 @@ import { useNavigate } from 'react-router-dom';
 import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader';
 import useAuthUser from 'react-auth-kit/hooks/useAuthUser';
 import { toast } from 'react-toastify';
-
-import UserSideMenu from '../../components/menus/UserMenu';
 import EnhancedPagination from '../../components/pagination/EnhancedPagination';
 import { getAllNotifications, deleteNotificationForCustomer } from '../../service/UserService';
 
@@ -80,88 +78,81 @@ const NotificationPage = () => {
     };
 
     return (
-        <Container maxWidth="lg" sx={{ mt: 4 }}>
-            <Grid container spacing={4}>
-                <Grid item xs={12} md={3}>
-                    <UserSideMenu />
-                </Grid>
-                <Grid item xs={12} md={9}>
-                    <Typography variant="h4" fontWeight="bold" gutterBottom>
-                        Notifications
-                    </Typography>
-                    <Divider sx={{ mb: 3 }} />
+        <Box>
+            <Typography variant="h4" fontWeight="bold" gutterBottom>
+                Notifications
+            </Typography>
+            <Divider sx={{ mb: 3 }} />
 
-                    <Paper variant="outlined">
-                        <List sx={{ padding: 0 }}>
-                            {loading ? (
-                                <NotificationSkeleton />
-                            ) : notifications.length > 0 ? (
-                                notifications.map((item) => (
-                                    <ListItem
-                                        key={item.notificationId}
-                                        divider
-                                        button
-                                        onClick={() => handleNotificationClick(item.notificationId)}
-                                        sx={{
-                                            backgroundColor: item.notificatonViewed ? 'transparent' : 'action.hover',
-                                        }}
-                                    >
-                                        <ListItemText
-                                            primary={
-                                                <Typography variant="body1" fontWeight={item.notificatonViewed ? 'normal' : 'bold'}>
-                                                    {item.notificationTitle}
-                                                </Typography>
-                                            }
-                                            secondary={
-                                                <>
-                                                    <Typography
-                                                        component="span"
-                                                        variant="body2"
-                                                        color="text.primary"
-                                                        sx={{
-                                                            display: '-webkit-box',
-                                                            WebkitLineClamp: 2,
-                                                            WebkitBoxOrient: 'vertical',
-                                                            overflow: 'hidden',
-                                                            textOverflow: 'ellipsis',
-                                                        }}
-                                                    >
-                                                        {item.notificationContent}
-                                                    </Typography>
-                                                    <Typography component="span" variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                                                        From: <strong>{item.userName}</strong> • {formatDistanceToNow(parseISO(item.createdAt), { addSuffix: true })}
-                                                    </Typography>
-                                                </>
-                                            }
-                                        />
-                                        <IconButton
-                                            edge="end"
-                                            aria-label="delete"
-                                            onClick={(e) => handleDelete(e, item.notificationId)}
-                                        >
-                                            <Delete color="error" />
-                                        </IconButton>
-                                    </ListItem>
-                                ))
-                            ) : (
-                                <EmptyNotifications />
-                            )}
-                        </List>
-                    </Paper>
-
-                    {totalPages > 1 && (
-                        <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
-                            <EnhancedPagination
-                                currentPage={page}
-                                totalPages={totalPages}
-                                onPageChange={(newPage) => setPage(newPage)}
-                                isLoading={loading}
-                            />
-                        </Box>
+            <Paper variant="outlined">
+                <List sx={{ padding: 0 }}>
+                    {loading ? (
+                        <NotificationSkeleton />
+                    ) : notifications.length > 0 ? (
+                        notifications.map((item) => (
+                            <ListItem
+                                key={item.notificationId}
+                                divider
+                                button
+                                onClick={() => handleNotificationClick(item.notificationId)}
+                                sx={{
+                                    backgroundColor: item.notificatonViewed ? 'transparent' : 'action.hover',
+                                }}
+                            >
+                                <ListItemText
+                                    primary={
+                                        <Typography variant="body1" fontWeight={item.notificatonViewed ? 'normal' : 'bold'}>
+                                            {item.notificationTitle}
+                                        </Typography>
+                                    }
+                                    secondary={
+                                        <>
+                                            <Typography
+                                                component="span"
+                                                variant="body2"
+                                                color="text.primary"
+                                                sx={{
+                                                    display: '-webkit-box',
+                                                    WebkitLineClamp: 2,
+                                                    WebkitBoxOrient: 'vertical',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                }}
+                                            >
+                                                {item.notificationContent}
+                                            </Typography>
+                                            <Typography component="span" variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                                From: <strong>{item.userName}</strong> • {formatDistanceToNow(parseISO(item.createdAt), { addSuffix: true })}
+                                            </Typography>
+                                        </>
+                                    }
+                                />
+                                <IconButton
+                                    edge="end"
+                                    aria-label="delete"
+                                    onClick={(e) => handleDelete(e, item.notificationId)}
+                                >
+                                    <Delete color="error" />
+                                </IconButton>
+                            </ListItem>
+                        ))
+                    ) : (
+                        <EmptyNotifications />
                     )}
-                </Grid>
-            </Grid>
-        </Container>
+                </List>
+            </Paper>
+
+            {totalPages > 1 && (
+                <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+                    <EnhancedPagination
+                        currentPage={page}
+                        totalPages={totalPages}
+                        onPageChange={(newPage) => setPage(newPage)}
+                        isLoading={loading}
+                    />
+                </Box>
+            )}
+        </Box>
     );
 };
 

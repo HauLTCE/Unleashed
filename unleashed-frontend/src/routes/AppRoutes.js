@@ -78,6 +78,8 @@ import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader'
 import { checkStatus } from '../service/AuthService.js'
 import NotificationPage from '../pages/User/NotificationPage';
 import NotificationDetailPage from '../pages/Notification/NotificationDetail';
+import DashboardAssignDiscount from '../pages/Dashboard/DashboardAssignDiscount';
+import UserPageLayout from '../layouts/UserPageLayout.jsx';
 
 
 const AppRoutes = ({ toggleSidebar, isOpen }) => {
@@ -104,679 +106,87 @@ const AppRoutes = ({ toggleSidebar, isOpen }) => {
 
     return (
         <Routes>
-            <Route
-                path='/'
-                element={<Navigate to="/shop" replace />}
-                // element={
-                //     <ProtectedRoute types={['GUEST', 'CUSTOMER']}>
-                //         <Home />
-                //     </ProtectedRoute>
-                //     }
-
-            />
-            <Route
-                path='/shop'
-                element={
-                    <ProtectedRoute types={['GUEST', 'CUSTOMER']}>
-                        <Shop />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/reviews/product/:productId'
-                element={
-                    <ProtectedRoute types={['GUEST', 'CUSTOMER']}>
-                        <AllReviewsPage />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/search'
-                element={
-                    <ProtectedRoute types={['GUEST', 'CUSTOMER']}>
-                        <SearchResultsPage />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/user/wish-list'
-                element={
-                    <ProtectedRoute types={['CUSTOMER']}>
-                        <WishlistPage />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/about'
-                element={
-                    <ProtectedRoute types={['GUEST', 'CUSTOMER']}>
-                        <About />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/payment-options'
-                element={
-                    <ProtectedRoute types={['GUEST', 'CUSTOMER']}>
-                        <PaymentOptions />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/return'
-                element={
-                    <ProtectedRoute types={['GUEST', 'CUSTOMER']}>
-                        <ReturnOrder />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/privacy-policies'
-                element={
-                    <ProtectedRoute types={['GUEST', 'CUSTOMER']}>
-                        <PrivacyPolicies />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/contact'
-                element={
-                    <ProtectedRoute types={['GUEST', 'CUSTOMER']}>
-                        <Contact />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/login'
-                element={
-                    <ProtectedRoute types={['GUEST']}>
-                        <Login />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/register'
-                element={
-                    <ProtectedRoute types={['GUEST']}>
-                        <Register />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/forgotPassword'
-                element={
-                    <ProtectedRoute types={['GUEST']}>
-                        <ForgotPassword />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/reset-password'
-                element={
-                    <ProtectedRoute types={['GUEST']}>
-                        <ResetPasswordPage />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/reset-password/success'
-                element={
-                    <ProtectedRoute types={['GUEST']}>
-                        <ResetSuccessPage />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/logout'
-                element={
-                    <ProtectedRoute types={['CUSTOMER']}>
-                        <Logout />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/user/orders'
-                element={
-                    <ProtectedRoute types={['CUSTOMER']}>
-                        <OrderPage />
-                    </ProtectedRoute>
-                }
-            />
-
-            <Route
-                path='/user/histoty-review'
-                element={
-                    <ProtectedRoute types={['CUSTOMER']}>
-                        <ReviewHistory />
-                    </ProtectedRoute>
-                }
-            />
-
-            <Route
-                path='/orders/success'
-                element={
-                    <ProtectedRoute types={['CUSTOMER']}>
-                        <OrderSuccess />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/orders/bankTransfer'
-                element={
-                    <ProtectedRoute types={['CUSTOMER']}>
-                        <OrderBankTransfer />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/orders/error'
-                element={
-                    <ProtectedRoute types={['CUSTOMER']}>
-                        <OrderFail />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/user/discounts'
-                element={
-                    <ProtectedRoute types={['CUSTOMER']}>
-                        <DiscountPage />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/user/orders/me/:orderId'
-                element={
-                    <ProtectedRoute types={['CUSTOMER']}>
-                        <OrderDetail />
-                    </ProtectedRoute>
-                }
-            />
+            <Route path='/' element={<Navigate to="/shop" replace />} />
+            <Route path='/shop' element={<ProtectedRoute types={['GUEST', 'CUSTOMER']}><Shop /></ProtectedRoute>} />
+            <Route path='/reviews/product/:productId' element={<ProtectedRoute types={['GUEST', 'CUSTOMER']}><AllReviewsPage /></ProtectedRoute>} />
+            <Route path='/search' element={<ProtectedRoute types={['GUEST', 'CUSTOMER']}><SearchResultsPage /></ProtectedRoute>} />
+            <Route path='/about' element={<ProtectedRoute types={['GUEST', 'CUSTOMER']}><About /></ProtectedRoute>} />
+            <Route path='/payment-options' element={<ProtectedRoute types={['GUEST', 'CUSTOMER']}><PaymentOptions /></ProtectedRoute>} />
+            <Route path='/return' element={<ProtectedRoute types={['GUEST', 'CUSTOMER']}><ReturnOrder /></ProtectedRoute>} />
+            <Route path='/privacy-policies' element={<ProtectedRoute types={['GUEST', 'CUSTOMER']}><PrivacyPolicies /></ProtectedRoute>} />
+            <Route path='/contact' element={<ProtectedRoute types={['GUEST', 'CUSTOMER']}><Contact /></ProtectedRoute>} />
+            <Route path='/login' element={<ProtectedRoute types={['GUEST']}><Login /></ProtectedRoute>} />
+            <Route path='/register' element={<ProtectedRoute types={['GUEST']}><Register /></ProtectedRoute>} />
+            <Route path='/forgotPassword' element={<ProtectedRoute types={['GUEST']}><ForgotPassword /></ProtectedRoute>} />
+            <Route path='/reset-password' element={<ProtectedRoute types={['GUEST']}><ResetPasswordPage /></ProtectedRoute>} />
+            <Route path='/reset-password/success' element={<ProtectedRoute types={['GUEST']}><ResetSuccessPage /></ProtectedRoute>} />
+            <Route path='/logout' element={<ProtectedRoute types={['CUSTOMER']}><Logout /></ProtectedRoute>} />
+            <Route path='/orders/success' element={<ProtectedRoute types={['CUSTOMER']}><OrderSuccess /></ProtectedRoute>} />
+            <Route path='/orders/bankTransfer' element={<ProtectedRoute types={['CUSTOMER']}><OrderBankTransfer /></ProtectedRoute>} />
+            <Route path='/orders/error' element={<ProtectedRoute types={['CUSTOMER']}><OrderFail /></ProtectedRoute>} />
+            <Route path='/user/orders/me/:orderId' element={<ProtectedRoute types={['CUSTOMER']}><OrderDetail /></ProtectedRoute>} />
             <Route path='/forgotPassword/success' element={<ForgotSuccess />} />
-            <Route
-                path='/register/confirm-registration'
-                element={
-                    <ProtectedRoute types={['REGISTER']}>
-                        <ConfirmRegister />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/confirm-registration/success'
-                element={
-                    <ProtectedRoute types={['REGISTER']}>
-                        <RegisterSuccess />
-                    </ProtectedRoute>
-                }
-            />
+            <Route path='/register/confirm-registration' element={<ProtectedRoute types={['REGISTER']}><ConfirmRegister /></ProtectedRoute>} />
+            <Route path='/confirm-registration/success' element={<ProtectedRoute types={['REGISTER']}><RegisterSuccess /></ProtectedRoute>} />
             <Route path='/shop/product/:id' element={<ProductDetailPage />} />
-            <Route
-                path='/user/information'
-                element={
-                    <ProtectedRoute types={['CUSTOMER']}>
-                        <UserProfile />
-                    </ProtectedRoute>
-                }
-            />
-            <Route path='/discounts' element={<DiscountPage />} />
-            <Route
-                path='/user/changePassword'
-                element={
-                    <ProtectedRoute types={['CUSTOMER']}>
-                        <UserChangePassword />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/user/discounts/:discountId'
-                element={
-                    <ProtectedRoute types={['CUSTOMER']}>
-                        <DiscountDetailPage />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path='/checkout'
-                element={
-                    <ProtectedRoute types={['CUSTOMER']}>
-                        <CheckoutPage />
-                    </ProtectedRoute>
-                }
-            />
-            <Route path='*' element={<ErrorNotFound />} />
+            <Route path='/checkout' element={<ProtectedRoute types={['CUSTOMER']}><CheckoutPage /></ProtectedRoute>} />
 
-            <Route
-                path='/Dashboard'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <Dashboard />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
+            <Route element={<ProtectedRoute types={['CUSTOMER']}><UserPageLayout /></ProtectedRoute>}>
+                <Route path='/user/information' element={<UserProfile />} />
+                <Route path='/user/orders' element={<OrderPage />} />
+                <Route path='/user/histoty-review' element={<ReviewHistory />} />
+                <Route path='/user/discounts' element={<DiscountPage />} />
+                <Route path='/user/discounts/:discountId' element={<DiscountDetailPage />} />
+                <Route path='/user/notifications' element={<NotificationPage />} />
+                <Route path='/user/notifications/:notificationId' element={<NotificationDetailPage />} />
+                <Route path='/user/wish-list' element={<WishlistPage />} />
+                <Route path='/user/changePassword' element={<UserChangePassword />} />
+            </Route>
 
-            <Route
-                path='/Dashboard/Categories'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardCategories />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-            <Route
-                path='/Dashboard/Providers'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardProviders />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-            <Route
-                path='/Dashboard/Providers/Create'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardCreateProvider />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-            <Route
-                path='/Dashboard/Providers/Edit/:providerId'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardEditProvider />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-            <Route
-                path='/Dashboard/Categories/Create'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardCreateCategory />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Categories/Edit/:categoryId'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardEditCategory />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Brands'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardBrands />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Brands/Create'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardCreateBrand />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Brands/Edit/:brandId'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardEditBrand />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Warehouse'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardWarehouse />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Warehouse/:stockId'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardWarehouseDetail />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Accounts'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardAccounts />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Accounts/Edit/:userId'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardEditAccount />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Accounts/Create'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardCreateStaffAccount />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/StockTransactions'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardStockTransactions />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-            <Route
-                path='/Dashboard/StockTransactions'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardStockTransactions />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Sales'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardSales />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Sales/:saleId'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardViewSaleProduct />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Sales/Create'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardCreateSale />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Sales/Edit/:saleId'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardEditSale />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Sales/:saleId/AddProduct'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardAddProductToSale />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Notifications'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardNotifications />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Notifications/Create'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardCreateNotification />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Discounts'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardDiscounts />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Discounts/:discountId'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardViewUserDiscount />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Discounts/:discountId/AddAccount'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardAddAccountToDiscount />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Discounts/Create'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardCreateDiscount />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Discounts/Edit/:discountId'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardEditDiscount />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Products'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardProducts />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Products/:productId'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardProductVariations />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Products/Add'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardAddProducts />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Products/:productId/Add'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardAddProductVariations />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Products/Edit/:productId'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardEditProduct />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Products/:productId/Edit/:productVariationId'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardEditProductVariation />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Warehouse/:stockId/Import'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardImportProducts />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Orders'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardOrders />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
+            <Route path='/Dashboard' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><Dashboard /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Categories' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardCategories /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Providers' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardProviders /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Providers/Create' element={<PrivateRoute requiredRoles={['ADMIN']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardCreateProvider /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Providers/Edit/:providerId' element={<PrivateRoute requiredRoles={['ADMIN']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardEditProvider /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Categories/Create' element={<PrivateRoute requiredRoles={['ADMIN']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardCreateCategory /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Categories/Edit/:categoryId' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardEditCategory /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Brands' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardBrands /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Brands/Create' element={<PrivateRoute requiredRoles={['ADMIN']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardCreateBrand /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Brands/Edit/:brandId' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardEditBrand /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Warehouse' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardWarehouse /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Warehouse/:stockId' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardWarehouseDetail /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Accounts' element={<PrivateRoute requiredRoles={['ADMIN']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardAccounts /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Accounts/Edit/:userId' element={<PrivateRoute requiredRoles={['ADMIN']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardEditAccount /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Accounts/Create' element={<PrivateRoute requiredRoles={['ADMIN']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardCreateStaffAccount /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/StockTransactions' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardStockTransactions /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Sales' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardSales /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Sales/:saleId' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardViewSaleProduct /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Sales/Create' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardCreateSale /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Sales/Edit/:saleId' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardEditSale /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Sales/:saleId/AddProduct' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardAddProductToSale /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Notifications' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardNotifications /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Notifications/Create' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardCreateNotification /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Discounts' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardDiscounts /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Discounts/:discountId' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardViewUserDiscount /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Discounts/:discountId/AddAccount' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardAddAccountToDiscount /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Discounts/:discountId/Assign' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardAssignDiscount /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Discounts/Create' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardCreateDiscount /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Discounts/Edit/:discountId' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardEditDiscount /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Products' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardProducts /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Products/:productId' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardProductVariations /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Products/Add' element={<PrivateRoute requiredRoles={['ADMIN']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardAddProducts /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Products/:productId/Add' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardAddProductVariations /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Products/Edit/:productId' element={<PrivateRoute requiredRoles={['ADMIN']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardEditProduct /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Products/:productId/Edit/:productVariationId' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardEditProductVariation /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Warehouse/:stockId/Import' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardImportProducts /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Orders' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardOrders /></DashboardLayout></PrivateRoute>} />
             <Route path='/Dashboard/Logout' element={<Logout isDashboard={true} />} />
+            <Route path='/Dashboard/Product-Reviews' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardReview /></DashboardLayout></PrivateRoute>} />
+            <Route path='/Dashboard/Product-Reviews/:productId' element={<PrivateRoute requiredRoles={['ADMIN', 'STAFF']}><DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}><DashboardReviewProduct /></DashboardLayout></PrivateRoute>} />
 
-            <Route
-                path='/Dashboard/Product-Reviews'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardReview />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path='/Dashboard/Product-Reviews/:productId'
-                element={
-                    <PrivateRoute requiredRoles={['ADMIN', 'STAFF']}>
-                        <DashboardLayout toggleSidebar={toggleSidebar} isOpen={isOpen}>
-                            <DashboardReviewProduct />
-                        </DashboardLayout>
-                    </PrivateRoute>
-                }
-            />
-
-            <Route path="/user/notifications" element={<NotificationPage />} />
-
-            <Route path="/user/notifications/:notificationId" element={<NotificationDetailPage />} />
-
+            <Route path='*' element={<ErrorNotFound />} />
         </Routes>
     )
 }
 
-export default AppRoutes
+export default AppRoutes;

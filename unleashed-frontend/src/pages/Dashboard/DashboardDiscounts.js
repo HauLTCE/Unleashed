@@ -22,8 +22,8 @@ const DashboardDiscounts = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [statuses, setStatuses] = useState([]);
     const [types, setTypes] = useState([]);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedStatus, setSelectedStatus] = useState("");
     const [selectedType, setSelectedType] = useState("");
@@ -41,20 +41,20 @@ const DashboardDiscounts = () => {
         if (isInitialMount.current) {
             isInitialMount.current = false;
         } else {
-            setCurrentPage(1);
+            setCurrentPage(0);
         }
     }, [debouncedSearchTerm, selectedStatus, selectedType]);
 
     useEffect(() => {
         fetchDiscounts();
-    }, [currentPage, debouncedSearchTerm, selectedStatus, selectedType]);
+    }, [currentPage, debouncedSearchTerm, selectedStatus, selectedType, varToken]);
 
     const fetchDiscounts = () => {
         setLoading(true);
         apiClient.get('/api/discounts', {
             headers: { Authorization: varToken },
             params: {
-                page: currentPage - 1,
+                page: currentPage,
                 size: 10,
                 search: debouncedSearchTerm,
                 statusId: selectedStatus || null,
@@ -137,7 +137,6 @@ const DashboardDiscounts = () => {
                         <TableRow>
                             <TableCell sx={{ fontWeight: 'bold' }}>Code</TableCell>
                             <TableCell sx={{ fontWeight: 'bold' }}>Type</TableCell>
-                            {/*<TableCell sx={{ fontWeight: 'bold' }}>Rank Req.</TableCell>*/}
                             <TableCell sx={{ fontWeight: 'bold' }}>Value</TableCell>
                             <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
                             <TableCell sx={{ fontWeight: 'bold' }}>Usage</TableCell>
@@ -148,17 +147,16 @@ const DashboardDiscounts = () => {
                         {loading ? <TableSkeleton /> : discounts.map((d) => (
                             <TableRow key={d.discountId} hover>
                                 <TableCell sx={{ fontWeight: 'medium' }}>{d.discountCode}</TableCell>
-                                <TableCell>{d.discountType?.discountTypeName}</TableCell>
-                                {/*<TableCell>{d.rank?.rankName || 'Any'}</TableCell>*/}
-                                <TableCell>{d.discountType?.id === 1 ? `${d.discountValue}%` : formatPrice(d.discountValue)}</TableCell>
+                                <TableCell>{d.discountTypeName}</TableCell>
+                                <TableCell>{d.discountTypeName === 'PERCENTAGE' ? `${d.discountValue}%` : formatPrice(d.discountValue)}</TableCell>
                                 <TableCell>
-                                    <Chip label={d.discountStatus?.discountStatusName} color={getStatusChipColor(d.discountStatus?.discountStatusName)} size="small" />
+                                    <Chip label={d.discountStatusName} color={getStatusChipColor(d.discountStatusName)} size="small" />
                                 </TableCell>
                                 <TableCell>{`${d.usageCount} / ${d.usageLimit}`}</TableCell>
                                 <TableCell align="right">
                                     <Tooltip title="View Details"><Link to={`/Dashboard/Discounts/${d.discountId}`}><IconButton color="default"><Visibility /></IconButton></Link></Tooltip>
                                     <Tooltip title="Edit Discount"><Link to={`/Dashboard/Discounts/Edit/${d.discountId}`}><IconButton color="secondary"><Edit /></IconButton></Link></Tooltip>
-                                    <Tooltip title="Assign to Users"><Link to={`/Dashboard/Discounts/${d.discountId}/AddAccount`}><IconButton color="primary"><PersonAdd /></IconButton></Link></Tooltip>
+                                    <Tooltip title="Assign to Users"><Link to={`/Dashboard/Discounts/${d.discountId}/Assign`}><IconButton color="primary"><PersonAdd /></IconButton></Link></Tooltip>
                                     <Tooltip title="Delete"><IconButton color="error" onClick={() => openDeleteModal(d)}><Delete /></IconButton></Tooltip>
                                 </TableCell>
                             </TableRow>

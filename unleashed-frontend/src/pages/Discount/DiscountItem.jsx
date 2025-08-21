@@ -1,45 +1,80 @@
-import React from "react";
-import { formatPrice } from "../../components/format/formats";
-import { Link } from 'react-router-dom'; // Đã import Link
-import { IoCopyOutline } from "react-icons/io5"; // Đã import IoCopyOutline
-import { toast, Zoom } from "react-toastify"; // Đã import toast
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { Box, Typography, Paper, Chip } from '@mui/material';
+import { formatPrice } from '../../components/format/formats';
+import { toast, Zoom } from "react-toastify";
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
-const DiscountCard = ({ discount, discountCode, timesUsed, expiry, discountType, discountId }) => { // Đảm bảo nhận prop brand
+const DiscountCard = ({ discountId, discountCode, discountValue, discountTypeName, statusName, expiry, minimumOrderValue }) => {
 
-    const handleCopyCode = () => {
-        navigator.clipboard.writeText(discountCode); // Sử dụng brand để copy discountCode
-        toast.success("Discount code copied!", {
+    const handleCopyCode = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        navigator.clipboard.writeText(discountCode);
+        toast.success("Voucher code copied!", {
             position: "bottom-center",
             transition: Zoom,
             autoClose: 2000
-        })
+        });
+    };
+
+    const getStatusChipColor = () => {
+        switch (statusName?.toUpperCase()) {
+            case "ACTIVE": return "success";
+            case "EXPIRED": return "error";
+            default: return "default";
+        }
     };
 
     return (
-        <Link to={`/user/discounts/${discountId}`} className="block no-underline"> {/* Link điều hướng */}
-            <div className="relative bg-belugradient text-white rounded-lg p-4 shadow-lg w-full sm:w-52 h-40 hover:shadow-xl transition-shadow duration-300">
-                <div className="flex justify-between items-center">
-                    <span className="bg-red-500 text-xs font-semibold px-2 py-1 rounded-md font-montserrat">
-                        {timesUsed} TIME USED
-                    </span>
-                    {/* Copy Icon - Vẫn giữ nguyên */}
-                    <IoCopyOutline
-                        className="text-white text-lg cursor-pointer hover:text-gray-300"
-                        onClick={handleCopyCode} // Vẫn giữ onClick handler
-                        title="Copy Discount Code"
-                    />
-                </div>
-                <div className="flex flex-col items-center mt-4 mb-2 px-4 sm:px-6 lg:px-8">
-                    <h1 className="text-2xl font-bold font-montserrat">
-                        {discountType.discountTypeName === "PERCENTAGE" ? `${discount}%` : formatPrice(discount)}
-                    </h1>
-                    {/* Hiển thị discountCode (brand) - Vẫn giữ nguyên */}
-                    <p className="text-lg font-semibold mt-1 font-montserrat">{discountCode}</p>
-                </div>
-                <div className="absolute bottom-2 right-2 text-xs font-montserrat">
-                    Exp: {expiry}
-                </div>
-            </div>
+        <Link to={`/user/discounts/${discountId}`} style={{ textDecoration: 'none' }}>
+            <Paper
+                elevation={3}
+                sx={{
+                    p: 2,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    height: '100%',
+                    borderLeft: 5,
+                    borderColor: getStatusChipColor() + '.main',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                    '&:hover': {
+                        transform: 'translateY(-4px)',
+                        boxShadow: 6
+                    }
+                }}
+            >
+                <Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Typography variant="h6" fontWeight="bold">
+                            {discountTypeName === "PERCENTAGE" ? `${discountValue}% OFF` : `${formatPrice(discountValue)} OFF`}
+                        </Typography>
+                        <Chip label={statusName} color={getStatusChipColor()} size="small" />
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        {minimumOrderValue > 0 ? `For orders over ${formatPrice(minimumOrderValue)}` : 'No minimum spend'}
+                    </Typography>
+                </Box>
+                <Box>
+                    <Paper
+                        variant="outlined"
+                        sx={{ p: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f5f5f5' }}
+                    >
+                        <Typography variant="body1" fontWeight="medium" sx={{ letterSpacing: '0.5px' }}>
+                            {discountCode}
+                        </Typography>
+                        <ContentCopyIcon
+                            fontSize="small"
+                            sx={{ cursor: 'pointer', color: 'text.secondary' }}
+                            onClick={handleCopyCode}
+                        />
+                    </Paper>
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', textAlign: 'right' }}>
+                        Expires: {expiry}
+                    </Typography>
+                </Box>
+            </Paper>
         </Link>
     );
 };

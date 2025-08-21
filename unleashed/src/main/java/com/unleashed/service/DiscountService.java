@@ -12,7 +12,9 @@ import com.unleashed.util.JwtUtil;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.rest.webmvc.ResourceNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -185,8 +187,45 @@ public class DiscountService {
     }
 
     public Page<DiscountDTO> getAllDiscounts(String search, Integer statusId, Integer typeId, Pageable pageable) {
-        Specification<Discount> spec = new DiscountSpecification(search, statusId, typeId);
+        Specification<Discount> spec = new DiscountSpecification(search, statusId, typeId, null);
         return discountRepository.findAll(spec, pageable).map(this::convertToDTO);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<DiscountDTO> getDiscountsForUser(String userId, String search, Integer statusId, Integer typeId, int page, int size, String sortBy, String sortOrder) {
+        List<Integer> userDiscountIds = userDiscountRepository.findDiscountIdsByUserId(UUID.fromString(userId));
+
+        if (userDiscountIds.isEmpty()) {
+            return Page.empty(PageRequest.of(page, size));
+        }
+
+        Sort finalSort;
+        if ("amount".equalsIgnoreCase(sortBy)) {
+            Sort.Direction direction = "desc".equalsIgnoreCase(sortOrder) ? Sort.Direction.DESC : Sort.Direction.ASC;
+            finalSort = Sort.by(new Sort.Order(direction, "discountValue"));
+        } else {
+            finalSort = Sort.by(
+                    Sort.Order.asc("discountStatus.id"),
+                    Sort.Order.asc("discountEndDate")
+            );
+        }
+
+        Pageable pageable = PageRequest.of(page, size, finalSort);
+
+        Specification<Discount> spec = new DiscountSpecification(search, statusId, typeId, userDiscountIds);
+
+        return discountRepository.findAll(spec, pageable).map(this::convertToDTO);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<DiscountDTO> getDiscountForUserById(Integer discountId, String userId) {
+        boolean isAssigned = userDiscountRepository.existsById_UserIdAndId_DiscountId(UUID.fromString(userId), discountId);
+
+        if (!isAssigned) {
+            return Optional.empty();
+        }
+
+        return discountRepository.findById(discountId).map(this::convertToDTO);
     }
 
     public Optional<DiscountDTO> getDiscountById(int discountId) {
@@ -349,21 +388,40 @@ public class DiscountService {
     }
 
     public DiscountDTO convertToDTO(Discount discount) {
-        return new DiscountDTO(
-                discount.getDiscountId(),
-                discount.getDiscountCode(),
-                discount.getDiscountType(),
-                discount.getDiscountValue(),
-                discount.getDiscountStartDate(),
-                discount.getDiscountEndDate(),
-                discount.getDiscountStatus(),
-                discount.getDiscountDescription(),
-                discount.getDiscountMinimumOrderValue(),
-                discount.getDiscountMaximumValue(),
-                discount.getDiscountUsageLimit(),
-                discount.getDiscountRankRequirement(),
-                discount.getDiscountUsageCount()
-        );
+        if (discount == null) {
+            return null;
+        }
+
+        DiscountDTO dto = new DiscountDTO();
+        dto.setDiscountId(discount.getDiscountId());
+        dto.setDiscountCode(discount.getDiscountCode());
+        dto.setDiscountType(discount.getDiscountType());
+        dto.setDiscountValue(discount.getDiscountValue());
+        dto.setStartDate(discount.getDiscountStartDate());
+        dto.setEndDate(discount.getDiscountEndDate());
+        dto.setDiscountStatus(discount.getDiscountStatus());
+        dto.setDiscountDescription(discount.getDiscountDescription());
+        dto.setMinimumOrderValue(discount.getDiscountMinimumOrderValue());
+        dto.setMaximumDiscountValue(discount.getDiscountMaximumValue());
+        dto.setUsageLimit(discount.getDiscountUsageLimit());
+        dto.setRank(discount.getDiscountRankRequirement());
+        dto.setUsageCount(discount.getDiscountUsageCount());
+
+        if (discount.getDiscountType() != null) {
+            dto.setDiscountTypeName(discount.getDiscountType().getDiscountTypeName());
+        }
+
+        if (discount.getDiscountStatus() != null) {
+            dto.setDiscountStatusName(discount.getDiscountStatus().getDiscountStatusName());
+        }
+
+        if (discount.getDiscountRankRequirement() != null) {
+            dto.setRankName(discount.getDiscountRankRequirement().getRankName());
+        } else {
+            dto.setRankName("All Ranks");
+        }
+
+        return dto;
     }
 
     private Discount convertToEntity(DiscountDTO discountDTO) {
