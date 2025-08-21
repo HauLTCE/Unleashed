@@ -17,11 +17,11 @@ import java.time.OffsetDateTime;
 public class DiscountDTO {
     private Integer discountId;
     private String discountCode;
-    private DiscountType discountType;   // Loại giảm giá: PERCENTAGE, FIXED_AMOUNT
+    private DiscountType discountType;
     private BigDecimal discountValue;
     private OffsetDateTime startDate;
     private OffsetDateTime endDate;
-    private DiscountStatus discountStatus; // Trạng thái: ACTIVE, EXPIRED, USED
+    private DiscountStatus discountStatus;
     private String discountDescription;
     private BigDecimal minimumOrderValue;
     private BigDecimal maximumDiscountValue;
@@ -29,4 +29,7 @@ public class DiscountDTO {
     @JsonProperty("discountRank")
     private Rank rank;
     private Integer usageCount;
+    private String discountTypeName;
+    private String discountStatusName;
+    private String rankName;
 }

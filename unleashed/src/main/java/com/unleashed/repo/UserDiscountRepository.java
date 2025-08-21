@@ -28,4 +28,7 @@ public interface UserDiscountRepository extends JpaRepository<UserDiscount, User
     @Query("SELECT COUNT(ud) FROM UserDiscount ud WHERE ud.id.discountId = :discountId")
     int countByDiscountId(@Param("discountId") Integer discountId);
 
+    @Query("SELECT ud.id.discountId FROM UserDiscount ud WHERE ud.id.userId = :userId")
+    List<Integer> findDiscountIdsByUserId(@Param("userId") UUID userId);
+
 }

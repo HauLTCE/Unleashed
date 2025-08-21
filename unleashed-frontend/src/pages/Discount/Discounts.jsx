@@ -1,207 +1,179 @@
-import { Backdrop, CircularProgress, Grid2 } from "@mui/material";
-import UserSideMenu from "../../components/menus/UserMenu";
-import { useEffect, useState, useCallback } from "react";
-import { getMyDiscount } from "../../service/UserService";
+import React, { useState, useEffect, useCallback } from 'react';
+import { Box, Typography, TextField, FormControl, InputLabel, Select, MenuItem, Paper, CircularProgress, Grid, Alert } from "@mui/material";
 import useAuthHeader from "react-auth-kit/hooks/useAuthHeader";
-import { formatPrice } from "../../components/format/formats";
-import { Link } from 'react-router-dom';
+import { apiClient } from '../../core/api';
+import useDebounce from '../../components/hooks/useDebounce';
+import EnhancedPagination from '../../components/pagination/EnhancedPagination';
+import DiscountCard from './DiscountItem';
+
+const DISCOUNT_TYPE_IDS = {
+    PERCENTAGE: 1,
+    FLAT: 2
+};
 
 const DiscountPage = () => {
-  const [discounts, setDiscounts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const authHeader = useAuthHeader();
+    const [discounts, setDiscounts] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [statuses, setStatuses] = useState([]);
+    const [types, setTypes] = useState([]);
 
-  const [currentTime, setCurrentTime] = useState(new Date()); // Thêm state để kích hoạt re-render
+    const [currentPage, setCurrentPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [selectedStatus, setSelectedStatus] = useState("");
+    const [selectedType, setSelectedType] = useState("");
+    const [sortConfig, setSortConfig] = useState("default");
 
-  // Memoized format function - giữ lại vì vẫn hữu ích cho việc format
-  const formatRemainingTime = useCallback((endDate) => { // Nhận endDate thay vì remainingTime
-    const remainingTime = new Date(endDate) - currentTime; // Tính toán dựa trên currentTime
-    if (remainingTime <= 0) return "Expired";
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
+    const authHeader = useAuthHeader();
+    const [currentTime, setCurrentTime] = useState(new Date());
 
-    const days = Math.floor(remainingTime / (1000 * 60 * 60 * 24));
-    const hours = Math.floor(
-        (remainingTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+    useEffect(() => {
+        apiClient.get('/api/discounts/discount-statuses', { headers: { Authorization: authHeader } }).then(res => setStatuses(res.data));
+        apiClient.get('/api/discounts/discount-types', { headers: { Authorization: authHeader } }).then(res => setTypes(res.data));
+
+        const intervalId = setInterval(() => setCurrentTime(new Date()), 60000);
+        return () => clearInterval(intervalId);
+    }, [authHeader]);
+
+    useEffect(() => {
+        setCurrentPage(0);
+    }, [debouncedSearchTerm, selectedStatus, selectedType, sortConfig]);
+
+    useEffect(() => {
+        const fetchDiscounts = async () => {
+            setLoading(true);
+            try {
+                const params = {
+                    page: currentPage,
+                    size: 9,
+                    search: debouncedSearchTerm,
+                    statusId: selectedStatus || null,
+                };
+
+                if (sortConfig.startsWith('flat')) {
+                    const [, sortOrderValue] = sortConfig.split('_');
+                    params.sortBy = 'amount';
+                    params.sortOrder = sortOrderValue;
+                    params.typeId = DISCOUNT_TYPE_IDS.FLAT;
+                } else if (sortConfig.startsWith('percentage')) {
+                    const [, sortOrderValue] = sortConfig.split('_');
+                    params.sortBy = 'amount';
+                    params.sortOrder = sortOrderValue;
+                    params.typeId = DISCOUNT_TYPE_IDS.PERCENTAGE;
+                } else {
+                    params.typeId = selectedType || null;
+                }
+
+                const response = await apiClient.get('/api/discounts/me', {
+                    headers: { Authorization: authHeader },
+                    params: params
+                });
+                setDiscounts(response.data.content || []);
+                setTotalPages(response.data.totalPages || 0);
+            } catch (err) {
+                console.error("Error fetching discounts:", err);
+                setDiscounts([]);
+                setTotalPages(0);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchDiscounts();
+    }, [currentPage, debouncedSearchTerm, selectedStatus, selectedType, sortConfig, authHeader]);
+
+    const formatRemainingTime = useCallback((endDate) => {
+        const remainingTime = new Date(endDate) - currentTime;
+        if (remainingTime <= 0) return "Expired";
+        const days = Math.floor(remainingTime / (1000 * 60 * 60 * 24));
+        if (days > 1) return `${days} days left`;
+        if (days === 1) return `1 day left`;
+        const hours = Math.floor((remainingTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        return `${hours} hours left`;
+    }, [currentTime]);
+
+    const isTypeFilterDisabled = sortConfig.startsWith('flat') || sortConfig.startsWith('percentage');
+
+    return (
+        <Box>
+            <Typography variant="h4" component="h1" gutterBottom fontWeight="bold">
+                My Vouchers
+            </Typography>
+
+            <Paper elevation={2} sx={{ p: 2, mb: 4, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2 }}>
+                <TextField
+                    label="Search by Code or Description..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    variant="outlined"
+                    size="small"
+                    fullWidth
+                />
+                <FormControl size="small" fullWidth>
+                    <InputLabel>Status</InputLabel>
+                    <Select value={selectedStatus} label="Status" onChange={(e) => setSelectedStatus(e.target.value)}>
+                        <MenuItem value=""><em>All Statuses</em></MenuItem>
+                        {statuses.map((s) => <MenuItem key={s.id} value={s.id}>{s.discountStatusName}</MenuItem>)}
+                    </Select>
+                </FormControl>
+
+                <FormControl size="small" fullWidth disabled={isTypeFilterDisabled}>
+                    <InputLabel>Type</InputLabel>
+                    <Select value={isTypeFilterDisabled ? '' : selectedType} label="Type" onChange={(e) => setSelectedType(e.target.value)}>
+                        <MenuItem value=""><em>All Types</em></MenuItem>
+                        {types.map((t) => <MenuItem key={t.id} value={t.id}>{t.discountTypeName}</MenuItem>)}
+                    </Select>
+                </FormControl>
+
+                <FormControl size="small" fullWidth>
+                    <InputLabel>Sort By</InputLabel>
+                    <Select value={sortConfig} label="Sort By" onChange={(e) => setSortConfig(e.target.value)}>
+                        <MenuItem value="default">Default</MenuItem>
+                        <MenuItem value="flat_desc">Amount: High to Low</MenuItem>
+                        <MenuItem value="flat_asc">Amount: Low to High</MenuItem>
+                        <MenuItem value="percentage_desc">Percentage: High to Low</MenuItem>
+                        <MenuItem value="percentage_asc">Percentage: Low to High</MenuItem>
+                    </Select>
+                </FormControl>
+            </Paper>
+
+            {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
+                    <CircularProgress />
+                </Box>
+            ) : discounts.length === 0 ? (
+                <Alert severity="info" sx={{ mt: 4 }}>
+                    You have no vouchers matching the current filters.
+                </Alert>
+            ) : (
+                <Grid container spacing={3}>
+                    {discounts.map((discount) => (
+                        <Grid item xs={12} sm={6} md={4} key={discount.discountId}>
+                            <DiscountCard
+                                discountId={discount.discountId}
+                                discountCode={discount.discountCode}
+                                discountValue={discount.discountValue}
+                                discountTypeName={discount.discountTypeName}
+                                statusName={discount.discountStatusName}
+                                expiry={formatRemainingTime(discount.endDate)}
+                                minimumOrderValue={discount.minimumOrderValue}
+                            />
+                        </Grid>
+                    ))}
+                </Grid>
+            )}
+
+            {totalPages > 1 && (
+                <EnhancedPagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={(page) => setCurrentPage(page)}
+                    isLoading={loading}
+                />
+            )}
+        </Box>
     );
-    const minutes = Math.floor(
-        (remainingTime % (1000 * 60 * 60)) / (1000 * 60)
-    );
-    const seconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
-
-    return `${days}d ${hours}h ${minutes}m `;
-  }, [currentTime]);
-
-  useEffect(() => {
-    const fetchDiscounts = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await getMyDiscount(authHeader);
-        if (response && response.data) {
-          const discountData = response.data;
-          // Calculate remainingTime only once here
-          setDiscounts(
-              discountData.map((discount) => ({
-                ...discount,
-           //     remainingTime: new Date(discount.endDate) - new Date(),
-              }))
-          );
-        } else {
-          setDiscounts([]);
-        }
-      } catch (err) {
-        setError(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDiscounts();
-
-    // Thêm setInterval để cập nhật currentTime mỗi giây
-    const intervalId = setInterval(() => {
-      setCurrentTime(new Date()); // Cập nhật currentTime để kích hoạt re-render
-    }, 1000);
-
-    return () => clearInterval(intervalId); // Cleanup interval khi component unmount
-
-  }, [authHeader]); // Dependency array still includes authHeader
-
-  function getStatusColor(discountStatusId) {
-    const discountStatus = discounts.find(d => d.discountStatus.id === discountStatusId)?.discountStatus?.discountStatusName;
-    switch (discountStatus) {
-      case "Inactive":
-        return "text-gray-500";
-      case "Active":
-        return "text-green-500";
-      case "Expired":
-        return "text-red-500";
-      case "Used":
-        return "text-purple-500";
-      default:
-        return "";
-    }
-  }
-
-  function getDiscountTypeName(discountTypeId) {
-    const discountType = discounts.find(d => d.discountType?.id === discountTypeId)?.discountType?.discountTypeName;
-    switch (discountType) {
-      case "PERCENTAGE":
-        return "Percentage";
-      case "FIXED_AMOUNT":
-        return "Fixed Amount";
-      default:
-        return "Unknown Type";
-    }
-  }
-
-  function getDiscountStatusName(discountStatusId) {
-    const discountStatus = discounts.find(d => d.discountStatus?.id === discountStatusId)?.discountStatus?.discountStatusName;
-    switch (discountStatus) {
-      case "INACTIVE":
-        return "Inactive";
-      case "ACTIVE":
-        return "Active";
-      case "EXPIRED":
-        return "Expired";
-      case "Used":
-        return "Used";
-      default:
-        return "Unknown Status";
-    }
-  }
-
-  function getDiscountRankName(discountRankId) {
-    const discountRank = discounts.find(d => d.discountRank?.id === discountRankId)?.discountRank?.rankName;
-    switch (discountRank) {
-      case "Unranked":
-        return "Unranked";
-      case "Bronze":
-        return "Bronze";
-      case "Silver":
-        return "Silver";
-      case "Gold":
-        return "Gold";
-      case "Diamond":
-        return "Diamond";
-      default:
-        return "All Ranks"; // Or "N/A" or "Any Rank" as per your requirement if rank is null
-    }
-  }
-
-
-  return (
-      <Grid2 container>
-        {/* UserSideMenu is displayed immediately */}
-        <Grid2 size={4}>
-          <UserSideMenu />
-        </Grid2>
-
-        {/* Main content: Discount table */}
-        <Grid2 size={8} className="p-4">
-          <h1 className="text-2xl font-bold mb-4">My Discounts</h1>
-          {loading ? (
-              <Backdrop
-                  sx={(theme) => ({ color: "#fff", zIndex: theme.zIndex.drawer + 1 })}
-                  open={loading}
-              >
-                <CircularProgress />
-              </Backdrop>
-          ) : error ? (
-              <p>Error loading discounts: {error.message}</p>
-          ) : discounts.length === 0 ? (
-              <p>No discounts available.</p>
-          ) : (
-              <div className="overflow-x-auto">
-                <table className="table-auto w-full border-collapse">
-                  <thead className="border border-gray-300">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Code</th>
-                    <th className="px-4 py-2 text-left">Type</th>
-                    <th className="px-4 py-2 text-left">Rank</th>
-                    <th className="px-4 py-2 text-left">Value</th>
-                    <th className="px-4 py-2 text-left">Status</th>
-                    <th className="px-4 py-2 text-left">Usage Limit</th>
-                    <th className="px-4 py-2 text-left">Times Used</th>
-                    <th className="px-4 py-2 text-left">Expiry</th>
-                    <th className="px-4 py-2 text-left">Actions</th>
-                  </tr>
-                  </thead>
-                  <tbody>
-                  {discounts.map((discount) => (
-                      <tr key={discount.discountId} className="hover:bg-gray-50">
-                        <td className="px-4 py-2">{discount.discountCode}</td>
-                        <td className="px-4 py-2">{getDiscountTypeName(discount.discountType?.id)}</td>
-                        <td className="px-4 py-2">{getDiscountRankName(discount.discountRank?.id)}</td>
-                        <td className="px-4 py-2">
-                          {discount.discountType?.id === 1
-                              ? discount.discountValue + "%"
-                              : formatPrice(discount.discountValue)}
-                        </td>
-                        <td
-                            className={`px-4 py-2 font-bold ${getStatusColor(discount.discountStatus?.id)}`}
-                        >
-                          {getDiscountStatusName(discount.discountStatus?.id)}
-                        </td>
-                        <td className="px-4 py-2">{discount.usageLimit}</td>
-                        <td className="px-4 py-2">{discount.usageCount}</td>
-                        <td className="px-4 py-2">{formatRemainingTime(discount.endDate)}</td>
-                        <td className="px-4 py-2">
-                          <Link to={`/user/discounts/${discount.discountId}`}>
-                            <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                              View Detail
-                            </button>
-                          </Link>
-                        </td>
-                      </tr>
-                  ))}
-                  </tbody>
-                </table>
-              </div>
-          )}
-        </Grid2>
-      </Grid2>
-  );
 };
 
 export default DiscountPage;

@@ -3,9 +3,7 @@ import {
     Box,
     Button,
     Card,
-    Container,
     Divider,
-    Grid,
     Paper,
     Rating,
     Skeleton,
@@ -22,7 +20,6 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader';
 import useAuthUser from 'react-auth-kit/hooks/useAuthUser';
-import UserSideMenu from '../../components/menus/UserMenu';
 import { getMyReviews } from '../../service/UserService';
 import EnhancedPagination from '../../components/pagination/EnhancedPagination';
 import useDebounce from '../../components/hooks/useDebounce';
@@ -101,100 +98,92 @@ const ReviewHistory = () => {
     };
 
     return (
-        <Container maxWidth="lg" sx={{ mt: 4 }}>
-            <Grid container spacing={4}>
-                <Grid item xs={12} md={3}>
-                    <UserSideMenu />
-                </Grid>
+        <Box>
+            <Typography variant="h4" fontWeight="bold" gutterBottom>
+                Review History
+            </Typography>
+            <Divider sx={{ mb: 3 }} />
 
-                <Grid item xs={12} md={9}>
-                    <Typography variant="h4" fontWeight="bold" gutterBottom>
-                        Review History
-                    </Typography>
-                    <Divider sx={{ mb: 3 }} />
-
-                    <TableContainer component={Paper} variant="outlined">
-                        <Table sx={{ minWidth: 650 }}>
-                            <TableHead sx={{ backgroundColor: 'action.hover' }}>
-                                <TableRow>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>Product</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>Your Review</TableCell>
-                                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>Action</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {loading ? (
-                                    <ReviewTableSkeleton />
-                                ) : reviews.length > 0 ? (
-                                    reviews.map((review) => (
-                                        <TableRow key={review.id} hover>
-                                            <TableCell sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                <Avatar
-                                                    variant="rounded"
-                                                    src={review.product?.imageUrl || '/default-product-image.jpg'}
-                                                    alt={review.product?.productName}
-                                                />
-                                                <Box>
-                                                    <Typography variant="subtitle2" fontWeight="bold" noWrap>
-                                                        {review.product?.productName}
-                                                    </Typography>
-                                                    {review.comments.find(c => c.commentParentId === null) && (
-                                                        <Typography variant="caption" color="text.secondary">
-                                                            {new Date(review.comments.find(c => c.commentParentId === null)?.commentCreatedAt).toLocaleDateString()}
-                                                        </Typography>
-                                                    )}
-                                                </Box>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Rating value={review.reviewRating} readOnly size="small" />
-                                                <Typography
-                                                    variant="body2"
-                                                    color="text.secondary"
-                                                    sx={{
-                                                        mt: 0.5,
-                                                        display: '-webkit-box',
-                                                        WebkitLineClamp: 2,
-                                                        WebkitBoxOrient: 'vertical',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                    }}
-                                                >
-                                                    {review.comments.find(c => c.commentParentId === null)?.commentContent || 'No comment provided.'}
+            <TableContainer component={Paper} variant="outlined">
+                <Table sx={{ minWidth: 650 }}>
+                    <TableHead sx={{ backgroundColor: 'action.hover' }}>
+                        <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Product</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Your Review</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 'bold' }}>Action</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {loading ? (
+                            <ReviewTableSkeleton />
+                        ) : reviews.length > 0 ? (
+                            reviews.map((review) => (
+                                <TableRow key={review.id} hover>
+                                    <TableCell sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                        <Avatar
+                                            variant="rounded"
+                                            src={review.product?.imageUrl || '/default-product-image.jpg'}
+                                            alt={review.product?.productName}
+                                        />
+                                        <Box>
+                                            <Typography variant="subtitle2" fontWeight="bold" noWrap>
+                                                {review.product?.productName}
+                                            </Typography>
+                                            {review.comments.find(c => c.commentParentId === null) && (
+                                                <Typography variant="caption" color="text.secondary">
+                                                    {new Date(review.comments.find(c => c.commentParentId === null)?.commentCreatedAt).toLocaleDateString()}
                                                 </Typography>
-                                            </TableCell>
-                                            <TableCell align="center">
-                                                <Button
-                                                    component={Link}
-                                                    to={`/shop/product/${review.product?.productId}`}
-                                                    variant="outlined"
-                                                    size="small"
-                                                >
-                                                    View Product
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={3}>
-                                            <EmptyReviews />
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                    {totalPages > 1 && (
-                        <EnhancedPagination
-                            currentPage={page}
-                            totalPages={totalPages}
-                            onPageChange={handlePageChange}
-                            isLoading={loading}
-                        />
-                    )}
-                </Grid>
-            </Grid>
-        </Container>
+                                            )}
+                                        </Box>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Rating value={review.reviewRating} readOnly size="small" />
+                                        <Typography
+                                            variant="body2"
+                                            color="text.secondary"
+                                            sx={{
+                                                mt: 0.5,
+                                                display: '-webkit-box',
+                                                WebkitLineClamp: 2,
+                                                WebkitBoxOrient: 'vertical',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                            }}
+                                        >
+                                            {review.comments.find(c => c.commentParentId === null)?.commentContent || 'No comment provided.'}
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell align="center">
+                                        <Button
+                                            component={Link}
+                                            to={`/shop/product/${review.product?.productId}`}
+                                            variant="outlined"
+                                            size="small"
+                                        >
+                                            View Product
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={3}>
+                                    <EmptyReviews />
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+            {totalPages > 1 && (
+                <EnhancedPagination
+                    currentPage={page}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                    isLoading={loading}
+                />
+            )}
+        </Box>
     );
 };
 

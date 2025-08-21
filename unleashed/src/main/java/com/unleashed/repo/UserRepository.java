@@ -44,4 +44,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     boolean existsByUserPhone(String userPhone);
 
+    @Query("SELECT u FROM User u WHERE u.role.id = 2 AND (" +
+            "LOWER(u.userUsername) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+            "LOWER(u.userEmail) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+            "LOWER(u.userFullname) LIKE LOWER(CONCAT('%', :searchTerm, '%')))")
+    Page<User> searchByTerm(@Param("searchTerm") String searchTerm, Pageable pageable);
+
 }

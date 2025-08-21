@@ -104,6 +104,20 @@ public class UserService {
         return responseDTO;
     }
 
+    @Transactional(readOnly = true)
+    public Page<DiscountUserViewDTO> searchUsersForAssignment(String searchTerm, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("userFullname").ascending());
+        Page<User> userPage = userRepository.searchByTerm(searchTerm, pageable);
+
+        return userPage.map(user -> new DiscountUserViewDTO(
+                user.getUserId().toString(),
+                user.getUserUsername(),
+                user.getUserEmail(),
+                user.getUserFullname(),
+                user.getUserImage()
+        ));
+    }
+
     public ResponseDTO login(UserDTO userDTO) {
         ResponseDTO responseDTO = new ResponseDTO();
         try {

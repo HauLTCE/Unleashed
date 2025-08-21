@@ -19,7 +19,6 @@ import useSignOut from "react-auth-kit/hooks/useSignOut";
 import { useNavigate } from "react-router-dom";
 import UserChangePassword from "./UserChangePassword";
 import userDefault from "../../assets/images/userdefault.webp";
-import UserSideMenu from "../../components/menus/UserMenu";
 import useSignIn from "react-auth-kit/hooks/useSignIn";
 import { useFormik } from "formik";
 import * as Yup from "yup";
@@ -86,7 +85,6 @@ export const UserProfile = () => {
                 }
 
                 const updatedData = { ...values, userImage: imageUrl };
-
                 const response = await UpdateUserInfo(updatedData, authHeader);
 
                 if (response && response.data && response.data.token) {
@@ -160,7 +158,6 @@ export const UserProfile = () => {
             }
         };
         if(authHeader) fetchUserInfo();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [authHeader]);
 
     const handleImageChange = (e) => {
@@ -184,135 +181,122 @@ export const UserProfile = () => {
 
     if (loading) {
         return (
-            <Grid container spacing={3}>
-                <Grid item xs={12} md={3}><UserSideMenu /></Grid>
-                <Grid item xs={12} md={9} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-                    <CircularProgress />
-                </Grid>
-            </Grid>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+                <CircularProgress />
+            </Box>
         );
     }
 
     return (
-        <Grid container spacing={3} sx={{ p: 2 }}>
-            <Grid item xs={12} md={3}>
-                <UserSideMenu />
-            </Grid>
-            <Grid item xs={12} md={9}>
-                <Box component="form" onSubmit={formik.handleSubmit}>
-                    {/* PROFILE HEADER CARD */}
-                    <Paper elevation={3} sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 3, borderRadius: 4, mb: 3 }}>
-                        <Box sx={{ position: 'relative' }}>
-                            <Avatar src={profileImage} sx={{ width: 100, height: 100 }} />
-                            <IconButton
-                                color="primary"
-                                component="label"
-                                sx={{
-                                    position: 'absolute',
-                                    bottom: -5,
-                                    right: -5,
-                                    backgroundColor: 'white',
-                                    '&:hover': { backgroundColor: 'grey.200' },
-                                }}
-                            >
-                                <PhotoCamera />
-                                <input type="file" hidden accept="image/*" onChange={handleImageChange} />
-                            </IconButton>
-                        </Box>
-                        <Box>
-                            <Typography variant="h5" fontWeight="bold">
-                                {formik.values.fullName || "User"}
-                            </Typography>
-                            <Typography variant="body1" color="text.secondary">
-                                {formik.values.email}
-                            </Typography>
-                        </Box>
-                    </Paper>
-
-                    {/* ACCOUNT DETAILS CARD */}
-                    <Paper elevation={3} sx={{ p: 3, borderRadius: 4 }}>
-                        <Typography variant="h6" component="h2" gutterBottom fontWeight="bold">
-                            Account Details
+        <Box>
+            <Box component="form" onSubmit={formik.handleSubmit}>
+                <Paper elevation={3} sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 3, borderRadius: 4, mb: 3 }}>
+                    <Box sx={{ position: 'relative' }}>
+                        <Avatar src={profileImage} sx={{ width: 100, height: 100 }} />
+                        <IconButton
+                            color="primary"
+                            component="label"
+                            sx={{
+                                position: 'absolute',
+                                bottom: -5,
+                                right: -5,
+                                backgroundColor: 'white',
+                                '&:hover': { backgroundColor: 'grey.200' },
+                            }}
+                        >
+                            <PhotoCamera />
+                            <input type="file" hidden accept="image/*" onChange={handleImageChange} />
+                        </IconButton>
+                    </Box>
+                    <Box>
+                        <Typography variant="h5" fontWeight="bold">
+                            {formik.values.fullName || "User"}
                         </Typography>
-                        <Divider sx={{ mb: 3 }} />
-                        <Grid container spacing={3}>
-                            <Grid item xs={12} sm={6}>
-                                <TextField fullWidth label="Username" name="username" {...formik.getFieldProps("username")}
-                                           error={formik.touched.username && Boolean(formik.errors.username)}
-                                           helperText={formik.touched.username && formik.errors.username}
-                                />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
-                                <TextField fullWidth label="Full Name" name="fullName" {...formik.getFieldProps("fullName")}
-                                           error={formik.touched.fullName && Boolean(formik.errors.fullName)}
-                                           helperText={formik.touched.fullName && formik.errors.fullName}
-                                />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
-                                <TextField fullWidth label="Phone Number" name="userPhone" {...formik.getFieldProps("userPhone")}
-                                           error={formik.touched.userPhone && Boolean(formik.errors.userPhone)}
-                                           helperText={formik.touched.userPhone && formik.errors.userPhone}
-                                           placeholder="e.g., 0123456789"
-                                />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
-                                <TextField fullWidth label="Address" name="userAddress" {...formik.getFieldProps("userAddress")}
-                                           error={formik.touched.userAddress && Boolean(formik.errors.userAddress)}
-                                           helperText={formik.touched.userAddress && formik.errors.userAddress}
-                                           placeholder="e.g., 123 Main St, District 1, HCMC"
-                                />
-                            </Grid>
-                            <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                <Button
-                                    type="submit"
-                                    variant="contained"
-                                    startIcon={<Save />}
-                                    disabled={!formik.dirty || !formik.isValid || formik.isSubmitting}
-                                    sx={{
-                                        fontFamily: "Montserrat",
-                                        width: "170px",
-                                        textTransform: "none",
-                                        borderRadius: "8px",
-                                    }}
-                                >
-                                    Save Changes
-                                </Button>
-                            </Grid>
-                        </Grid>
-                    </Paper>
-                </Box>
-
-                {/* Security card */}
-                {!isGoogleAccount && (
-                    <Paper elevation={3} sx={{ p: 3, borderRadius: 4, mt: 3 }}>
-                        <Typography variant="h6" component="h2" gutterBottom fontWeight="bold">
-                            Security
+                        <Typography variant="body1" color="text.secondary">
+                            {formik.values.email}
                         </Typography>
-                        <Divider sx={{ mb: 3 }} />
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography>Change your password</Typography>
-                            <UserChangePassword />
-                        </Box>
-                    </Paper>
-                )}
-
-                {/* DANGER ZONE CARD */}
-                <Paper elevation={3} sx={{ p: 3, borderRadius: 4, mt: 3, border: 1, borderColor: 'error.main' }}>
-                    <Typography variant="h6" component="h2" gutterBottom fontWeight="bold" color="error">
-                        Danger Zone
-                    </Typography>
-                    <Divider sx={{ mb: 3 }} />
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Box>
-                            <Typography fontWeight="medium">Delete your account</Typography>
-                            <Typography variant="body2" color="text.secondary">Once deleted, your account is gone forever. Please be certain.</Typography>
-                        </Box>
-                        <DeleteAccountButton authHeader={authHeader} onDeleteSuccess={handleDeleteSuccess} />
                     </Box>
                 </Paper>
 
-            </Grid>
-        </Grid>
+                <Paper elevation={3} sx={{ p: 3, borderRadius: 4 }}>
+                    <Typography variant="h6" component="h2" gutterBottom fontWeight="bold">
+                        Account Details
+                    </Typography>
+                    <Divider sx={{ mb: 3 }} />
+                    <Grid container spacing={3}>
+                        <Grid item xs={12} sm={6}>
+                            <TextField fullWidth label="Username" name="username" {...formik.getFieldProps("username")}
+                                       error={formik.touched.username && Boolean(formik.errors.username)}
+                                       helperText={formik.touched.username && formik.errors.username}
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <TextField fullWidth label="Full Name" name="fullName" {...formik.getFieldProps("fullName")}
+                                       error={formik.touched.fullName && Boolean(formik.errors.fullName)}
+                                       helperText={formik.touched.fullName && formik.errors.fullName}
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <TextField fullWidth label="Phone Number" name="userPhone" {...formik.getFieldProps("userPhone")}
+                                       error={formik.touched.userPhone && Boolean(formik.errors.userPhone)}
+                                       helperText={formik.touched.userPhone && formik.errors.userPhone}
+                                       placeholder="e.g., 0123456789"
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <TextField fullWidth label="Address" name="userAddress" {...formik.getFieldProps("userAddress")}
+                                       error={formik.touched.userAddress && Boolean(formik.errors.userAddress)}
+                                       helperText={formik.touched.userAddress && formik.errors.userAddress}
+                                       placeholder="e.g., 123 Main St, District 1, HCMC"
+                            />
+                        </Grid>
+                        <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <Button
+                                type="submit"
+                                variant="contained"
+                                startIcon={<Save />}
+                                disabled={!formik.dirty || !formik.isValid || formik.isSubmitting}
+                                sx={{
+                                    fontFamily: "Montserrat",
+                                    width: "170px",
+                                    textTransform: "none",
+                                    borderRadius: "8px",
+                                }}
+                            >
+                                Save Changes
+                            </Button>
+                        </Grid>
+                    </Grid>
+                </Paper>
+            </Box>
+
+            {!isGoogleAccount && (
+                <Paper elevation={3} sx={{ p: 3, borderRadius: 4, mt: 3 }}>
+                    <Typography variant="h6" component="h2" gutterBottom fontWeight="bold">
+                        Security
+                    </Typography>
+                    <Divider sx={{ mb: 3 }} />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography>Change your password</Typography>
+                        <UserChangePassword />
+                    </Box>
+                </Paper>
+            )}
+
+            <Paper elevation={3} sx={{ p: 3, borderRadius: 4, mt: 3, border: 1, borderColor: 'error.main' }}>
+                <Typography variant="h6" component="h2" gutterBottom fontWeight="bold" color="error">
+                    Danger Zone
+                </Typography>
+                <Divider sx={{ mb: 3 }} />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box>
+                        <Typography fontWeight="medium">Delete your account</Typography>
+                        <Typography variant="body2" color="text.secondary">Once deleted, your account is gone forever. Please be certain.</Typography>
+                    </Box>
+                    <DeleteAccountButton authHeader={authHeader} onDeleteSuccess={handleDeleteSuccess} />
+                </Box>
+            </Paper>
+        </Box>
     );
 };
 

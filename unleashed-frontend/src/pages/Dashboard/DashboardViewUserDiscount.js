@@ -2,189 +2,160 @@ import React, { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiClient } from "../../core/api";
 import { toast, Zoom } from "react-toastify";
-import { FaPlus, FaTrash } from "react-icons/fa";
 import useAuthHeader from "react-auth-kit/hooks/useAuthHeader";
 import { formatPrice } from "../../components/format/formats";
+import {
+    Container, Typography, Paper, Box, Button, CircularProgress,
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip, IconButton, Alert
+} from '@mui/material';
+import { PersonAdd, Delete } from "@mui/icons-material";
 
 const DashboardViewUserDiscount = () => {
-  const [discount, setDiscount] = useState(null);
-  const [userDiscounts, setUserDiscounts] = useState([]); // Sẽ chứa dữ liệu đã kết hợp
-  const [usersData, setUsersData] = useState({}); // Object để lưu trữ thông tin người dùng, key là userId
-  const { discountId } = useParams();
+    const { discountId } = useParams();
+    const varToken = useAuthHeader();
 
-  const varToken = useAuthHeader();
+    const [discount, setDiscount] = useState(null);
+    const [assignedUsers, setAssignedUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
     const fetchDiscountData = async () => {
-      try {
-        // Fetch discount details
-        const discountResponse = await apiClient.get(`/api/discounts/${discountId}`, {
-          headers: { Authorization: varToken },
-        });
-        setDiscount(discountResponse.data);
+        setLoading(true);
+        try {
+            const discountPromise = apiClient.get(`/api/discounts/${discountId}`, { headers: { Authorization: varToken } });
+            const usersPromise = apiClient.get(`/api/discounts/${discountId}/users`, { headers: { Authorization: varToken } });
 
-        // Fetch users who have this discount
-        const usersDiscountResponse = await apiClient.get(`/api/discounts/${discountId}/users`, {
-          headers: { Authorization: varToken },
-        });
-        const userDiscountsData = usersDiscountResponse.data.userDiscounts;
-        const usersArray = usersDiscountResponse.data.users;
+            const [discountResponse, usersResponse] = await Promise.all([discountPromise, usersPromise]);
 
-        // Tạo một object usersData để dễ dàng truy cập thông tin người dùng theo userId
-        const usersDataObject = {};
-        usersArray.forEach(user => {
-          usersDataObject[user.userId] = user;
-        });
-        setUsersData(usersDataObject);
+            setDiscount(discountResponse.data);
+            setAssignedUsers(usersResponse.data.users || []);
 
-        // Kết hợp dữ liệu userDiscounts và users
-        const combinedUserDiscounts = userDiscountsData.map(userDiscount => {
-          const userId = userDiscount.id.userId;
-          const userDetails = usersDataObject[userId];
-          return {
-            ...userDiscount,
-            user: userDetails
-          };
-        });
-        setUserDiscounts(combinedUserDiscounts);
-
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      }
+        } catch (error) {
+            toast.error("Failed to fetch discount data.");
+            console.error("Error fetching data:", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    fetchDiscountData();
-  }, [discountId, varToken]);
+    useEffect(() => {
+        fetchDiscountData();
+    }, [discountId, varToken]);
 
-  // Function to remove user from discount
-  const handleRemoveUser = (userId) => {
-    apiClient
-        .delete(`/api/discounts/${discountId}/users?userId=${userId}`, {
-          headers: { Authorization: varToken },
-        })
-        .then(() => {
-          setUserDiscounts((prev) =>
-              prev.filter((userDiscount) => userDiscount.user?.userId !== userId) // Sử dụng optional chaining ở đây
-          );
-          toast.success("User removed from discount", {
-            position: "bottom-center",
-            transition: Zoom,
-          });
-        })
-        .catch((error) => {
-          console.error("Error removing user from discount:", error);
-          toast.error("Failed to remove user from discount", {
-            position: "bottom-center",
-            transition: Zoom,
-          });
-        });
-  };
+    const handleRemoveUser = async (userId) => {
+        try {
+            await apiClient.delete(`/api/discounts/${discountId}/users?userId=${userId}`, {
+                headers: { Authorization: varToken },
+            });
+            setAssignedUsers((prevUsers) => prevUsers.filter((user) => user.userId !== userId));
+            toast.success("User removed from discount successfully.", { position: "bottom-right", transition: Zoom });
+        } catch (error) {
+            console.error("Error removing user:", error);
+            toast.error("Failed to remove user from discount.", { position: "bottom-right", transition: Zoom });
+        }
+    };
 
-  function getDiscountTypeName(discountTypeId) {
-    switch (discountTypeId) {
-      case 1: return "Percentage";
-      case 2: return "Fixed Amount";
-      default: return "Unknown Type";
+    if (loading) {
+        return (
+            <Container sx={{ display: 'flex', justifyContent: 'center', mt: 5 }}>
+                <CircularProgress />
+            </Container>
+        );
     }
-  }
 
-  function getDiscountStatusName(discountStatusId) {
-    switch (discountStatusId) {
-      case 1: return "Inactive";
-      case 2: return "Active";
-      case 3: return "Expired";
-      case 4: return "Used";
-      default: return "Unknown Status";
+    if (!discount) {
+        return (
+            <Container>
+                <Alert severity="error">Discount details could not be loaded.</Alert>
+            </Container>
+        );
     }
-  }
 
-  function getDiscountRankName(rank) {
-    switch (rank) {
-      case 1: return "Unranked";
-      case 2: return "Bronze";
-      case 3: return "Silver";
-      case 4: return "Gold";
-      case 5: return "Diamond";
-      default: return "Unknown Status";
-    }
-  }
+    return (
+        <Container maxWidth="lg" sx={{ p: 4 }}>
+            <Typography variant="h4" gutterBottom fontWeight="bold">
+                Discount Details
+            </Typography>
 
-  return (
-    <>
-      <div className="flex items-center justify-between">
-        <h1 className="text-4xl font-bold mb-6">Discount Details</h1>
-      </div>
+            <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+                <Typography variant="h6" gutterBottom>
+                    Code: <strong>{discount.discountCode}</strong>
+                </Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { sm: '1fr 1fr 1fr' }, gap: 2 }}>
+                    <InfoItem label="Type" value={discount.discountTypeName} />
+                    <InfoItem label="Status" value={discount.discountStatusName} />
+                    <InfoItem label="Rank Requirement" value={discount.rankName} />
+                    <InfoItem
+                        label="Value"
+                        value={discount.discountTypeName === 'PERCENTAGE' ? `${discount.discountValue}%` : formatPrice(discount.discountValue)}
+                    />
+                    <InfoItem label="Usage" value={`${discount.usageCount} / ${discount.usageLimit}`} />
+                    <InfoItem label="Start Date" value={new Date(discount.startDate).toLocaleString()} />
+                    <InfoItem label="End Date" value={new Date(discount.endDate).toLocaleString()} />
+                    {discount.minimumOrderValue > 0 && <InfoItem label="Min. Order Value" value={formatPrice(discount.minimumOrderValue)} />}
+                    {discount.maximumDiscountValue > 0 && <InfoItem label="Max. Discount Value" value={formatPrice(discount.maximumDiscountValue)} />}
+                </Box>
+                {discount.discountDescription && <InfoItem label="Description" value={discount.discountDescription} sx={{ mt: 2 }} />}
+            </Paper>
 
-      {/* Discount Information Section */}
-      {discount ? (
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold">
-            Discount ID: {discount.discountId}
-          </h2>
-          <p>Code: {discount.discountCode}</p>
-          <p>Type: {getDiscountTypeName(discount.discountType.id)}</p>
-          <p>
-            Value:{" "}
-            {discount.discountType.id === 1
-              ? discount.discountValue + "%"
-              : formatPrice(discount.discountValue)}
-          </p>
-          <p>Start Date: {new Date(discount.startDate).toLocaleString()}</p>
-          <p>End Date: {new Date(discount.endDate).toLocaleString()}</p>
-          <p>Status: {getDiscountStatusName(discount.discountStatus.id)}</p>
-          <p>Description: {discount.discountDescription}</p>
-          <p>Minimum Order Value: {discount.minimumOrderValue || "null"}</p>
-          <p>Maximum Order Value: {discount.maximumDiscountValue || "null"}</p>
-          <p>Rank: {getDiscountRankName(discount.discountRank.id)} </p>
-          <p>Usage Limit: {discount.usageLimit}</p>
-        </div>
-      ) : (
-        <p>Loading discount details...</p>
-      )}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h5" fontWeight="bold">
+                    Assigned Users ({assignedUsers.length})
+                </Typography>
+                <Button
+                    component={Link}
+                    to={`/Dashboard/Discounts/${discountId}/Assign`}
+                    variant="contained"
+                    startIcon={<PersonAdd />}
+                >
+                    Add / Assign Users
+                </Button>
+            </Box>
 
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-4xl font-bold">Users with Discount</h1>
-        <Link to={`/Dashboard/Discounts/${discountId}/AddAccount`}>
-          <button className="text-blue-600 border border-blue-500 px-4 py-2 rounded-lg flex items-center">
-            <FaPlus className="mr-2" /> Add Users To Discount
-          </button>
-        </Link>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="table-auto w-full border-collapse">
-          <thead className="border border-gray-300">
-          <tr>
-            <th className="px-4 py-2 text-left">Username</th>
-            <th className="px-4 py-2 text-left">Full Name</th>
-            <th className="px-4 py-2 text-left">Email</th>
-            <th className="px-4 py-2 text-left">Discount Used</th>
-            <th className="px-4 py-2 text-left">Remove</th>
-          </tr>
-          </thead>
-
-          <tbody>
-          {userDiscounts.map((userDiscount) => (
-              <tr key={userDiscount.id.userId} className="hover:bg-gray-50">
-                <td className="px-4 py-2">{userDiscount.user?.username}</td>
-                <td className="px-4 py-2">{userDiscount.user?.fullName}</td>
-                <td className="px-4 py-2">{userDiscount.user?.email}</td>
-                <td className="px-4 py-2">{userDiscount.isDiscountUsed ? "Yes" : "No"}</td>
-                <td className="px-4 py-2">
-                  <button
-                      onClick={() => handleRemoveUser(userDiscount.id.userId)}
-                      className="text-red-500 hover:text-red-700"
-                  >
-                    <FaTrash/>
-                  </button>
-                </td>
-              </tr>
-          ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
+            <TableContainer component={Paper} elevation={3}>
+                <Table>
+                    <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+                        <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Username</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Full Name</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Email</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>Actions</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {assignedUsers.length > 0 ? (
+                            assignedUsers.map((user) => (
+                                <TableRow key={user.userId} hover>
+                                    <TableCell>{user.username}</TableCell>
+                                    <TableCell>{user.fullName}</TableCell>
+                                    <TableCell>{user.email}</TableCell>
+                                    <TableCell align="right">
+                                        <Tooltip title="Remove user from discount">
+                                            <IconButton color="error" onClick={() => handleRemoveUser(user.userId)}>
+                                                <Delete />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={4} align="center">
+                                    No users are assigned to this discount yet.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+        </Container>
+    );
 };
+
+const InfoItem = ({ label, value, sx }) => (
+    <Box sx={sx}>
+        <Typography variant="body2" color="text.secondary" fontWeight="medium">{label}</Typography>
+        <Typography variant="body1">{value || 'N/A'}</Typography>
+    </Box>
+);
 
 export default DashboardViewUserDiscount;

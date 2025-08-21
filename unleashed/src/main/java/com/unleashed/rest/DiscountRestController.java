@@ -23,11 +23,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/discounts")
@@ -35,20 +33,17 @@ public class DiscountRestController {
 
     private static final Logger logger = LoggerFactory.getLogger(DiscountRestController.class);
     private final DiscountService discountService;
-    private final JwtUtil jwtUtil;
     private final UserService userService;
 
     @Autowired
-    public DiscountRestController(DiscountService discountService, JwtUtil jwtUtil, UserService userService) {
+    public DiscountRestController(DiscountService discountService, UserService userService) {
         this.discountService = discountService;
-        this.jwtUtil = jwtUtil;
         this.userService = userService;
     }
 
     @PreAuthorize("hasAnyAuthority('ADMIN','STAFF')")
     @PostMapping
     public ResponseEntity<?> createDiscount(@RequestBody DiscountDTO discountDTO) {
-        //System.out.println(discountDTO.getRank());
         try {
             DiscountDTO createdDiscount = discountService.addDiscount(discountDTO);
             return ResponseEntity.status(HttpStatus.CREATED).body(createdDiscount);
@@ -96,14 +91,16 @@ public class DiscountRestController {
         return ResponseEntity.ok(discounts);
     }
 
-    @PreAuthorize("hasAnyAuthority('ADMIN','STAFF')")
+    // --- FIX 1 ---
+    @PreAuthorize("hasAnyAuthority('ADMIN','STAFF','CUSTOMER')")
     @GetMapping("/discount-statuses")
     public ResponseEntity<List<DiscountStatus>> getAllDiscountStatuses() {
         List<DiscountStatus> statuses = discountService.findAllStatuses();
         return ResponseEntity.ok(statuses);
     }
 
-    @PreAuthorize("hasAnyAuthority('ADMIN','STAFF')")
+    // --- FIX 2 ---
+    @PreAuthorize("hasAnyAuthority('ADMIN','STAFF','CUSTOMER')")
     @GetMapping("/discount-types")
     public ResponseEntity<List<DiscountType>> getAllDiscountTypes() {
         List<DiscountType> types = discountService.findAllTypes();
@@ -121,26 +118,6 @@ public class DiscountRestController {
                 });
     }
 
-//    @PutMapping("/{discountId}/end")
-//    public ResponseEntity<DiscountDTO> endDiscount(@PathVariable int discountId) {
-//        Optional<DiscountDTO> discountOpt = discountService.getDiscountById(discountId);
-//
-//        if (discountOpt.isPresent()) {
-//            if (discountOpt.get().getDiscountStatus().equals("EXPIRED")) {
-//                logger.info("Discount ID {} is already expired.", discountId);
-//                return ResponseEntity.status(HttpStatus.CONFLICT)
-//                        .body(discountOpt.get());
-//            } else {
-//                return discountService.endDiscount(discountId)
-//                        .map(ResponseEntity::ok)
-//                        .orElseGet(() -> ResponseEntity.notFound().build());
-//            }
-//        }
-//        logger.warn("Discount ID {} not found for ending.", discountId);
-//        return ResponseEntity.notFound().build();
-//    }
-
-
     @PreAuthorize("hasAnyAuthority('ADMIN','STAFF')")
     @DeleteMapping("/{discountId}")
     public ResponseEntity<Void> deleteDiscount(@PathVariable int discountId) {
@@ -154,7 +131,7 @@ public class DiscountRestController {
             @RequestParam("userId") String userId,
             @RequestParam("discountCode") String discountCode) {
         Optional<DiscountDTO> discountOpt = discountService.findDiscountByCode(discountCode);
-        if (!discountOpt.isPresent()) {
+        if (discountOpt.isEmpty()) {
             logger.warn("Discount code {} not found for user {}", discountCode, userId);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(true);
         }
@@ -175,7 +152,6 @@ public class DiscountRestController {
         }
     }
 
-
     @PreAuthorize("hasAnyAuthority('ADMIN','STAFF')")
     @DeleteMapping("/{discountId}/users")
     public ResponseEntity<?> removeUserFromDiscount(@PathVariable Integer discountId, @RequestParam String userId) {
@@ -190,40 +166,39 @@ public class DiscountRestController {
         return ResponseEntity.ok(usersInfo);
     }
 
+    @PreAuthorize("hasAuthority('CUSTOMER')")
+    @GetMapping("/me")
+    public ResponseEntity<Page<DiscountDTO>> getMyDiscounts(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Integer statusId,
+            @RequestParam(required = false) Integer typeId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "9") int size,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(required = false, defaultValue = "asc") String sortOrder) {
 
-    @PreAuthorize("permitAll()")
-    @GetMapping("/users/{userId}")
-    public ResponseEntity<List<Map<String, Object>>> getDiscountsByUserId(@PathVariable String userId) {
-        List<DiscountDTO> discounts = discountService.getDiscountsByUserId(userId);
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String currentUsername = ((UserDetails) authentication.getPrincipal()).getUsername();
+        String userId = userService.getUserInfoByUsername(currentUsername).getUserId();
 
-        // Chuyển đổi DiscountDTO thành dạng bạn yêu cầu
-        List<Map<String, Object>> myDiscounts = discounts.stream().map(discount -> {
-            Map<String, Object> discountMap = new HashMap<>();
-            discountMap.put("discountCode", discount.getDiscountCode());
-            discountMap.put("discountType", discount.getDiscountType());
-            discountMap.put("discountValue", discount.getDiscountValue());
-            discountMap.put("usageCount", discount.getUsageLimit());
-            discountMap.put("endDate", discount.getEndDate().toString());  // Chuyển đổi date thành định dạng string
+        Page<DiscountDTO> userDiscounts = discountService.getDiscountsForUser(
+                userId, search, statusId, typeId, page, size, sortBy, sortOrder
+        );
 
-            return discountMap;
-        }).collect(Collectors.toList());
-
-        return ResponseEntity.ok(myDiscounts);
+        return ResponseEntity.ok(userDiscounts);
     }
 
     @PreAuthorize("hasAuthority('CUSTOMER')")
-    @GetMapping("/me")
-    public ResponseEntity<?> getDiscountsByUsername() {
+    @GetMapping("/me/{discountId}")
+    public ResponseEntity<DiscountDTO> getMyDiscountById(@PathVariable int discountId) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String currentUsername = null;
-        if (authentication != null && authentication.getPrincipal() instanceof UserDetails) {
-            currentUsername = ((UserDetails) authentication.getPrincipal()).getUsername();
-        }
+        String currentUsername = ((UserDetails) authentication.getPrincipal()).getUsername();
+        String userId = userService.getUserInfoByUsername(currentUsername).getUserId();
 
-        List<DiscountDTO> userDiscounts = discountService.getDiscountsByUserId(userService.getUserInfoByUsername(currentUsername).getUserId());
-        return ResponseEntity.ok().body(userDiscounts);
+        return discountService.getDiscountForUserById(discountId, userId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
-
 
     @PreAuthorize("permitAll()")
     @GetMapping("/check-user-discount")
@@ -235,7 +210,6 @@ public class DiscountRestController {
     @GetMapping("/check-code")
     public ResponseEntity<Boolean> checkDiscountCodeExists(@RequestParam("code") String discountCode) {
         boolean exists = discountService.isDiscountCodeExists(discountCode);
-        return ResponseEntity.ok(exists); // Trả về true nếu tồn tại, false nếu không
+        return ResponseEntity.ok(exists);
     }
-
 }
