@@ -227,8 +227,39 @@ public class ReviewService {
     }
 
 
-    public Page<Review> getReviewsByUserName(String userName, Pageable pageable) {
-        return reviewRepository.findAllByUser_Username(userName, pageable);
+    public Page<UserReviewHistoryDTO> getReviewsByUserName(String userName, Pageable pageable) {
+        Page<Review> reviewsPage = reviewRepository.findAllByUser_Username(userName, pageable);
+
+        List<UserReviewHistoryDTO> dtoList = reviewsPage.getContent().stream()
+                .map(this::mapReviewToUserReviewHistoryDTO)
+                .collect(Collectors.toList());
+
+        return new PageImpl<>(dtoList, pageable, reviewsPage.getTotalElements());
+    }
+
+    private UserReviewHistoryDTO mapReviewToUserReviewHistoryDTO(Review review) {
+        UserReviewHistoryDTO dto = new UserReviewHistoryDTO();
+        dto.setId(review.getId());
+        dto.setReviewRating(review.getReviewRating());
+
+        if (review.getProduct() != null) {
+            dto.setProductId(review.getProduct().getProductId().toString());
+            dto.setProductName(review.getProduct().getProductName());
+            String imageUrl = review.getProduct().getProductVariations().stream()
+                    .map(Variation::getVariationImage)
+                    .filter(img -> img != null && !img.isEmpty())
+                    .findFirst()
+                    .orElse(null);
+            dto.setProductImageUrl(imageUrl);
+        }
+
+        // Correctly find the root comment associated with the review
+        commentRepository.findRootCommentByReviewId(review.getId()).ifPresent(comment -> {
+            dto.setCommentContent(comment.getCommentContent());
+            dto.setCommentCreatedAt(comment.getCommentCreatedAt());
+        });
+
+        return dto;
     }
 
     public boolean checkReviewExists(String productId, String orderId, String userId) {
