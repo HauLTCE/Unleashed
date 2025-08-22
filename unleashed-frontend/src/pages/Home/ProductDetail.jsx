@@ -279,6 +279,7 @@ const ProductDetailPage = () => {
     };
 
     const handleRemoveFromWishlist = async () => {
+        if (!authUser?.username) return;
         if (!authHeader) {
             toast.warn("Please login to continue.", { position: "top-center", autoClose: 2000 });
             return navigate('/login');
