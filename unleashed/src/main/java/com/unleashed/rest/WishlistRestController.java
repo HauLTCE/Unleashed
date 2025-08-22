@@ -23,6 +23,7 @@ public class WishlistRestController {
 
     @PostMapping("/add")
     public Wishlist addToWishlist(@RequestParam String username, @RequestParam String productId) {
+
         return wishlistService.addToWishlist(username, productId);
     }
 

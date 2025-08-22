@@ -36,6 +36,7 @@ const ProductDetailPage = () => {
     const authHeader = useAuthHeader();
     const authUser = useAuthUser();
 
+
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedColor, setSelectedColor] = useState(null);
@@ -261,12 +262,13 @@ const ProductDetailPage = () => {
     }, [authUser, product?.productId]);
 
     const handleAddToWishlist = async () => {
+        if (!authUser?.username) return;
         if (!authHeader) {
             toast.warn("Please login to continue.", { position: "top-center", autoClose: 2000 });
             return navigate('/login');
         }
         try {
-            const success = await addToWishlist(authUser.name, product.productId);
+            const success = await addToWishlist(authUser.username, product.productId);
             if (success) {
                 setIsInWishlist(true);
                 toast.success("Added to wishlist!", { position: "top-center", autoClose: 2000 });
@@ -277,6 +279,7 @@ const ProductDetailPage = () => {
     };
 
     const handleRemoveFromWishlist = async () => {
+        if (!authUser?.username) return;
         if (!authHeader) {
             toast.warn("Please login to continue.", { position: "top-center", autoClose: 2000 });
             return navigate('/login');

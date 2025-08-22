@@ -95,12 +95,12 @@ public class ReviewRestController {
     }
 
     @GetMapping("/user/{userName}")
-    public ResponseEntity<Page<Review>> getReviewsByUserName(
-            @PathVariable String userName,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+    public ResponseEntity<Page<UserReviewHistoryDTO>> getReviewsByUserName(
+                                                                            @PathVariable String userName,
+                                                                            @RequestParam(defaultValue = "0") int page,
+                                                                            @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<Review> reviews = reviewService.getReviewsByUserName(userName, pageable);
+        Page<UserReviewHistoryDTO> reviews = reviewService.getReviewsByUserName(userName, pageable);
         return ResponseEntity.ok(reviews);
     }
 
