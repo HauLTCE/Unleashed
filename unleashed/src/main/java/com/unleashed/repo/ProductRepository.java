@@ -43,33 +43,36 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
     Product findProductWithVariations(@Param("productId") UUID productId);
 
     @Query(value = """
-            SELECT p, v,
-                   COALESCE(AVG(r.reviewRating), 0) AS averageRating,
-                   COUNT(r.reviewRating) AS totalRatings
-            FROM Product p
-            LEFT JOIN Variation v
-                ON v.id = (
-                    SELECT MIN(v2.id)
-                    FROM Variation v2
-                    WHERE v2.product.productId = p.productId
-                )
-            LEFT JOIN Review r ON p.productId = r.product.productId
-            WHERE (
-                              LOWER(p.productName) LIKE LOWER(concat('%', :query, '%'))
-                           OR LOWER(p.productCode) LIKE LOWER(concat('%', :query, '%'))
-                           OR LOWER(p.productDescription) LIKE LOWER(concat('%', :query, '%'))
-                          )
-                      AND p.productStatus IS NOT NULL
-            GROUP BY p, v, p.productId, p.productName, p.productCode, p.productDescription, p.productCreatedAt, p.productUpdatedAt
-            ORDER BY p.productId ASC
-            """,
-            countQuery = """
-                    SELECT COUNT(DISTINCT p.productId)
-                    FROM Product p
-                    WHERE LOWER(p.productName) LIKE LOWER(concat('%', :query, '%'))
+        SELECT p, v,
+               COALESCE(AVG(r.reviewRating), 0) AS averageRating,
+               COUNT(r.reviewRating) AS totalRatings
+        FROM Product p
+        LEFT JOIN Variation v
+            ON v.id = (
+                SELECT MIN(v2.id)
+                FROM Variation v2
+                WHERE v2.product.productId = p.productId
+            )
+        LEFT JOIN Review r ON p.productId = r.product.productId
+        WHERE (
+                          LOWER(p.productName) LIKE LOWER(concat('%', :query, '%'))
                        OR LOWER(p.productCode) LIKE LOWER(concat('%', :query, '%'))
-                       OR LOWER(p.productDescription) LIKE LOWER(concat('%', :query, '%'))
-                    """)
+                       OR LOWER(CAST(p.productDescription AS string)) LIKE LOWER(concat('%', :query, '%'))
+                      )
+                  AND p.productStatus IS NOT NULL
+        GROUP BY p, v, p.productId, p.productName, p.productCode, p.productDescription, p.productCreatedAt, p.productUpdatedAt
+        ORDER BY p.productId ASC
+        """,
+            countQuery = """
+                SELECT COUNT(DISTINCT p.productId)
+                FROM Product p
+                WHERE (
+                       LOWER(p.productName) LIKE LOWER(concat('%', :query, '%'))
+                   OR LOWER(p.productCode) LIKE LOWER(concat('%', :query, '%'))
+                   OR LOWER(CAST(p.productDescription AS string)) LIKE LOWER(concat('%', :query, '%'))
+                )
+                AND p.productStatus IS NOT NULL
+                """)
     Page<Object[]> searchProducts(@Param("query") String query, Pageable pageable);
 
     List<Product> findByProductIdIn(List<UUID> productIds);

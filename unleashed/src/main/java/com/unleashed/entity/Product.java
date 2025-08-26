@@ -40,6 +40,7 @@ public class Product {
     @Column(name = "product_code")
     private String productCode;
 
+    @Lob
     @Nationalized
     @Column(name = "product_description")
     private String productDescription;

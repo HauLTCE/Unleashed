@@ -39,8 +39,8 @@ const DashboardImportProducts = () => {
     const [importTotals, setImportTotals] = useState({ totalQuantity: 0, totalPrice: 0 });
 
     // State for pagination and search
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
     const [searchTerm, setSearchTerm] = useState("");
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
@@ -62,7 +62,7 @@ const DashboardImportProducts = () => {
         if (isInitialMount.current) {
             isInitialMount.current = false;
         } else {
-            setCurrentPage(1);
+            setCurrentPage(0);
         }
     }, [debouncedSearchTerm]);
 
@@ -88,7 +88,7 @@ const DashboardImportProducts = () => {
         apiClient.get("/api/products/all", {
             headers: { Authorization: varToken },
             params: {
-                page: currentPage - 1,
+                page: currentPage,
                 size: 10,
                 search: debouncedSearchTerm,
                 stockId: stockId,

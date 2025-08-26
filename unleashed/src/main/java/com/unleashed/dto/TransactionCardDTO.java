@@ -6,7 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.OffsetDateTime;
 
 @Getter
 @Setter
@@ -25,7 +25,7 @@ public class TransactionCardDTO {
     private String colorHexCode;
     private BigDecimal transactionProductPrice;
     private Integer transactionQuantity;
-    private LocalDate transactionDate;
+    private OffsetDateTime transactionDate;
     private String inchargeEmployeeUsername;
     private String providerName;
 }

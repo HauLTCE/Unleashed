@@ -11,9 +11,11 @@ import com.unleashed.entity.*;
 import com.unleashed.entity.composite.OrderVariationSingleId;
 import com.unleashed.repo.*;
 import com.unleashed.repo.specification.OrderSpecification;
+import com.unleashed.util.AppTaskScheduler;
 import jakarta.persistence.Tuple;
 import jakarta.servlet.http.HttpServletRequest;
 import org.json.JSONObject;
+import org.slf4j.ILoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -23,6 +25,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
@@ -61,6 +65,7 @@ public class OrderService {
     private final ReviewRepository reviewRepository;
     private final StockTransactionService stockTransactionService;
     private boolean isCancellingOrder = false;
+    private static final Logger logger = LoggerFactory.getLogger(AppTaskScheduler.class);
 
     @Autowired
     public OrderService(OrderRepository orderRepository,
@@ -137,22 +142,40 @@ public class OrderService {
             orderJson.put("staffUsername",
                     order.getInchargeEmployee() != null ? order.getInchargeEmployee().getUsername() : "N/A");
 
-            List<Tuple> aggregatedDetails = orderVariationSingleRepository.findAggregatedDetailsWithReviewStatus(orderId, order.getUser().getUserId());
+            Map<Variation, Long> variationCounts = order.getOrderVariationSingles().stream()
+                    .collect(Collectors.groupingBy(
+                            ovs -> ovs.getVariationSingle().getVariation(),
+                            Collectors.counting()
+                    ));
 
-            List<Map<String, Object>> orderDetailsList = aggregatedDetails.stream().map(detail -> {
+            List<Map<String, Object>> orderDetailsList = new ArrayList<>();
+            for (Map.Entry<Variation, Long> entry : variationCounts.entrySet()) {
+                Variation variation = entry.getKey();
+                Long quantity = entry.getValue();
+
                 Map<String, Object> detailJson = new HashMap<>();
-                String productIdStr = detail.get("productId", String.class);
-                detailJson.put("productId", UUID.fromString(productIdStr));
-                detailJson.put("productName", detail.get("productName", String.class));
-                detailJson.put("color", detail.get("color", String.class));
-                detailJson.put("size", detail.get("size", String.class));
-                detailJson.put("productImage", detail.get("productImage", String.class));
-                detailJson.put("unitPrice", detail.get("unitPrice", BigDecimal.class));
-                detailJson.put("orderQuantity", detail.get("quantity", Number.class).longValue());
-                detailJson.put("hasReviewed", detail.get("hasReviewed", Boolean.class));
+                detailJson.put("productId", variation.getProduct().getProductId());
+                detailJson.put("productName", variation.getProduct().getProductName());
+                detailJson.put("color", variation.getColor().getColorName());
+                detailJson.put("size", variation.getSize().getSizeName());
+                detailJson.put("productImage", variation.getVariationImage());
+                detailJson.put("orderQuantity", quantity);
+
+                BigDecimal unitPrice = order.getOrderVariationSingles().stream()
+                        .filter(od -> od.getVariationSingle().getVariation().equals(variation))
+                        .findFirst()
+                        .map(OrderVariationSingle::getVariationPriceAtPurchase)
+                        .orElse(BigDecimal.ZERO);
+
+                detailJson.put("unitPrice", unitPrice);
+
+                // This part for checking reviews can be optimized if needed, but is functionally correct
+                boolean hasReviewed = reviewRepository.existsByProductAndUser(variation.getProduct(), order.getUser());
+                detailJson.put("hasReviewed", hasReviewed);
+
                 detailJson.put("orderTrackingNumber", order.getOrderTrackingNumber());
-                return detailJson;
-            }).collect(Collectors.toList());
+                orderDetailsList.add(detailJson);
+            }
 
             long totalOrderQuantity = orderDetailsList.stream()
                     .mapToLong(d -> (Long) d.get("orderQuantity"))
@@ -172,43 +195,35 @@ public class OrderService {
         Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
         Page<Order> ordersPage = orderRepository.findByUserId(UUID.fromString(userId), sortedPageable);
 
-        List<String> orderIdsOnPage = ordersPage.getContent().stream()
-                .map(Order::getOrderId)
-                .collect(Collectors.toList());
-
-        Map<String, List<Map<String, Object>>> detailsMap = new HashMap<>();
-        if (!orderIdsOnPage.isEmpty()) {
-            List<Tuple> results = orderVariationSingleRepository.findAggregatedDetailsByOrderIds(orderIdsOnPage);
-            for (Tuple row : results) {
-                String orderId = row.get("orderId", String.class);
-                Map<String, Object> detail = new HashMap<>();
-                detail.put("productName", row.get("productName", String.class));
-                detail.put("productCode", row.get("productCode", String.class));
-                detail.put("color", row.get("color", String.class));
-                detail.put("size", row.get("size", String.class));
-                detailsMap.computeIfAbsent(orderId, k -> new ArrayList<>()).add(detail);
-            }
-        }
-
-        List<Map<String, Object>> ordersList = ordersPage.stream().map(order -> {
+        List<Map<String, Object>> ordersList = ordersPage.getContent().stream().map(order -> {
             Map<String, Object> orderJson = new HashMap<>();
             orderJson.put("orderId", order.getOrderId());
             orderJson.put("orderStatus", order.getOrderStatus().getOrderStatusName());
             orderJson.put("totalAmount", order.getOrderTotalAmount());
             orderJson.put("orderTrackingNumber", order.getOrderTrackingNumber());
 
-            List<Map<String, Object>> originalDetails = detailsMap.getOrDefault(order.getOrderId(), Collections.emptyList());
+            // Aggregate details directly from the order's entities
+            Map<Variation, Long> variationCounts = order.getOrderVariationSingles().stream()
+                    .collect(Collectors.groupingBy(
+                            ovs -> ovs.getVariationSingle().getVariation(),
+                            Collectors.counting()
+                    ));
 
-            List<Map<String, Object>> detailsWithTracking = originalDetails.stream()
-                    .map(detail -> {
-                        Map<String, Object> newDetail = new HashMap<>(detail);
-                        newDetail.put("orderTrackingNumber", order.getOrderTrackingNumber());
-                        return newDetail;
-                    })
-                    .collect(Collectors.toList());
+            List<Map<String, Object>> orderDetailsList = new ArrayList<>();
+            for (Map.Entry<Variation, Long> entry : variationCounts.entrySet()) {
+                Variation variation = entry.getKey();
+                Long quantity = entry.getValue();
 
-            orderJson.put("orderDetails", detailsWithTracking);
+                Map<String, Object> detailJson = new HashMap<>();
+                detailJson.put("productName", variation.getProduct().getProductName());
+                detailJson.put("productCode", variation.getProduct().getProductCode());
+                detailJson.put("color", variation.getColor().getColorName());
+                detailJson.put("size", variation.getSize().getSizeName());
+                detailJson.put("quantity", quantity); // Add quantity for the frontend
+                orderDetailsList.add(detailJson);
+            }
 
+            orderJson.put("orderDetails", orderDetailsList);
             return orderJson;
         }).collect(Collectors.toList());
 
@@ -241,22 +256,39 @@ public class OrderService {
             orderJson.put("customerUserId", order.getUser().getUserId());
             orderJson.put("notes", order.getOrderNote());
 
-            List<Tuple> aggregatedDetails = orderVariationSingleRepository.findAggregatedDetailsWithReviewStatus(orderId, order.getUser().getUserId());
+            // Aggregate details directly from the order's entities, just like in getOrderById
+            Map<Variation, Long> variationCounts = order.getOrderVariationSingles().stream()
+                    .collect(Collectors.groupingBy(
+                            ovs -> ovs.getVariationSingle().getVariation(),
+                            Collectors.counting()
+                    ));
 
-            List<Map<String, Object>> orderDetailsList = aggregatedDetails.stream().map(detail -> {
+            List<Map<String, Object>> orderDetailsList = new ArrayList<>();
+            for (Map.Entry<Variation, Long> entry : variationCounts.entrySet()) {
+                Variation variation = entry.getKey();
+                Long quantity = entry.getValue();
+
                 Map<String, Object> detailJson = new HashMap<>();
-                String productIdStr = detail.get("productId", String.class);
-                detailJson.put("productId", UUID.fromString(productIdStr));
-                detailJson.put("productName", detail.get("productName", String.class));
-                detailJson.put("color", detail.get("color", String.class));
-                detailJson.put("size", detail.get("size", String.class));
-                detailJson.put("productImage", detail.get("productImage", String.class));
-                detailJson.put("unitPrice", detail.get("unitPrice", BigDecimal.class));
-                detailJson.put("orderQuantity", detail.get("quantity", Number.class).longValue());
-                detailJson.put("hasReviewed", detail.get("hasReviewed", Boolean.class));
+                detailJson.put("productId", variation.getProduct().getProductId());
+                detailJson.put("productName", variation.getProduct().getProductName());
+                detailJson.put("color", variation.getColor().getColorName());
+                detailJson.put("size", variation.getSize().getSizeName());
+                detailJson.put("productImage", variation.getVariationImage());
+                detailJson.put("orderQuantity", quantity);
+
+                BigDecimal unitPrice = order.getOrderVariationSingles().stream()
+                        .filter(od -> od.getVariationSingle().getVariation().equals(variation))
+                        .findFirst()
+                        .map(OrderVariationSingle::getVariationPriceAtPurchase)
+                        .orElse(BigDecimal.ZERO);
+                detailJson.put("unitPrice", unitPrice);
+
+                boolean hasReviewed = reviewRepository.existsByProductAndUser(variation.getProduct(), order.getUser());
+                detailJson.put("hasReviewed", hasReviewed);
+
                 detailJson.put("orderTrackingNumber", order.getOrderTrackingNumber());
-                return detailJson;
-            }).collect(Collectors.toList());
+                orderDetailsList.add(detailJson);
+            }
 
             long totalOrderQuantity = orderDetailsList.stream()
                     .mapToLong(d -> (Long) d.get("orderQuantity"))
@@ -339,25 +371,6 @@ public class OrderService {
             ordersPage = orderRepository.findByUserId(UUID.fromString(userId), sortedPageable);
         }
 
-        List<String> orderIdsOnPage = ordersPage.getContent().stream()
-                .map(Order::getOrderId)
-                .collect(Collectors.toList());
-
-        Map<String, List<Map<String, Object>>> detailsMap = new HashMap<>();
-        if (!orderIdsOnPage.isEmpty()) {
-            List<Tuple> results = orderVariationSingleRepository.findAggregatedDetailsByOrderIds(orderIdsOnPage);
-            for (Tuple row : results) {
-                String orderId = row.get("orderId", String.class);
-                Map<String, Object> detail = new HashMap<>();
-                detail.put("productName", row.get("productName", String.class));
-                detail.put("color", row.get("color", String.class));
-                detail.put("size", row.get("size", String.class));
-                detail.put("orderQuantity", row.get("quantity", Number.class).longValue());
-                detail.put("unitPrice", row.get("unitPrice", BigDecimal.class));
-                detailsMap.computeIfAbsent(orderId, k -> new ArrayList<>()).add(detail);
-            }
-        }
-
         List<Map<String, Object>> ordersList = ordersPage.getContent().stream()
                 .map(order -> {
                     Map<String, Object> orderJson = new HashMap<>();
@@ -376,22 +389,40 @@ public class OrderService {
                     orderJson.put("staffUsername",
                             order.getInchargeEmployee() != null ? order.getInchargeEmployee().getUsername() : "N/A");
 
-                    List<Map<String, Object>> originalDetails = detailsMap.getOrDefault(order.getOrderId(), Collections.emptyList());
+                    Map<Variation, Long> variationCounts = order.getOrderVariationSingles().stream()
+                            .collect(Collectors.groupingBy(
+                                    ovs -> ovs.getVariationSingle().getVariation(),
+                                    Collectors.counting()
+                            ));
 
-                    List<Map<String, Object>> detailsWithTracking = originalDetails.stream()
-                            .map(detail -> {
-                                Map<String, Object> newDetail = new HashMap<>(detail);
-                                newDetail.put("orderTrackingNumber", order.getOrderTrackingNumber());
-                                return newDetail;
-                            })
-                            .collect(Collectors.toList());
+                    List<Map<String, Object>> detailsList = new ArrayList<>();
+                    for (Map.Entry<Variation, Long> entry : variationCounts.entrySet()) {
+                        Variation variation = entry.getKey();
+                        Long quantity = entry.getValue();
 
-                    long totalOrderQuantity = detailsWithTracking.stream()
+                        Map<String, Object> detail = new HashMap<>();
+                        detail.put("productName", variation.getProduct().getProductName());
+                        detail.put("color", variation.getColor().getColorName());
+                        detail.put("size", variation.getSize().getSizeName());
+                        detail.put("orderQuantity", quantity);
+
+                        BigDecimal unitPrice = order.getOrderVariationSingles().stream()
+                                .filter(od -> od.getVariationSingle().getVariation().equals(variation))
+                                .findFirst()
+                                .map(OrderVariationSingle::getVariationPriceAtPurchase)
+                                .orElse(BigDecimal.ZERO);
+                        detail.put("unitPrice", unitPrice);
+
+                        detail.put("orderTrackingNumber", order.getOrderTrackingNumber());
+                        detailsList.add(detail);
+                    }
+
+                    long totalOrderQuantity = detailsList.stream()
                             .mapToLong(d -> (Long) d.get("orderQuantity"))
                             .sum();
 
                     orderJson.put("totalOrderQuantity", (int) totalOrderQuantity);
-                    orderJson.put("orderDetails", detailsWithTracking);
+                    orderJson.put("orderDetails", detailsList);
                     return orderJson;
                 }).collect(Collectors.toList());
 
@@ -438,16 +469,12 @@ public class OrderService {
     @Transactional
     public Map<String, Object> createOrder(OrderDTO orderDTO, HttpServletRequest request) {
 
-
-
-
-        // 1. Khởi tạo Order từ DTO và lưu vào database
         Order order = Order.builder()
                 .user(userRepository.findById(UUID.fromString(orderDTO.getUserId())).orElse(null))
                 .orderDate(OffsetDateTime.now())
                 .orderNote(orderDTO.getNotes())
                 .discount(orderDTO.getDiscount())
-                .orderBillingAddress(orderDTO.getBillingAddress())
+                .orderBillingAddress(orderDTO.getUserAddress())
                 .orderExpectedDeliveryDate(orderDTO.getShippingMethod().getShippingMethodName()
                         .equalsIgnoreCase("EXPRESS")
                         ?
@@ -472,7 +499,7 @@ public class OrderService {
             userService.updateUserPaymentMethod(orderDTO.getUserId(), orderDTO.getPaymentMethod().getPaymentMethodName());
         }
 
-        // 2. Kiểm tra Discount
+        // 2. Check Discount
         if (orderDTO.getDiscountCode() != null) {
             try {
                 discountService.updateUsageLimit(orderDTO.getDiscountCode(), orderDTO.getUserId());
@@ -481,17 +508,12 @@ public class OrderService {
             }
         }
 
-        // 3. Gán OrderId vào OrderDetail và lưu OrderDetail vào database
         List<OrderVariationSingle> orderVariationSingles = saveOrderDetails(order, orderDTO);
-//        sendOrderCreatedEmail(order, orderDetails);
 
-        // 4. Xử lý thanh toán
         JSONObject paymentResponse = handlePayment(order, orderDTO, orderVariationSingles, request);
 
-        // 5. Xây dựng JSON phản hồi, bao gồm cả redirectUrl
         Map<String, Object> jsonResponse = buildOrderResponseJson(order, orderVariationSingles);
 
-        // Thêm redirectUrl vào phản hồi
         if (paymentResponse != null && paymentResponse.has("redirectUrl")) {
             jsonResponse.put("redirectUrl", paymentResponse.get("redirectUrl"));
         }
@@ -501,31 +523,46 @@ public class OrderService {
 
 
     private Map<String, Object> buildOrderResponseJson(Order order, List<OrderVariationSingle> orderDetails) {
-//        System.out.println("BUILD ORDER RESPONSE CALLED");
         Map<String, Object> jsonResponse = new HashMap<>();
         jsonResponse.put("orderId", order.getOrderId());
         jsonResponse.put("orderDate", order.getOrderDate());
         jsonResponse.put("totalAmount", order.getOrderTotalAmount());
         jsonResponse.put("paymentMethod", order.getPaymentMethod());
         jsonResponse.put("shippingMethod", order.getShippingMethod());
-        jsonResponse.put("orderStatus", order.getOrderStatus().toString());
+        jsonResponse.put("orderStatus", order.getOrderStatus().getOrderStatusName());
         jsonResponse.put("transactionReference", order.getOrderTransactionReference());
 
         List<Map<String, Object>> productDetails = new ArrayList<>();
-        for (OrderVariationSingle detail : orderDetails) {
-            Map<String, Object> productJson = new HashMap<>();
-            Variation variation = variationRepository.findById(detail.getId().getVariationSingleId()).orElse(null);
-            if (variation != null) {
+        if (orderDetails != null && !orderDetails.isEmpty()) {
+            Map<Variation, Long> variationCounts = orderDetails.stream()
+                    .collect(Collectors.groupingBy(
+                            detail -> detail.getVariationSingle().getVariation(),
+                            Collectors.counting()
+                    ));
+
+            for (Map.Entry<Variation, Long> entry : variationCounts.entrySet()) {
+                Variation variation = entry.getKey();
+                Long quantity = entry.getValue();
+
+                Map<String, Object> productJson = new HashMap<>();
                 productJson.put("productName", variation.getProduct().getProductName());
                 productJson.put("size", variation.getSize().getSizeName());
                 productJson.put("color", variation.getColor().getColorName());
-//                productJson.put("quantity", detail.getId()); Phải đếm
-                productJson.put("unitPrice", detail.getVariationPriceAtPurchase());
-            }
-            productDetails.add(productJson);
-        }
-        jsonResponse.put("productDetails", productDetails);
+                productJson.put("quantity", quantity);
 
+                // Find the price from one of the corresponding order details
+                BigDecimal unitPrice = orderDetails.stream()
+                        .filter(od -> od.getVariationSingle().getVariation().equals(variation))
+                        .findFirst()
+                        .map(OrderVariationSingle::getVariationPriceAtPurchase)
+                        .orElse(BigDecimal.ZERO);
+
+                productJson.put("unitPrice", unitPrice);
+                productDetails.add(productJson);
+            }
+        }
+
+        jsonResponse.put("productDetails", productDetails);
         return jsonResponse;
     }
 
@@ -584,23 +621,18 @@ public class OrderService {
             throw new IllegalArgumentException("Order details cannot be null");
         }
 
-//        System.out.println("Order ID: " + order.getOrderId());
-//        System.out.println("Order details count: " + orderDTO.getOrderDetails().size());
-
-        List<OrderVariationSingle> orderVariationSingles = new ArrayList<>();
+        List<OrderVariationSingle> savedOrderVariationSingles = new ArrayList<>();
         try {
             orderDTO.getOrderDetails().forEach(detail -> {
-//                System.out.println("Order detail: " + detail);
                 Variation variation = variationRepository.findById(detail.getVariationId()).orElse(null);
                 if (variation != null) {
                     for (int i = 0; i < detail.getOrderQuantity(); i++) {
                         VariationSingle variationSingle = VariationSingle.builder()
-                                .colorNameForVariationSingle(variation.getColor().getColorName())
-                                .sizeNameForVariationSingle(variation.getSize().getSizeName())
-                                .productCodeForVariationSingle(variation.getProduct().getProductCode())
+                                .variation(variation)
                                 .isVariationSingleBought(true)
                                 .build();
                         variationSingle = variationSingleRepository.save(variationSingle);
+
                         OrderVariationSingle orderVariationSingle = OrderVariationSingle.builder()
                                 .id(OrderVariationSingleId.builder()
                                         .variationSingleId(variationSingle.getId())
@@ -610,30 +642,27 @@ public class OrderService {
                                 .variationSingle(variationSingle)
                                 .variationPriceAtPurchase(detail.getUnitPrice())
                                 .build();
-                        orderVariationSingles.add(orderVariationSingleRepository.save(orderVariationSingle));
+
+                        OrderVariationSingle savedOvs = orderVariationSingleRepository.save(orderVariationSingle);
+
+                        order.getOrderVariationSingles().add(savedOvs);
+
+                        savedOrderVariationSingles.add(savedOvs);
                     }
-                    List<StockVariation> stockVariations = stockVariationRepository.findByVariationId(variation.getId());
-                    for (StockVariation stockVariation : stockVariations) {
-                        if (stockVariation.getStockQuantity() >= detail.getOrderQuantity()) {
-                            stockVariation.setStockQuantity(stockVariation.getStockQuantity() - detail.getOrderQuantity());
-                            break;
-                        } else {
-                            detail.setOrderQuantity(detail.getOrderQuantity() - stockVariation.getStockQuantity());
-                            stockVariation.setStockQuantity(0);
-                        }
-                    }
-                    stockVariationRepository.saveAll(stockVariations);
                 } else {
                     System.err.println("Variation not found");
                 }
             });
-//            System.out.println("finish");
+
+            stockTransactionService.createReservationTransactionsForOrder(order);
+
             cartService.removeAllFromCart(order.getUser().getUserId().toString());
         } catch (Exception e) {
             System.err.println("Failed to save order details: " + e.getMessage());
+            throw new RuntimeException("Failed to save order details", e);
         }
 
-        return orderVariationSingles;
+        return savedOrderVariationSingles;
     }
 
     private JSONObject handlePayment(Order order, OrderDTO orderDTO, List<OrderVariationSingle> orderDetails, HttpServletRequest request) {
@@ -912,54 +941,44 @@ public class OrderService {
 
     @Transactional
     public void reviewOrderByStaff(String orderId, String staffName, boolean isApproved) {
-//        System.out.println("Review Order Staff Name: " + staffName);
-//        System.out.println("Review Order OrderID: " + orderId);
-//        System.out.println("Review Order Is Approved: " + isApproved);
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid order ID"));
 
-        // Lấy thông tin của staff dựa trên tên
         User staff = userRepository.findByUserUsername(staffName)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid staff name"));
 
-        if (order.getOrderStatus().getOrderStatusName().equalsIgnoreCase("PENDING")) {
+        String currentStatus = order.getOrderStatus().getOrderStatusName();
+
+        if (currentStatus.equalsIgnoreCase("PENDING")) {
             order.setInchargeEmployee(staff);
             if (isApproved) {
-                // Lấy trạng thái PROCESSING theo ID (2)
                 OrderStatus processingStatus = orderStatusRepository.findById(2)
-                        .orElseThrow(() -> new IllegalStateException("OrderStatus với ID 2 (PROCESSING) không tìm thấy."));
+                        .orElseThrow(() -> new IllegalStateException("OrderStatus with ID 2 (PROCESSING) not found."));
                 order.setOrderStatus(processingStatus);
             } else {
-                //System.out.println(isApproved);
-                // Lấy trạng thái RETURNED theo ID (7)
                 OrderStatus cancelledStatus = orderStatusRepository.findById(7)
-                        .orElseThrow(() -> new IllegalStateException("OrderStatus với ID 7 (RETURNED) không tìm thấy."));
+                        .orElseThrow(() -> new IllegalStateException("OrderStatus with ID 7 (CANCELLED) not found."));
                 order.setOrderStatus(cancelledStatus);
-//                System.out.println(cancelledStatus);
-//                sendOrderCancellationEmail(order);
                 returnStock(order);
             }
             orderRepository.save(order);
-        } else if (order.getOrderStatus().getOrderStatusName().equalsIgnoreCase("PROCESSING")) {
+
+        } else if (currentStatus.equalsIgnoreCase("PROCESSING")) {
             order.setInchargeEmployee(staff);
             if (isApproved) {
-                // Lấy trạng thái SHIPPING theo ID (3)
-                OrderStatus processingStatus = orderStatusRepository.findById(3)
-                        .orElseThrow(() -> new IllegalStateException("OrderStatus với ID 3 (SHIPPING) không tìm thấy."));
-                order.setOrderStatus(processingStatus);
-                stockTransactionService.createShippingTransactionsForOrder(order);
+                OrderStatus shippingStatus = orderStatusRepository.findById(3)
+                        .orElseThrow(() -> new IllegalStateException("OrderStatus with ID 3 (SHIPPING) not found."));
+                order.setOrderStatus(shippingStatus);
             } else {
-//                System.out.println(isApproved);
-                // Lấy trạng thái RETURNED theo ID (7)
                 OrderStatus cancelledStatus = orderStatusRepository.findById(7)
-                        .orElseThrow(() -> new IllegalStateException("OrderStatus với ID 7 (RETURNED) không tìm thấy."));
+                        .orElseThrow(() -> new IllegalStateException("OrderStatus with ID 7 (CANCELLED) not found."));
                 order.setOrderStatus(cancelledStatus);
-//                System.out.println(cancelledStatus);
-//                sendOrderCancellationEmail(order);
+                returnStock(order);
             }
             orderRepository.save(order);
+
         } else {
-            throw new IllegalStateException("Order must be in PENDING status to be reviewed by staff.");
+            throw new IllegalStateException("Order must be in PENDING or PROCESSING status to be reviewed by staff.");
         }
     }
 
@@ -982,7 +1001,6 @@ public class OrderService {
         }
     }
 
-    // Phương thức chung để xây dựng nội dung email
     private String buildOrderEmailBody(Order order, Set<OrderVariationSingle> orderVariationSingles, String headerMessage) {
         String logoUrl = "https://i.ibb.co/gbpkn23f/tab.png"; // Shop logo URL
         String primaryColor = "#62C0EE"; // Primary color of the email
@@ -1326,47 +1344,37 @@ public class OrderService {
         String facebookIconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/2023_Facebook_icon.svg/2048px-2023_Facebook_icon.svg.png";
         String facebookUrl = "https://www.facebook.com/profile.php?id=61573783571056";
 
-        // Use DateTimeFormatter for OffsetDateTime
-        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy").withZone(ZoneId.of("Asia/Ho_Chi_Minh")); // Use appropriate time zone
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy").withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
         String formattedOrderDate = dateFormatter.format(order.getOrderDate());
         DateTimeFormatter expectedDeliveryDateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy").withZone(ZoneId.systemDefault());
         String formattedExpectedDeliveryDate = (order.getOrderExpectedDeliveryDate() != null)
                 ? expectedDeliveryDateFormatter.format(order.getOrderExpectedDeliveryDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate())
                 : "N/A";
 
-
         StringBuilder body = new StringBuilder();
         body.append("<div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; color: ")
                 .append(accentColor).append("; background-color: #ffffff; border-radius: 8px; border: 1px solid ")
                 .append(primaryColor).append(";'>")
-
-                // Header with Logo and Shop Name
                 .append("<div style='text-align: center; padding: 20px; background-color: ").append(primaryColor)
                 .append("; color: #ffffff;'>")
                 .append("<img src='").append(logoUrl).append("' alt='Unleashed Logo' style='height: 45px; vertical-align: middle; margin-right: 10px;' />")
                 .append("<span style='font-size: 24px; vertical-align: middle; font-weight: bold;'>Unleashed</span>")
                 .append("</div>")
-
-                // Greeting and Order Summary
                 .append("<div style='padding: 20px;'>")
                 .append("<p style='font-size: 16px; color: ").append(accentColor).append(";'><strong>Dear ")
                 .append(order.getUser().getUserFullname()).append(",</strong></p>")
                 .append("<p style='font-size: 16px; color: ").append(accentColor).append(";'>Thank you for shopping with Unleashed!</p>")
                 .append("<p style='font-size: 16px; color: ").append(accentColor).append(";'>We have received your return request for order <strong>#")
                 .append(order.getOrderId()).append("</strong> placed on ").append(formattedOrderDate).append(".</p>")
-
-                // Order Information Section
                 .append("<h3 style='color: ").append(primaryColor).append("; font-size: 18px;'>Order Information:</h3>")
                 .append("<ul style='list-style-type: none; padding: 0; color: ").append(accentColor).append(";'>")
                 .append("<li><strong>Order ID:</strong> ").append(order.getOrderId()).append("</li>")
-                .append("<li><strong>Order Date:</strong> ").append(formattedOrderDate).append("</li>") // Use formatted date
-                .append("<li><strong>Payment Method:</strong> ").append(order.getPaymentMethod().getPaymentMethodName()).append("</li>") // Use getPaymentMethodName()
-                .append("<li><strong>Shipping Method:</strong> ").append(order.getShippingMethod().getShippingMethodName()).append("</li>") // Use getShippingMethodName()
+                .append("<li><strong>Order Date:</strong> ").append(formattedOrderDate).append("</li>")
+                .append("<li><strong>Payment Method:</strong> ").append(order.getPaymentMethod().getPaymentMethodName()).append("</li>")
+                .append("<li><strong>Shipping Method:</strong> ").append(order.getShippingMethod().getShippingMethodName()).append("</li>")
                 .append("<li><strong>Total Amount:</strong> ").append(order.getOrderTotalAmount()).append(" VND</li>")
                 .append("<li><strong>Expected Delivery Date:</strong> ").append(formattedExpectedDeliveryDate).append("</li>")
                 .append("</ul>")
-
-                // Product Details Section (Corrected)
                 .append("<h3 style='color: ").append(primaryColor).append("; font-size: 18px;'>Product Details:</h3>")
                 .append("<table style='width: 100%; border-collapse: collapse; margin-top: 10px;'>")
                 .append("<thead>")
@@ -1380,63 +1388,40 @@ public class OrderService {
                 .append("</thead>")
                 .append("<tbody>");
 
-        Set<Variation> productVariations = convertOrderDetailsToProductVariations(orderVariationSingles);
-
         if (!orderVariationSingles.isEmpty()) {
-            Map<String, Long> variationQuantityMap = orderVariationSingles.stream()
+            Map<Variation, Long> variationQuantityMap = orderVariationSingles.stream()
                     .collect(Collectors.groupingBy(
-                            ovs -> {
-                                VariationSingle vs = variationSingleRepository.findById(ovs.getId().getVariationSingleId()).orElse(null);
-                                if (vs == null) {
-                                    return "UNKNOWN";
-                                }
-                                String code = vs.getVariationSingleCode();
-                                if (code == null || code.length() <= 6) {
-                                    return "INVALID_CODE";
-                                }
-                                return code.substring(0, code.length() - 6); // Extract common part
-                            },
+                            ovs -> ovs.getVariationSingle().getVariation(),
                             Collectors.counting()
                     ));
 
-            for (Map.Entry<String, Long> entry : variationQuantityMap.entrySet()) {
-                String variationCode = entry.getKey();
+            Map<Integer, BigDecimal> priceMap = orderVariationSingles.stream()
+                    .collect(Collectors.toMap(
+                            ovs -> ovs.getVariationSingle().getVariation().getId(),
+                            OrderVariationSingle::getVariationPriceAtPurchase,
+                            (price1, price2) -> price1
+                    ));
+
+            for (Map.Entry<Variation, Long> entry : variationQuantityMap.entrySet()) {
+                Variation variation = entry.getKey();
                 Long quantity = entry.getValue();
-                Variation variation = getVariationFromVariationCodeWithoutRandom(variationCode);
-                if (variation != null) {
-                    BigDecimal unitPrice = order.getOrderVariationSingles().stream()
-                            .filter(ovs -> {
-                                VariationSingle tempVs = variationSingleRepository.findById(ovs.getId().getVariationSingleId()).orElse(null);
-                                if (tempVs == null) return false;
-                                String tempCode = tempVs.getVariationSingleCode();
-                                if (tempCode == null || tempCode.length() <= 6) {
-                                    return false;
-                                }
-                                return tempCode.substring(0, tempCode.length() - 6).equals(variationCode);
-                            })
-                            .findFirst()
-                            .map(OrderVariationSingle::getVariationPriceAtPurchase)
-                            .orElse(BigDecimal.ZERO);
-                    body.append("<tr>")
-                            .append("<td style='padding: 8px; border: 1px solid #ddd; color: ").append(accentColor).append(";'>").append(variation.getProduct().getProductName()).append("</td>")
-                            .append("<td style='padding: 8px; border: 1px solid #ddd; color: ").append(accentColor).append(";'>").append(variation.getSize().getSizeName()).append("</td>")
-                            .append("<td style='padding: 8px; border: 1px solid #ddd; color: ").append(accentColor).append(";'>").append(variation.getColor().getColorName()).append("</td>")
-                            .append("<td style='padding: 8px; border: 1px solid #ddd; color: ").append(accentColor).append(";'>").append(quantity).append("</td>")
-                            .append("<td style='padding: 8px; border: 1px solid #ddd; color: ").append(accentColor).append(";'>").append(unitPrice).append(" VND</td>")
-                            .append("</tr>");
-                }
+                BigDecimal unitPrice = priceMap.getOrDefault(variation.getId(), BigDecimal.ZERO);
 
-
+                body.append("<tr>")
+                        .append("<td style='padding: 8px; border: 1px solid #ddd; color: ").append(accentColor).append(";'>").append(variation.getProduct().getProductName()).append("</td>")
+                        .append("<td style='padding: 8px; border: 1px solid #ddd; color: ").append(accentColor).append(";'>").append(variation.getSize().getSizeName()).append("</td>")
+                        .append("<td style='padding: 8px; border: 1px solid #ddd; color: ").append(accentColor).append(";'>").append(variation.getColor().getColorName()).append("</td>")
+                        .append("<td style='padding: 8px; border: 1px solid #ddd; color: ").append(accentColor).append(";'>").append(quantity).append("</td>")
+                        .append("<td style='padding: 8px; border: 1px solid #ddd; color: ").append(accentColor).append(";'>").append(unitPrice).append(" VND</td>")
+                        .append("</tr>");
             }
         } else {
             body.append("<tr><td colspan='5' style='padding: 8px; border: 1px solid #ddd; text-align: center; color: ").append(accentColor).append(";'>No products in this order.</td></tr>");
         }
 
         body.append("</tbody>")
-                .append("</table>");
-
-        // Contact Section
-        body.append("<div style='text-align: center; padding: 10px;'>")
+                .append("</table>")
+                .append("<div style='text-align: center; padding: 10px;'>")
                 .append("<p style='font-size: 16px; color: ").append(accentColor).append("; margin: 0 0 10px;'>")
                 .append("If you have any questions about your return or need assistance, feel free to contact us:")
                 .append("</p>")
@@ -1444,8 +1429,6 @@ public class OrderService {
                 .append("<img src='").append(facebookIconUrl).append("' alt='Facebook' style='width: 24px; height: 24px; margin: 5px 0;' />")
                 .append("</a>")
                 .append("</div>")
-
-                // Final Closing Message
                 .append("<div style='text-align: center; padding: 10px;'>")
                 .append("<p style='font-size: 16px; color: ").append(accentColor).append("; margin: 0;'>")
                 .append("We appreciate your understanding and look forward to serving you again.")
@@ -1454,8 +1437,6 @@ public class OrderService {
                 .append("Best regards,<br><strong>Unleashed Developer Team</strong>")
                 .append("</p>")
                 .append("</div>")
-
-                // Footer
                 .append("<div style='text-align: center; background-color: ").append(primaryColor)
                 .append("; color: #ffffff; padding: 10px; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;'>")
                 .append("<p style='margin: 0; font-size: 14px;'>© 2024 Unleashed</p>")
@@ -1509,48 +1490,7 @@ public class OrderService {
     }
 
     private void returnStock(Order order) {
-        if (order.getOrderVariationSingles() == null || order.getOrderVariationSingles().isEmpty()) {
-            return; // Nothing to return
-        }
-
-        // --- Step 1: Aggregate quantities to return for each unique variation code ---
-        Map<String, Long> quantityToReturnMap = order.getOrderVariationSingles().stream()
-                .map(ovs -> ovs.getVariationSingle().getVariationSingleCode())
-                .map(code -> code.substring(0, code.length() - 7)) // Extract base variation code
-                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
-
-        // --- Step 2: Get all unique variations from the codes in a single query ---
-        List<Variation> variations = quantityToReturnMap.keySet().stream()
-                .map(this::getVariationFromVariationCodeWithoutRandom) // Re-uses your existing helper
-                .filter(Objects::nonNull)
-                .toList();
-
-        if (variations.isEmpty()) return;
-
-        List<Integer> variationIds = variations.stream().map(Variation::getId).collect(Collectors.toList());
-
-        // --- Step 3: Batch fetch all relevant stock variations ---
-        // You may need to create findByVariationIdIn if it doesn't exist
-        List<StockVariation> stockToUpdate = stockVariationRepository.findByVariationIdIn(variationIds);
-
-        Map<Integer, StockVariation> stockMap = stockToUpdate.stream()
-                .collect(Collectors.toMap(sv -> sv.getVariation().getId(), Function.identity()));
-
-        // --- Step 4: Update stock quantities in memory ---
-        for (Variation variation : variations) {
-            StockVariation stockVariation = stockMap.get(variation.getId());
-            if (stockVariation != null) {
-                String baseCode = variation.getProduct().getProductCode() + "-" +
-                        variation.getColor().getColorName().toUpperCase() + "-" +
-                        variation.getSize().getSizeName().toUpperCase();
-
-                long quantityToAdd = quantityToReturnMap.getOrDefault(baseCode, 0L);
-                stockVariation.setStockQuantity(stockVariation.getStockQuantity() + (int) quantityToAdd);
-            }
-        }
-
-        // --- Step 5: Batch save all updated stock variations ---
-        stockVariationRepository.saveAll(stockToUpdate);
+        stockTransactionService.createReturnTransactionsForOrder(order);
     }
 
 

@@ -25,6 +25,7 @@ public class Notification {
     @Column(name = "notification_title")
     private String notificationTitle;
 
+    @Lob
     @Nationalized
     @Column(name = "notification_content")
     private String notificationContent;

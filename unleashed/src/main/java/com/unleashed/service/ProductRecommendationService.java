@@ -117,8 +117,7 @@ public class ProductRecommendationService {
         Map<Integer, Discount> discountMap = allDiscounts.stream()
                 .collect(Collectors.toMap(Discount::getDiscountId, Function.identity()));
 
-        List<String> topSoldProductIdsStr = orderRepository.findTopSoldProductIds(RecommendationConfig.TRENDING_DAYS_WINDOW, RecommendationConfig.MAX_TRENDING_PRODUCTS);
-        List<UUID> topSoldProductIds = topSoldProductIdsStr.stream().map(UUID::fromString).collect(Collectors.toList());
+        List<UUID> topSoldProductIds = orderRepository.findTopSoldProductIds(RecommendationConfig.TRENDING_DAYS_WINDOW, RecommendationConfig.MAX_TRENDING_PRODUCTS);
 
 
         List<ScoredProductDTO> scoredProducts = allProducts.stream()
@@ -153,20 +152,15 @@ public class ProductRecommendationService {
         Pageable recentOrdersPageable = PageRequest.of(0, RecommendationConfig.MAX_RECENT_ORDERS_TO_CONSIDER);
         List<Order> recentOrders = orderRepository.findRecentOrdersByUserId(userId, recentOrdersPageable);
 
+        if (recentOrders.isEmpty()) {
+            return Collections.emptyList();
+        }
+
         List<String> orderIds = recentOrders.stream().map(Order::getOrderId).toList();
         List<OrderVariationSingle> orderVariationSingles = orderVariationSingleRepository.findById_OrderIdIn(orderIds);
 
-        Set<String> productCodes = new HashSet<>();
-        for (OrderVariationSingle orderVariationSingle : orderVariationSingles) {
-            if (orderVariationSingle != null) {
-                String variationSingleCode = orderVariationSingle.getVariationSingle().getVariationSingleCode();
-                String productCode = variationSingleCode.substring(0, 6);
-                productCodes.add(productCode);
-            }
-        }
-
-        List<UUID> fetchedProductIds = productRepository.findIdsByProductCodes(new ArrayList<>(productCodes));
-        return new ArrayList<>(new HashSet<>(fetchedProductIds));
+        return orderVariationSingles.stream()
+                .map(ovs -> ovs.getVariationSingle().getVariation().getProduct().getProductId()).distinct().collect(Collectors.toList());
     }
 
 
@@ -555,8 +549,7 @@ public class ProductRecommendationService {
                 .map(saleProduct -> saleProduct.getId().getProductId())
                 .collect(Collectors.toSet());
 
-        List<String> topSoldProductIdsStr = orderRepository.findTopSoldProductIds(RecommendationConfig.TRENDING_DAYS_WINDOW, RecommendationConfig.MAX_TRENDING_PRODUCTS);
-        List<UUID> topSoldProductIds = topSoldProductIdsStr.stream().map(UUID::fromString).collect(Collectors.toList());
+        List<UUID> topSoldProductIds = orderRepository.findTopSoldProductIds(RecommendationConfig.TRENDING_DAYS_WINDOW, RecommendationConfig.MAX_TRENDING_PRODUCTS);
 
 
         List<ScoredProductDTO> scoredProducts = allProducts.stream()

@@ -46,9 +46,9 @@ public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecif
             SELECT
                 YEAR(o.order_date) AS year,
                 MONTH(o.order_date) AS month,
-                SUM(o.total_amount) AS totalAmount
-            FROM [order] o
-            WHERE o.order_status = 'COMPLETED'
+                SUM(o.order_total_amount) AS totalAmount
+            FROM "order" o
+            WHERE o.order_status_id = 4
             GROUP BY YEAR(o.order_date), MONTH(o.order_date)
             ORDER BY year, month
             """, nativeQuery = true)
@@ -62,9 +62,10 @@ public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecif
             SELECT
                 v.product_id AS productId,
                 p.product_name AS productName,
-                SUM(od.order_quantity) AS totalSold
-            FROM order_variation_single od
-            JOIN variation v ON od.variation_id = v.variation_id
+                COUNT(ovs.variation_single_id) AS totalSold
+            FROM order_variation_single ovs
+            JOIN variation_single vs ON ovs.variation_single_id = vs.variation_single_id
+            JOIN variation v ON vs.variation_id = v.variation_id
             JOIN product p ON v.product_id = p.product_id
             GROUP BY v.product_id, p.product_name
             ORDER BY totalSold DESC
@@ -75,17 +76,19 @@ public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecif
             SELECT
                 p.product_id AS productId,
                 p.product_name AS productName,
-                SUM(od.order_quantity) AS totalQuantitySold
+                COUNT(ovs.variation_single_id) AS totalQuantitySold
             FROM
-                [order] o
+                "order" o
             JOIN
-                order_detail od ON o.order_id = od.order_id
+                order_variation_single ovs ON o.order_id = ovs.order_id
             JOIN
-                product_variation pv ON od.variation_id = pv.variation_id
+                variation_single vs ON ovs.variation_single_id = vs.variation_single_id
             JOIN
-                product p ON pv.product_id = p.product_id
+                variation v ON vs.variation_id = v.variation_id
+            JOIN
+                product p ON v.product_id = p.product_id
             WHERE
-                o.order_status = 'COMPLETED' AND FORMAT(o.order_date, 'yyyy-MM') = :month
+                o.order_status_id = 4 AND FORMAT(o.order_date, 'yyyy-MM') = :month
             GROUP BY
                 p.product_id, p.product_name
             ORDER BY
@@ -95,14 +98,16 @@ public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecif
 
     @Query(value = """
             SELECT
-                o.order_status AS orderStatus,
+                os.order_status_name AS orderStatus,
                 COUNT(o.order_id) AS totalOrders
             FROM
-                [order] o
+                "order" o
+            JOIN
+                order_status os ON o.order_status_id = os.order_status_id
             WHERE
                 FORMAT(o.order_date, 'yyyy-MM') = :month
             GROUP BY
-                o.order_status
+                os.order_status_name
             ORDER BY
                 totalOrders DESC
             """, nativeQuery = true)
@@ -114,23 +119,22 @@ public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecif
     @Query(value = """
             WITH ProductSales AS (
                 SELECT
-                    p.product_id,
+                    v.product_id,
                     COUNT(ovs.variation_single_id) AS total_sold
                 FROM
                     product p
                 JOIN
                     variation v ON p.product_id = v.product_id
                 JOIN
-                    variation_single vs ON v.variation_id = vs.variation_single_id
+                    variation_single vs ON v.variation_id = vs.variation_id
                 JOIN
                     order_variation_single ovs ON vs.variation_single_id = ovs.variation_single_id
                 JOIN
                     "order" o ON ovs.order_id = o.order_id
                 WHERE
                     o.order_date >= DATEADD(day, -:number_of_days, GETDATE())
-                  AND o.order_status_id IN (SELECT order_status_id from order_status)
                 GROUP BY
-                    p.product_id
+                    v.product_id
             )
             SELECT
                 TOP (:top_n_products) product_id
@@ -139,7 +143,7 @@ public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecif
             ORDER BY
                 total_sold DESC
             """, nativeQuery = true)
-    List<String> findTopSoldProductIds(@Param("number_of_days") int numberOfDays, @Param("top_n_products") int topNProducts);
+    List<UUID> findTopSoldProductIds(@Param("number_of_days") int numberOfDays, @Param("top_n_products") int topNProducts);
 
     @Query(value = "SELECT o FROM Order o " +
             "ORDER BY CASE WHEN o.orderStatus.orderStatusName = 'PENDING' THEN 1 ELSE 2 END ASC, " +
@@ -147,25 +151,14 @@ public interface OrderRepository extends JpaRepository<Order, String>, JpaSpecif
             countQuery = "SELECT count(o) FROM Order o")
     Page<Order> findAllWithPriority(Pageable pageable);
 
-    /**
-     * Finds all completed orders for a given user that contain a specific product.
-     * This query is crucial for determining if a user is eligible to write a review.
-     *
-     * @param userId    The ID of the user.
-     * @param productId The ID of the product.
-     * @return A list of eligible Order entities.
-     */
     @Query("""
-            SELECT o FROM Order o
-            JOIN o.orderVariationSingles ovs
-            JOIN ovs.variationSingle vs
-            JOIN Variation v ON SUBSTRING(vs.variationSingleCode, 1, LOCATE('-', vs.variationSingleCode) - 1) = v.product.productCode
-            WHERE o.user.userId = :userId
-            AND v.product.productId = :productId
-            AND o.orderStatus.orderStatusName = 'COMPLETED'
-            """)
+        SELECT DISTINCT o FROM Order o
+        JOIN o.orderVariationSingles ovs
+        JOIN ovs.variationSingle vs
+        JOIN vs.variation v
+        WHERE o.user.userId = :userId
+        AND v.product.productId = :productId
+        AND o.orderStatus.orderStatusName = 'COMPLETED'
+        """)
     List<Order> findCompletedOrdersByUserAndProduct(@Param("userId") UUID userId, @Param("productId") UUID productId);
-
-
-
 }

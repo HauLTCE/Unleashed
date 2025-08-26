@@ -2,6 +2,7 @@ package com.unleashed.repo;
 
 import com.unleashed.dto.DashboardReviewDTO;
 import com.unleashed.entity.Comment;
+import com.unleashed.entity.Product;
 import com.unleashed.entity.Review;
 import com.unleashed.entity.User;
 import org.springframework.data.domain.Page;
@@ -136,6 +137,11 @@ public interface ReviewRepository extends JpaRepository<Review, Integer> {
             countQuery = "SELECT COUNT(r) FROM Review r WHERE r.user.userUsername = :userUsername AND r.reviewRating IS NOT NULL"
     )
     Page<Review> findAllByUser_Username(String userUsername, Pageable pageable);
+
+
+    boolean existsByProductAndUser(Product product, User user);
+
+
 
 
 
