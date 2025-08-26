@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ProductList from '../../components/lists/ProductList';
 import MainLayout from '../../layouts/MainLayout';
 import bg from '../../assets/images/bg.svg';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import FilterComponent from '../../components/filters/MultipleFilter';
 import { Pagination, CircularProgress, TextField, Box, Breadcrumbs, Typography } from '@mui/material';
 import { getProductList } from '../../service/ShopService';
@@ -11,17 +11,24 @@ import useDebounce from '../../components/hooks/useDebounce';
 const itemsPerPage = 12;
 
 export function Shop() {
+    const location = useLocation();
     const [page, setPage] = useState(1);
 
-    const [filter, setFilter] = useState({
-        brand: '',
-        category: '',
-        priceOrder: '',
-        rating: 0,
-        query: ''
+    const [filter, setFilter] = useState(() => {
+        const params = new URLSearchParams(location.search);
+        return {
+            brand: '',
+            category: '',
+            priceOrder: '',
+            rating: 0,
+            query: params.get('query') || ''
+        };
     });
 
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(() => {
+        const params = new URLSearchParams(location.search);
+        return params.get('query') || '';
+    });
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
     const [products, setProducts] = useState([]);
@@ -31,6 +38,12 @@ export function Shop() {
     const [error, setError] = useState(null);
 
     const productListRef = useRef(null);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const queryFromUrl = params.get('query') || '';
+        setSearchTerm(queryFromUrl);
+    }, [location.search]);
 
     const handleFilterChange = useCallback((filterUpdate) => {
         setFilter(currentFilter => ({
@@ -46,6 +59,10 @@ export function Shop() {
 
     useEffect(() => {
         const fetchProductsFromServer = async () => {
+            if (filter.query === '' && searchTerm !== '') {
+                return;
+            }
+
             setLoading(true);
             setError(null);
             try {
@@ -62,7 +79,7 @@ export function Shop() {
         };
 
         fetchProductsFromServer();
-    }, [page, filter]);
+    }, [page, filter, searchTerm]);
 
     const handlePageChange = (event, value) => {
         setPage(value);

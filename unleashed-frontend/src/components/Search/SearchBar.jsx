@@ -1,58 +1,41 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { getProductList } from "../../service/ShopService"; // Import the API service
-import useDebounce from "../hooks/useDebounce"; // Import the debounce hook
-import useSearchBar from "../hooks/SearchHook";
+import { getProductList } from "../../service/ShopService";
+import useDebounce from "../hooks/useDebounce";
+import { useSearchBar } from "../hooks/SearchHook";
 
-const SearchBar = ({ toggleSearchBar }) => {
-    // State for the user's direct input
+const SearchBar = () => {
     const [query, setQuery] = useState("");
-    // Debounced version of the query. The API call will be triggered by this.
-    const debouncedQuery = useDebounce(query, 300); // 300ms delay
-
-    // State for the results fetched from the API
+    const debouncedQuery = useDebounce(query, 300);
     const [searchResults, setSearchResults] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
-
-    const { isSearchOpen } = useSearchBar();
     const navigate = useNavigate();
 
-    // Refs for UI manipulation (no changes needed here)
+    const { isSearchOpen, toggleSearchBar } = useSearchBar();
+
     const searchBarRef = useRef(null);
     const inputRef = useRef(null);
-    const buttonRef = useRef(null);
     const searchResultsRef = useRef(null);
-    const [left, setLeft] = useState("50%");
 
-
-    // This useEffect hook now performs the API call when the debounced query changes
     useEffect(() => {
-        // If the debounced query is empty, clear results and don't do anything
         if (!debouncedQuery.trim()) {
             setSearchResults([]);
             return;
         }
-
         const fetchSearchResults = async () => {
             setIsLoading(true);
             try {
-                // Fetch only the top 5 results for the dropdown preview
                 const data = await getProductList(1, 5, { query: debouncedQuery });
                 setSearchResults(data.content || []);
             } catch (error) {
                 console.error("Error fetching search results:", error);
-                setSearchResults([]); // Clear results on error
+                setSearchResults([]);
             } finally {
                 setIsLoading(false);
             }
         };
-
         fetchSearchResults();
-    }, [debouncedQuery]); // The dependency is the debounced value
-
-
-    // All the local UI logic, handlers, and effects below remain largely the same
-    // as they handle the presentation, not the data.
+    }, [debouncedQuery]);
 
     const handleChange = (e) => {
         setQuery(e.target.value);
@@ -60,7 +43,7 @@ const SearchBar = ({ toggleSearchBar }) => {
 
     const handleSearch = () => {
         if (query.trim()) {
-            navigate(`/search?query=${query}`);
+            navigate(`/shop?query=${query}`);
             toggleSearchBar();
             setQuery("");
         }
@@ -81,38 +64,21 @@ const SearchBar = ({ toggleSearchBar }) => {
 
     useEffect(() => {
         if (isSearchOpen && inputRef.current) {
-            inputRef.current.focus();
+            const timer = setTimeout(() => {
+                inputRef.current.focus();
+            }, 150);
+            return () => clearTimeout(timer);
         }
     }, [isSearchOpen]);
 
     useEffect(() => {
-        document.addEventListener("mousedown", handleClickOutside);
+        if (isSearchOpen) {
+            document.addEventListener("mousedown", handleClickOutside);
+        }
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, []);
-
-    useEffect(() => {
-        const updatePosition = () => {
-            if (!inputRef.current || !buttonRef.current) return;
-            const inputWidth = inputRef.current.offsetWidth;
-            const buttonWidth = buttonRef.current.offsetWidth;
-            const gap = 24;
-            const totalWidth = inputWidth + buttonWidth + gap;
-
-            setLeft(`calc(50% - ${totalWidth / 2}px)`);
-
-            if (searchResultsRef.current) {
-                searchResultsRef.current.style.left = `calc(50% - ${totalWidth / 2}px)`;
-                searchResultsRef.current.style.width = `${totalWidth}px`;
-            }
-        };
-
-        window.addEventListener("resize", updatePosition);
-        updatePosition();
-
-        return () => window.removeEventListener("resize", updatePosition);
-    }, [query]);
+    }, [isSearchOpen]);
 
     const handleKeyDownInput = (e) => {
         if (e.key === 'Enter') {
@@ -125,8 +91,9 @@ const SearchBar = ({ toggleSearchBar }) => {
         <>
             <div
                 ref={searchBarRef}
-                className={`fixed top-28 transform -translate-x-1/2 z-50 bg-white p-2 max-w-[40rem] rounded-full shadow-lg flex items-center gap-3 ${isSearchOpen ? "animate-slide-out" : "animate-slide-in"}`}
-                style={{ left }}
+                className={`fixed left-1/2 transform -translate-x-1/2 z-50 bg-white p-2 max-w-[40rem] rounded-full shadow-lg flex items-center gap-3
+                           transition-all duration-300 ease-in-out
+                           ${isSearchOpen ? 'top-44 opacity-100' : 'top-32 opacity-0 pointer-events-none'}`}
             >
                 <input
                     ref={inputRef}
@@ -138,7 +105,6 @@ const SearchBar = ({ toggleSearchBar }) => {
                     onKeyDown={handleKeyDownInput}
                 />
                 <button
-                    ref={buttonRef}
                     onClick={handleSearch}
                     className="bg-blue-500 text-white px-6 py-2 rounded-full hover:bg-blue-600"
                 >
@@ -146,11 +112,10 @@ const SearchBar = ({ toggleSearchBar }) => {
                 </button>
             </div>
 
-            {/* The search results dropdown now uses the new state */}
-            {query && (
+            {query && isSearchOpen && (
                 <div
                     ref={searchResultsRef}
-                    className="fixed top-[11.5rem] z-50 bg-white shadow-lg rounded-lg border-t border-gray-200 mt-2 ml-2"
+                    className="fixed top-[15rem] left-1/2 transform -translate-x-1/2 z-50 bg-white shadow-lg rounded-lg border-t border-gray-200 mt-2 w-[31rem]"
                     onMouseDown={(e) => e.stopPropagation()}
                 >
                     <ul className="max-h-64 overflow-y-auto">
@@ -168,7 +133,7 @@ const SearchBar = ({ toggleSearchBar }) => {
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     toggleSearchBar();
-                                    setQuery(""); // Clear query after selection
+                                    setQuery("");
                                 }}
                             >
                                 <li className="flex items-center py-3 px-4 hover:bg-blue-100 cursor-pointer">

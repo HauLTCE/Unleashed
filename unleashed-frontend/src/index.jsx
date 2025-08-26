@@ -7,6 +7,7 @@ import { BrowserRouter } from "react-router-dom";
 import createStore from "react-auth-kit/createStore";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { CartProvider } from "react-use-cart";
+import { SearchProvider } from './components/hooks/SearchHook';
 // import { ProductProvider } from "./components/Providers/Product";
 
 const store = createStore({
@@ -22,11 +23,13 @@ root.render(
     <AuthProvider store={store}>
       <GoogleOAuthProvider clientId="300845919892-bbvpmkgcep2j7jl8dfk09spmf4lf95sv.apps.googleusercontent.com">
         <BrowserRouter basename="/">
-          <CartProvider>
-            {/*<ProductProvider>*/}
-              <App />
-            {/*</ProductProvider>*/}
-          </CartProvider>
+            <SearchProvider>
+                <CartProvider>
+                    {/*<ProductProvider>*/}
+                    <App />
+                    {/*</ProductProvider>*/}
+                </CartProvider>
+            </SearchProvider>
         </BrowserRouter>
       </GoogleOAuthProvider>
     </AuthProvider>

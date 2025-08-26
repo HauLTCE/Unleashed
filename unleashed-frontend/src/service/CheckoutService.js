@@ -1,5 +1,5 @@
-import { apiClient } from "../core/api";
-import { toast, Zoom } from "react-toastify";
+import {apiClient} from "../core/api";
+import {toast, Zoom} from "react-toastify";
 
 export const checkDiscount = async (discountCode, authHeader, totalOrder) => {
   try {
@@ -118,3 +118,22 @@ export const getShippingMethod = async (authHeader) => {
     })
   }
 }
+
+export const checkStock = async (checkoutItem, authHeader) => {
+    try {
+        return await apiClient.post("/api/orders/check-stock", {
+            orderDetails: checkoutItem.orderDetails
+        }, {
+            headers: {
+                Authorization: authHeader,
+            },
+        });
+    } catch (error) {
+        toast.error(error.response?.data?.message || "An item in your cart is out of stock.", {
+            position: "top-center",
+            transition: Zoom,
+            autoClose: 2000
+        });
+        throw error;
+    }
+};

@@ -7,8 +7,8 @@ import com.unleashed.dto.PayOsLinkRequestBodyDTO;
 import com.unleashed.dto.mapper.OrderDetailMapper;
 import com.unleashed.dto.mapper.OrderMapper;
 import com.unleashed.dto.mapper.ProductVariationMapper;
-import com.unleashed.entity.composite.OrderVariationSingleId;
 import com.unleashed.entity.*;
+import com.unleashed.entity.composite.OrderVariationSingleId;
 import com.unleashed.repo.*;
 import com.unleashed.repo.specification.OrderSpecification;
 import jakarta.persistence.Tuple;
@@ -58,9 +58,9 @@ public class OrderService {
     private final RankService rankService;
     private final StockVariationRepository stockVariationRepository;
     private final UserService userService;
-    private boolean isCancellingOrder = false;
     private final ReviewRepository reviewRepository;
     private final StockTransactionService stockTransactionService;
+    private boolean isCancellingOrder = false;
 
     @Autowired
     public OrderService(OrderRepository orderRepository,
@@ -164,7 +164,6 @@ public class OrderService {
             return orderJson;
         });
     }
-
 
 
     @Transactional
@@ -439,8 +438,7 @@ public class OrderService {
     @Transactional
     public Map<String, Object> createOrder(OrderDTO orderDTO, HttpServletRequest request) {
 
-        // Log thông tin OrderDTO nhận được
-//        System.out.println("Received OrderDTO: " + orderDTO); // Kiểm tra lại tại đây
+
 
 
         // 1. Khởi tạo Order từ DTO và lưu vào database
@@ -1505,7 +1503,8 @@ public class OrderService {
         orderRepository.save(order);
         returnStock(order);
 
-        if(userService.getUserById(order.getUser().getUserId().toString()).getUserRank() != null) rankService.removeMoneySpent(order.getUser(), order.getOrderTotalAmount());
+        if (userService.getUserById(order.getUser().getUserId().toString()).getUserRank() != null)
+            rankService.removeMoneySpent(order.getUser(), order.getOrderTotalAmount());
 
     }
 
@@ -1553,4 +1552,37 @@ public class OrderService {
         // --- Step 5: Batch save all updated stock variations ---
         stockVariationRepository.saveAll(stockToUpdate);
     }
+
+
+    @Transactional
+    public void checkStockAvailability(OrderDTO orderDTO) {
+        for (com.unleashed.dto.OrderDetailDTO detail : orderDTO.getOrderDetails()) {
+            Integer availableStock = stockVariationRepository.findStockProductByProductVariationId(detail.getVariationId());
+            if (availableStock == null || availableStock < detail.getOrderQuantity()) {
+                Variation variation = variationRepository.findById(detail.getVariationId()).orElse(null);
+
+                String productName = "a product";
+                String color = "";
+                String size = "";
+
+                if (variation != null) {
+                    productName = "'" + variation.getProduct().getProductName() + "'";
+                    color = variation.getColor().getColorName();
+                    size = variation.getSize().getSizeName();
+                }
+
+                int stockOnHand = availableStock != null ? availableStock : 0;
+
+                String errorMessage;
+                if (stockOnHand > 0) {
+                    errorMessage = "Sorry, we only have " + stockOnHand + " of " + productName + " (" + color + ", " + size + ") left in stock.";
+                } else {
+                    errorMessage = "Sorry, " + productName + " (" + color + ", " + size + ") is currently out of stock.";
+                }
+                throw new IllegalStateException(errorMessage);
+            }
+        }
+    }
+
+
 }
