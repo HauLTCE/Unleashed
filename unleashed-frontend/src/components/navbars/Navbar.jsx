@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { IoCartOutline, IoSearchOutline } from "react-icons/io5";
-import { useCart } from "react-use-cart"; // Import useCart
+import { useCart } from "react-use-cart";
 import logo from "../../assets/images/logo.webp";
 import logonavbar from "../../assets/images/logonavbar.webp";
 import useIsAuthenticated from "react-auth-kit/hooks/useIsAuthenticated";
@@ -11,7 +11,7 @@ import CartDrawer from "../Cart/CartDrawer";
 import { Badge, IconButton, Tooltip } from "@mui/material";
 import NotificationIcon from "../menus/NotificationMenu";
 import SearchBar from "../Search/SearchBar";
-import useSearchBar from "../hooks/SearchHook";
+import { useSearchBar } from "../hooks/SearchHook";
 
 export function Navbar() {
   const dropdownRef = useRef(null);
@@ -19,7 +19,7 @@ export function Navbar() {
 
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  const { isSearchOpen, toggleSearchBar } = useSearchBar();
+  const { toggleSearchBar } = useSearchBar();
 
   const { totalItems } = useCart();
 
@@ -153,13 +153,8 @@ export function Navbar() {
 
       {/* Cart Drawer */}
       <CartDrawer isCartOpen={isCartOpen} toggleCartDrawer={toggleCartDrawer} />
-      
-      {isSearchOpen && (
-        <SearchBar
-          isSearchOpen={isSearchOpen}
-          toggleSearchBar={toggleSearchBar}
-        />
-      )}
+
+        <SearchBar />
     </nav>
   );
 }

@@ -1,34 +1,39 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext, createContext } from 'react';
 
-const useSearchBar = () => {
-  const [isSearchOpen, setIsSearchOpen] = useState(false); // State for controlling the visibility of the search bar
+const SearchContext = createContext();
 
-  const toggleSearchBar = () => {
-    setIsSearchOpen(prevState => !prevState); // Toggle the visibility of the search bar
-  };
+export const SearchProvider = ({ children }) => {
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Check if Ctrl (or Cmd on Mac) + I is pressed
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-        e.preventDefault(); // Prevent the default action (e.g., opening the browser's "Inspect" panel)
-        toggleSearchBar(); // Toggle the search bar visibility
-      }
+    const toggleSearchBar = () => {
+        setIsSearchOpen(prevState => !prevState);
     };
 
-    // Add the keydown event listener
-    window.addEventListener('keydown', handleKeyDown);
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                e.preventDefault();
+                toggleSearchBar();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, []);
 
-    // Cleanup the event listener on component unmount
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+    const value = {
+        isSearchOpen,
+        toggleSearchBar,
     };
-  }, []); // Empty dependency array ensures this effect runs only once when the component mounts
 
-  return {
-    isSearchOpen,
-    toggleSearchBar,
-  };
+    return (
+        <SearchContext.Provider value={value}>
+            {children}
+        </SearchContext.Provider>
+    );
 };
 
-export default useSearchBar;
+export const useSearchBar = () => {
+    return useContext(SearchContext);
+};

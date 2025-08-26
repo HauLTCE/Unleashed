@@ -19,7 +19,13 @@ import { formatPrice } from "../../components/format/formats";
 import ShipmentSelector from "../../service/ShipmentService";
 import { CommonRadioCard } from "../../components/inputs/Radio";
 import useAuthUser from "react-auth-kit/hooks/useAuthUser";
-import { checkDiscount, checkoutOrder, getPaymentMethod, getShippingMethod } from "../../service/CheckoutService";
+import {
+    checkDiscount,
+    checkoutOrder,
+    checkStock,
+    getPaymentMethod,
+    getShippingMethod
+} from "../../service/CheckoutService";
 import useAuthHeader from "react-auth-kit/hooks/useAuthHeader";
 import { toast } from "react-toastify";
 import { fetchMembership, GetUserInfo } from "../../service/UserService";
@@ -261,6 +267,8 @@ const CheckoutPage = () => {
             return;
         }
         try {
+            await checkStock(checkoutData, authHeader);
+
             const response = await checkoutOrder(checkoutData, authHeader);
             if (response?.data) {
                 localStorage.setItem("orderId", response.data.orderId);
@@ -274,7 +282,9 @@ const CheckoutPage = () => {
             }
         } catch (error) {
             console.error("Order placement failed:", error);
-            toast.error("Failed to place order. Please try again.", { position: "top-center", autoClose: 2000 });
+            if (error.response?.status !== 400) {
+                toast.error("Failed to place order. Please try again.", { position: "top-center", autoClose: 2000 });
+            }
         }
     };
 

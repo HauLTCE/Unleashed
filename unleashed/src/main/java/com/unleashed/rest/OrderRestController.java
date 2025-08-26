@@ -110,6 +110,18 @@ public class OrderRestController {
 
 
     @PreAuthorize("hasAuthority('CUSTOMER')")
+    @PostMapping("/check-stock")
+    public ResponseEntity<ResponseDTO> checkStockAvailability(@RequestBody OrderDTO orderDTO) {
+        try {
+            orderService.checkStockAvailability(orderDTO);
+            return ResponseEntity.ok(new ResponseDTO(HttpStatus.OK.value(), "Stock is available."));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseDTO(HttpStatus.BAD_REQUEST.value(), e.getMessage()));
+        }
+    }
+
+
+    @PreAuthorize("hasAuthority('CUSTOMER')")
     @PostMapping
     public ResponseEntity<Map<String, Object>> createOrder(@RequestBody OrderDTO orderDTO, HttpServletRequest request) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
