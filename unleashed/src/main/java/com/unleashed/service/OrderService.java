@@ -11,6 +11,7 @@ import com.unleashed.entity.composite.OrderVariationSingleId;
 import com.unleashed.entity.*;
 import com.unleashed.repo.*;
 import com.unleashed.repo.specification.OrderSpecification;
+import jakarta.persistence.Tuple;
 import jakarta.servlet.http.HttpServletRequest;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +30,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 
@@ -128,171 +130,89 @@ public class OrderService {
             orderJson.put("transactionReference", order.getOrderTransactionReference());
             orderJson.put("paymentMethod", order.getPaymentMethod().getPaymentMethodName());
             orderJson.put("trackingNumber", order.getOrderTrackingNumber());
+            orderJson.put("orderTrackingNumber", order.getOrderTrackingNumber());
             orderJson.put("customerUsername", order.getUser().getUsername());
             orderJson.put("customerUserId", order.getUser().getUserId());
             orderJson.put("notes", order.getOrderNote());
             orderJson.put("staffUsername",
                     order.getInchargeEmployee() != null ? order.getInchargeEmployee().getUsername() : "N/A");
 
-            Map<String, Long> variationQuantityMap = order.getOrderVariationSingles().stream()
-                    .collect(Collectors.groupingBy(
-                            ovs -> {
-                                VariationSingle vs = variationSingleRepository.findById(ovs.getId().getVariationSingleId()).orElse(null);
-                                if (vs == null) {
-                                    return "UNKNOWN";
-                                }
-                                String code = vs.getVariationSingleCode();
-                                if (code == null || code.length() <= 6) {
-                                    return "INVALID_CODE";
-                                }
-                                return code.substring(0, code.length() - 6);
-                            },
-                            Collectors.counting()
-                    ));
+            List<Tuple> aggregatedDetails = orderVariationSingleRepository.findAggregatedDetailsWithReviewStatus(orderId, order.getUser().getUserId());
 
-            List<Map<String, Object>> orderDetailsList = variationQuantityMap.entrySet().stream()
-                    .map(entry -> {
-                        String variationCode = entry.getKey();
-                        Long quantity = entry.getValue();
-                        Map<String, Object> detailJson = new HashMap<>();
+            List<Map<String, Object>> orderDetailsList = aggregatedDetails.stream().map(detail -> {
+                Map<String, Object> detailJson = new HashMap<>();
+                String productIdStr = detail.get("productId", String.class);
+                detailJson.put("productId", UUID.fromString(productIdStr));
+                detailJson.put("productName", detail.get("productName", String.class));
+                detailJson.put("color", detail.get("color", String.class));
+                detailJson.put("size", detail.get("size", String.class));
+                detailJson.put("productImage", detail.get("productImage", String.class));
+                detailJson.put("unitPrice", detail.get("unitPrice", BigDecimal.class));
+                detailJson.put("orderQuantity", detail.get("quantity", Number.class).longValue());
+                detailJson.put("hasReviewed", detail.get("hasReviewed", Boolean.class));
+                detailJson.put("orderTrackingNumber", order.getOrderTrackingNumber());
+                return detailJson;
+            }).collect(Collectors.toList());
 
-                        if ("UNKNOWN".equals(variationCode) || "INVALID_CODE".equals(variationCode)) {
-                            detailJson.put("productName", "Product info unavailable");
-                            detailJson.put("color", "N/A");
-                            detailJson.put("size", "N/A");
-                            detailJson.put("orderQuantity", quantity);
-                            detailJson.put("unitPrice", BigDecimal.ZERO);
-                            detailJson.put("productImage", null);
-                            detailJson.put("variationSingleId", null); // Add variationSingleId even in error case
-                            return detailJson;
-                        }
+            long totalOrderQuantity = orderDetailsList.stream()
+                    .mapToLong(d -> (Long) d.get("orderQuantity"))
+                    .sum();
 
-                        Variation variation = getVariationFromVariationCodeWithoutRandom(variationCode);
-                        if (variation != null) {
-                            detailJson.put("productId", variation.getProduct().getProductId());
-                            detailJson.put("productName", variation.getProduct().getProductName());
-                            detailJson.put("color", variation.getColor().getColorName());
-                            detailJson.put("size", variation.getSize().getSizeName());
-                            detailJson.put("orderQuantity", quantity);
-                            detailJson.put("productImage", variation.getVariationImage());
-
-                            // Find a VariationSingle associated with this variationCode to get variationSingleId
-                            Integer variationSingleIdForCode = order.getOrderVariationSingles().stream()
-                                    .filter(ovs -> {
-                                        VariationSingle tempVs = variationSingleRepository.findById(ovs.getId().getVariationSingleId()).orElse(null);
-                                        if (tempVs == null) return false;
-                                        String tempCode = tempVs.getVariationSingleCode();
-                                        if (tempCode == null || tempCode.length() <= 6) {
-                                            return false;
-                                        }
-                                        return tempCode.substring(0, tempCode.length() - 6).equals(variationCode);
-                                    })
-                                    .findFirst()
-                                    .map(ovs -> ovs.getId().getVariationSingleId())
-                                    .orElse(null);
-                            detailJson.put("variationSingleId", variationSingleIdForCode); // Add variationSingleId to detailJson
-
-                            // **Kiểm tra xem user đã review SẢN PHẨM này VỚI ORDER NÀY:**
-                            boolean hasReviewed = reviewRepository.existsByProduct_ProductIdAndOrder_OrderIdAndUser_UserId(
-                                    variation.getProduct().getProductId(),
-                                    order.getOrderId(), // **Truyền order.getOrderId() vào đây**
-                                    order.getUser().getUserId()
-                            );
-
-                            detailJson.put("hasReviewed", hasReviewed); // **Thêm hasReviewed vào detailJson**
-
-
-                            BigDecimal unitPrice = order.getOrderVariationSingles().stream()
-                                    .filter(ovs -> {
-                                        VariationSingle tempVs = variationSingleRepository.findById(ovs.getId().getVariationSingleId()).orElse(null);
-                                        if (tempVs == null) return false;
-                                        String tempCode = tempVs.getVariationSingleCode();
-                                        if (tempCode == null || tempCode.length() <= 6) {
-                                            return false;
-                                        }
-                                        return tempCode.substring(0, tempCode.length() - 6).equals(variationCode);
-                                    })
-                                    .findFirst()
-                                    .map(OrderVariationSingle::getVariationPriceAtPurchase)
-                                    .orElse(BigDecimal.ZERO);
-                            detailJson.put("unitPrice", unitPrice);
-                        } else {
-                            System.err.println("Warning: Variation not found for variationCode: " + variationCode);
-                            detailJson.put("productName", "Product info unavailable");
-                            detailJson.put("color", "N/A");
-                            detailJson.put("size", "N/A");
-                            detailJson.put("orderQuantity", quantity);
-                            detailJson.put("unitPrice", BigDecimal.ZERO);
-                            detailJson.put("productImage", null);
-                            detailJson.put("variationSingleId", null); // Add variationSingleId even in error case
-                            detailJson.put("hasReviewed", false); // Default to false in error case
-                        }
-                        return detailJson;
-                    })
-                    .collect(Collectors.toList());
-            int totalOrderQuantity = variationQuantityMap.values().stream().mapToInt(Long::intValue).sum();
-            orderJson.put("totalOrderQuantity", totalOrderQuantity);
+            orderJson.put("totalOrderQuantity", (int) totalOrderQuantity);
             orderJson.put("orderDetails", orderDetailsList);
-            //System.out.println("STAFF: " + orderJson.get("staffUsername"));
-
 
             return orderJson;
         });
     }
 
 
+
     @Transactional
     public Map<String, Object> getOrdersByUserIdWithValidation(String userId, Pageable pageable) {
-//        System.out.println("GET ORDER BY USER ID WITH VALIDATION CALLED");
-
-
         Sort sort = Sort.by("orderUpdatedAt").descending();
         Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
-
         Page<Order> ordersPage = orderRepository.findByUserId(UUID.fromString(userId), sortedPageable);
+
+        List<String> orderIdsOnPage = ordersPage.getContent().stream()
+                .map(Order::getOrderId)
+                .collect(Collectors.toList());
+
+        Map<String, List<Map<String, Object>>> detailsMap = new HashMap<>();
+        if (!orderIdsOnPage.isEmpty()) {
+            List<Tuple> results = orderVariationSingleRepository.findAggregatedDetailsByOrderIds(orderIdsOnPage);
+            for (Tuple row : results) {
+                String orderId = row.get("orderId", String.class);
+                Map<String, Object> detail = new HashMap<>();
+                detail.put("productName", row.get("productName", String.class));
+                detail.put("productCode", row.get("productCode", String.class));
+                detail.put("color", row.get("color", String.class));
+                detail.put("size", row.get("size", String.class));
+                detailsMap.computeIfAbsent(orderId, k -> new ArrayList<>()).add(detail);
+            }
+        }
 
         List<Map<String, Object>> ordersList = ordersPage.stream().map(order -> {
             Map<String, Object> orderJson = new HashMap<>();
             orderJson.put("orderId", order.getOrderId());
             orderJson.put("orderStatus", order.getOrderStatus().getOrderStatusName());
             orderJson.put("totalAmount", order.getOrderTotalAmount());
+            orderJson.put("orderTrackingNumber", order.getOrderTrackingNumber());
 
-            // Lấy danh sách orderVariationSingle theo orderId
-            List<Integer> variationSingleIds = orderVariationSingleRepository.findById_OrderId(order.getOrderId())
-                    .stream()
-                    .map(orderVariationSingle -> orderVariationSingle.getId().getVariationSingleId())
-                    .collect(Collectors.toList());
+            List<Map<String, Object>> originalDetails = detailsMap.getOrDefault(order.getOrderId(), Collections.emptyList());
 
-            // Truy vấn danh sách VariationSingle từ repository
-            List<VariationSingle> variationSingleList = variationSingleRepository.findByVariationSingleIds(variationSingleIds);
-
-            // Chuyển danh sách VariationSingle thành danh sách JSON
-            List<Map<String, Object>> parsedVariationSingleList = variationSingleList.stream()
-                    .map(variationSingle -> {
-                        Map<String, Object> map = new HashMap<>();
-                        String variationSingleCode = variationSingle.getVariationSingleCode();
-                        String[] parts = variationSingleCode.split("-");
-
-                        if (parts.length == 4) {
-                            map.put("productCode", parts[0]);
-                            map.put("color", parts[1]);
-                            map.put("size", parts[2]);
-                            map.put("randomNumber", order.getOrderTrackingNumber());
-                            String productName = productRepository.findByProductCode(parts[0]).orElse("Undefined");
-                            map.put("productName", productName);
-
-                        }
-                        return map;
+            List<Map<String, Object>> detailsWithTracking = originalDetails.stream()
+                    .map(detail -> {
+                        Map<String, Object> newDetail = new HashMap<>(detail);
+                        newDetail.put("orderTrackingNumber", order.getOrderTrackingNumber());
+                        return newDetail;
                     })
                     .collect(Collectors.toList());
 
-            // Gán danh sách variationSingle vào orderJson
-            orderJson.put("orderDetails", parsedVariationSingleList);
+            orderJson.put("orderDetails", detailsWithTracking);
 
             return orderJson;
         }).collect(Collectors.toList());
 
-        // Tạo phản hồi JSON
         Map<String, Object> response = new HashMap<>();
         response.put("orders", ordersList);
         response.put("currentPage", ordersPage.getNumber());
@@ -301,6 +221,7 @@ public class OrderService {
 
         return response;
     }
+
 
     @Transactional
     public Optional<Map<String, Object>> getMyOrderById(String orderId, String username) {
@@ -316,97 +237,38 @@ public class OrderService {
             orderJson.put("transactionReference", order.getOrderTransactionReference());
             orderJson.put("paymentMethod", order.getPaymentMethod().getPaymentMethodName());
             orderJson.put("trackingNumber", order.getOrderTrackingNumber());
+            orderJson.put("orderTrackingNumber", order.getOrderTrackingNumber());
             orderJson.put("customerUsername", order.getUser().getUsername());
             orderJson.put("customerUserId", order.getUser().getUserId());
             orderJson.put("notes", order.getOrderNote());
 
-            Map<String, Long> variationQuantityMap = order.getOrderVariationSingles().stream()
-                    .collect(Collectors.groupingBy(
-                            ovs -> {
-                                VariationSingle vs = variationSingleRepository.findById(ovs.getId().getVariationSingleId()).orElse(null);
-                                if (vs == null) {
-                                    return "UNKNOWN";
-                                }
-                                String code = vs.getVariationSingleCode();
-                                if (code == null || code.length() <= 6) {
-                                    return "INVALID_CODE";
-                                }
-                                return code.substring(0, code.length() - 6);
-                            },
-                            Collectors.counting()
-                    ));
+            List<Tuple> aggregatedDetails = orderVariationSingleRepository.findAggregatedDetailsWithReviewStatus(orderId, order.getUser().getUserId());
 
-            List<Map<String, Object>> orderDetailsList = variationQuantityMap.entrySet().stream()
-                    .map(entry -> {
-                        String variationCode = entry.getKey();
-                        Long quantity = entry.getValue();
-                        Map<String, Object> detailJson = new HashMap<>();
+            List<Map<String, Object>> orderDetailsList = aggregatedDetails.stream().map(detail -> {
+                Map<String, Object> detailJson = new HashMap<>();
+                String productIdStr = detail.get("productId", String.class);
+                detailJson.put("productId", UUID.fromString(productIdStr));
+                detailJson.put("productName", detail.get("productName", String.class));
+                detailJson.put("color", detail.get("color", String.class));
+                detailJson.put("size", detail.get("size", String.class));
+                detailJson.put("productImage", detail.get("productImage", String.class));
+                detailJson.put("unitPrice", detail.get("unitPrice", BigDecimal.class));
+                detailJson.put("orderQuantity", detail.get("quantity", Number.class).longValue());
+                detailJson.put("hasReviewed", detail.get("hasReviewed", Boolean.class));
+                detailJson.put("orderTrackingNumber", order.getOrderTrackingNumber());
+                return detailJson;
+            }).collect(Collectors.toList());
 
-                        if ("UNKNOWN".equals(variationCode) || "INVALID_CODE".equals(variationCode)) {
-                            detailJson.put("productName", "Product info unavailable");
-                            detailJson.put("color", "N/A");
-                            detailJson.put("size", "N/A");
-                            detailJson.put("orderQuantity", quantity);
-                            detailJson.put("unitPrice", BigDecimal.ZERO);
-                            detailJson.put("productImage", null);
-                            detailJson.put("productId", null);
-                            return detailJson;
-                        }
+            long totalOrderQuantity = orderDetailsList.stream()
+                    .mapToLong(d -> (Long) d.get("orderQuantity"))
+                    .sum();
 
-                        Variation variation = getVariationFromVariationCodeWithoutRandom(variationCode);
-                        if (variation != null) {
-                            detailJson.put("productName", variation.getProduct().getProductName());
-                            detailJson.put("color", variation.getColor().getColorName());
-                            detailJson.put("size", variation.getSize().getSizeName());
-                            detailJson.put("orderQuantity", quantity);
-                            detailJson.put("productImage", variation.getVariationImage());
-                            detailJson.put("productId", variation.getProduct().getProductId());
-
-                            // **Kiểm tra xem user đã review SẢN PHẨM này VỚI ORDER NÀY:**
-                            boolean hasReviewed = reviewRepository.existsByProduct_ProductIdAndOrder_OrderIdAndUser_UserId(
-                                    variation.getProduct().getProductId(),
-                                    order.getOrderId(), // **Truyền order.getOrderId() vào đây**
-                                    order.getUser().getUserId()
-                            );
-
-                            detailJson.put("hasReviewed", hasReviewed); // **Thêm hasReviewed vào detailJson**
-                            //System.out.println("productId: " + variation.getProduct().getProductId() + ", hasReviewed: " + hasReviewed);
-
-
-                            BigDecimal unitPrice = order.getOrderVariationSingles().stream()
-                                    .filter(ovs -> {
-                                        VariationSingle tempVs = variationSingleRepository.findById(ovs.getId().getVariationSingleId()).orElse(null);
-                                        if (tempVs == null) return false;
-                                        String tempCode = tempVs.getVariationSingleCode();
-                                        if (tempCode == null || tempCode.length() <= 6) {
-                                            return false;
-                                        }
-                                        return tempCode.substring(0, tempCode.length() - 6).equals(variationCode);
-                                    })
-                                    .findFirst()
-                                    .map(OrderVariationSingle::getVariationPriceAtPurchase)
-                                    .orElse(BigDecimal.ZERO);
-                            detailJson.put("unitPrice", unitPrice);
-                        } else {
-                            System.err.println("Warning: Variation not found for variationCode: " + variationCode);
-                            detailJson.put("productName", "Product info unavailable");
-                            detailJson.put("color", "N/A");
-                            detailJson.put("size", "N/A");
-                            detailJson.put("orderQuantity", quantity);
-                            detailJson.put("unitPrice", BigDecimal.ZERO);
-                            detailJson.put("productImage", null);
-                        }
-                        return detailJson;
-                    })
-
-                    .collect(Collectors.toList());
-
-            int totalOrderQuantity = variationQuantityMap.values().stream().mapToInt(Long::intValue).sum();
-            orderJson.put("totalOrderQuantity", totalOrderQuantity);
+            orderJson.put("totalOrderQuantity", (int) totalOrderQuantity);
             orderJson.put("orderDetails", orderDetailsList);
             return orderJson;
         });
     }
+
 
     @Transactional
     public Map<String, Object> getOrders(String search, String sort, int page, int size) {
@@ -470,21 +332,31 @@ public class OrderService {
     @Transactional
     public Map<String, Object> getOrdersByUserId(String userId, Pageable pageable) {
         Page<Order> ordersPage;
-
-        // IF userId NULL = FETCH ALL
-        // very-very-very leaky approach but who am I to say
-        // this thing runs on hopes and dreams 🫤
-        // and I am not going to fix this. Too much work
-        // let it leak
-
         if (userId == null || userId.trim().isEmpty()) {
-            // For admins/staff fetching all orders, use the new query with status prioritization.
             ordersPage = orderRepository.findAllWithPriority(pageable);
         } else {
-            // For fetching a specific user's orders, sort by date as before.
             Sort sort = Sort.by("orderUpdatedAt").descending();
             Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
             ordersPage = orderRepository.findByUserId(UUID.fromString(userId), sortedPageable);
+        }
+
+        List<String> orderIdsOnPage = ordersPage.getContent().stream()
+                .map(Order::getOrderId)
+                .collect(Collectors.toList());
+
+        Map<String, List<Map<String, Object>>> detailsMap = new HashMap<>();
+        if (!orderIdsOnPage.isEmpty()) {
+            List<Tuple> results = orderVariationSingleRepository.findAggregatedDetailsByOrderIds(orderIdsOnPage);
+            for (Tuple row : results) {
+                String orderId = row.get("orderId", String.class);
+                Map<String, Object> detail = new HashMap<>();
+                detail.put("productName", row.get("productName", String.class));
+                detail.put("color", row.get("color", String.class));
+                detail.put("size", row.get("size", String.class));
+                detail.put("orderQuantity", row.get("quantity", Number.class).longValue());
+                detail.put("unitPrice", row.get("unitPrice", BigDecimal.class));
+                detailsMap.computeIfAbsent(orderId, k -> new ArrayList<>()).add(detail);
+            }
         }
 
         List<Map<String, Object>> ordersList = ordersPage.getContent().stream()
@@ -499,80 +371,31 @@ public class OrderService {
                     orderJson.put("expectedDeliveryDate", order.getOrderExpectedDeliveryDate());
                     orderJson.put("transactionReference", order.getOrderTransactionReference());
                     orderJson.put("paymentMethod", order.getPaymentMethod().getPaymentMethodName());
-                    orderJson.put("trackingNumber", order.getOrderTrackingNumber());
+                    orderJson.put("orderTrackingNumber", order.getOrderTrackingNumber());
                     orderJson.put("customerUsername", order.getUser().getUsername());
                     orderJson.put("notes", order.getOrderNote());
                     orderJson.put("staffUsername",
                             order.getInchargeEmployee() != null ? order.getInchargeEmployee().getUsername() : "N/A");
 
-                    Map<String, Long> variationQuantityMap = order.getOrderVariationSingles().stream()
-                            .collect(Collectors.groupingBy(
-                                    ovs -> {
-                                        VariationSingle vs = variationSingleRepository.findById(ovs.getId().getVariationSingleId()).orElse(null);
-                                        if (vs == null) {
-                                            return "UNKNOWN";
-                                        }
-                                        String code = vs.getVariationSingleCode();
-                                        if (code == null || code.length() <= 6) {
-                                            return "INVALID_CODE";
-                                        }
-                                        return code.substring(0, code.length() - 6);
-                                    },
-                                    Collectors.counting()
-                            ));
-                    List<Map<String, Object>> orderDetailsList = variationQuantityMap.entrySet().stream()
-                            .map(entry -> {
-                                String variationCode = entry.getKey();
-                                Long quantity = entry.getValue();
-                                Map<String, Object> detailJson = new HashMap<>();
-                                if ("UNKNOWN".equals(variationCode) || "INVALID_CODE".equals(variationCode)) {
-                                    detailJson.put("productName", "Product info unavailable");
-                                    detailJson.put("color", "N/A");
-                                    detailJson.put("size", "N/A");
-                                    detailJson.put("orderQuantity", quantity);
-                                    detailJson.put("unitPrice", BigDecimal.ZERO);
-                                    detailJson.put("discountAmount", null);
-                                    detailJson.put("productImage", null);
-                                    return detailJson;
-                                }
-                                Variation variation = getVariationFromVariationCodeWithoutRandom(variationCode);
-                                if (variation != null) {
-                                    detailJson.put("productName", variation.getProduct().getProductName());
-                                    detailJson.put("color", variation.getColor().getColorName());
-                                    detailJson.put("size", variation.getSize().getSizeName());
-                                    detailJson.put("orderQuantity", quantity);
-                                    BigDecimal unitPrice = order.getOrderVariationSingles().stream()
-                                            .filter(ovs -> {
-                                                VariationSingle tempVs = variationSingleRepository.findById(ovs.getId().getVariationSingleId()).orElse(null);
-                                                if (tempVs == null) return false;
-                                                String tempCode = tempVs.getVariationSingleCode();
-                                                if (tempCode == null || tempCode.length() <= 6) {
-                                                    return false;
-                                                }
-                                                return tempCode.substring(0, tempCode.length() - 6).equals(variationCode);
-                                            })
-                                            .findFirst()
-                                            .map(OrderVariationSingle::getVariationPriceAtPurchase)
-                                            .orElse(BigDecimal.ZERO);
-                                    detailJson.put("unitPrice", unitPrice);
-                                } else {
-                                    System.err.println("Warning: Variation not found for variationCode: " + variationCode);
-                                    detailJson.put("productName", "Product info unavailable");
-                                    detailJson.put("color", "N/A");
-                                    detailJson.put("size", "N/A");
-                                    detailJson.put("orderQuantity", quantity);
-                                    detailJson.put("unitPrice", BigDecimal.ZERO);
-                                }
-                                return detailJson;
+                    List<Map<String, Object>> originalDetails = detailsMap.getOrDefault(order.getOrderId(), Collections.emptyList());
+
+                    List<Map<String, Object>> detailsWithTracking = originalDetails.stream()
+                            .map(detail -> {
+                                Map<String, Object> newDetail = new HashMap<>(detail);
+                                newDetail.put("orderTrackingNumber", order.getOrderTrackingNumber());
+                                return newDetail;
                             })
                             .collect(Collectors.toList());
-                    int totalOrderQuantity = variationQuantityMap.values().stream().mapToInt(Long::intValue).sum();
-                    orderJson.put("totalOrderQuantity", totalOrderQuantity);
-                    orderJson.put("orderDetails", orderDetailsList);
+
+                    long totalOrderQuantity = detailsWithTracking.stream()
+                            .mapToLong(d -> (Long) d.get("orderQuantity"))
+                            .sum();
+
+                    orderJson.put("totalOrderQuantity", (int) totalOrderQuantity);
+                    orderJson.put("orderDetails", detailsWithTracking);
                     return orderJson;
                 }).collect(Collectors.toList());
 
-        // RESPOND OBJECT
         Map<String, Object> response = new HashMap<>();
         response.put("orders", ordersList);
         response.put("currentPage", ordersPage.getNumber());
@@ -1687,24 +1510,47 @@ public class OrderService {
     }
 
     private void returnStock(Order order) {
-        Set<String> codes = new HashSet<>();
-        order.getOrderVariationSingles().forEach(orderVariationSingle -> {
-            String code = orderVariationSingle.getVariationSingle().getVariationSingleCode().substring(0, orderVariationSingle.getVariationSingle().getVariationSingleCode().length() - 7);
-            if (!codes.contains(code)) {
-                codes.add(code);
-                Variation variation = getVariationFromVariationCodeWithoutRandom(orderVariationSingle.getVariationSingle().getVariationSingleCode());
-                int quantity = order.getOrderVariationSingles()
-                        .stream()
-                        .filter(odv ->
-                                odv.getVariationSingle().getVariationSingleCode().substring(0, odv.getVariationSingle().getVariationSingleCode().length() - 7)
-                                        .equalsIgnoreCase(code))
-                        .toList()
-                        .size();
-                StockVariation stockVariation = stockVariationRepository.findByVariationId(variation.getId()).get(0);
-                stockVariation.setStockQuantity(stockVariation.getStockQuantity() + quantity);
-                stockVariationRepository.save(stockVariation);
-            }
+        if (order.getOrderVariationSingles() == null || order.getOrderVariationSingles().isEmpty()) {
+            return; // Nothing to return
+        }
 
-        });
+        // --- Step 1: Aggregate quantities to return for each unique variation code ---
+        Map<String, Long> quantityToReturnMap = order.getOrderVariationSingles().stream()
+                .map(ovs -> ovs.getVariationSingle().getVariationSingleCode())
+                .map(code -> code.substring(0, code.length() - 7)) // Extract base variation code
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+
+        // --- Step 2: Get all unique variations from the codes in a single query ---
+        List<Variation> variations = quantityToReturnMap.keySet().stream()
+                .map(this::getVariationFromVariationCodeWithoutRandom) // Re-uses your existing helper
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (variations.isEmpty()) return;
+
+        List<Integer> variationIds = variations.stream().map(Variation::getId).collect(Collectors.toList());
+
+        // --- Step 3: Batch fetch all relevant stock variations ---
+        // You may need to create findByVariationIdIn if it doesn't exist
+        List<StockVariation> stockToUpdate = stockVariationRepository.findByVariationIdIn(variationIds);
+
+        Map<Integer, StockVariation> stockMap = stockToUpdate.stream()
+                .collect(Collectors.toMap(sv -> sv.getVariation().getId(), Function.identity()));
+
+        // --- Step 4: Update stock quantities in memory ---
+        for (Variation variation : variations) {
+            StockVariation stockVariation = stockMap.get(variation.getId());
+            if (stockVariation != null) {
+                String baseCode = variation.getProduct().getProductCode() + "-" +
+                        variation.getColor().getColorName().toUpperCase() + "-" +
+                        variation.getSize().getSizeName().toUpperCase();
+
+                long quantityToAdd = quantityToReturnMap.getOrDefault(baseCode, 0L);
+                stockVariation.setStockQuantity(stockVariation.getStockQuantity() + (int) quantityToAdd);
+            }
+        }
+
+        // --- Step 5: Batch save all updated stock variations ---
+        stockVariationRepository.saveAll(stockToUpdate);
     }
 }

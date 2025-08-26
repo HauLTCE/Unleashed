@@ -19,4 +19,5 @@ public class OrderDetailDTO {
     private StockTransactionDTO stockTransactionDTO; // Thông tin giao dịch kho
     private int quantity; // Số lượng còn lại trong kho
     private Integer stockId; // ID kho
+    private String orderTrackingNumber;
 }

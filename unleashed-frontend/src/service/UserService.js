@@ -126,7 +126,7 @@ export const getMyorders = async (authHeader, page) => {
             },
         })
 	} catch (error) {
-		// console.log(error.data)
+		throw(error);
 	}
 }
 
@@ -155,19 +155,17 @@ export const fetchUserCart = async (authHeader) => {
 }
 
 export const addToCart = async (authHeader, variationId, quantity) => {
-	try {
+    try {
         return await apiClient.post(`/api/cart/${variationId}`, quantity, {
             headers: {
                 Authorization: authHeader,
             },
-        })
-	} catch (error) {
-		console.error('Error adding to cart:', error)
-		if (error.response) {
-			// console.log(error.response.data)
-		}
-	}
-}
+        });
+    } catch (error) {
+        console.error('Error adding to cart:', error);
+        throw error;
+    }
+};
 
 export const removeFromCart = async (authHeader, variationId) => {
 	try {

@@ -99,7 +99,7 @@ function OrderItemCard({ Order, loading }) {
 		<Card variant='outlined' className='max-w-[800px] font-poppins p-4'>
 			<div className='flex items-center justify-between'>
 				<Typography variant='subtitle1' className='font-semibold font-montserrat'>
-					Order: {Order.orderDetails?.[0]?.randomNumber || 'N/A'}
+					Order: {Order.orderDetails?.[0]?.orderTrackingNumber || 'N/A'}
 				</Typography>
 				<OrderStatus status={orderStatus} />
 			</div>

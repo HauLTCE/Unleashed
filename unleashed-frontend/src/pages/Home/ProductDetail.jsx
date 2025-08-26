@@ -241,11 +241,15 @@ const ProductDetailPage = () => {
         };
         try {
             await addToCart(authHeader, selectedVariation.id, quantity);
+
             addItem(cartItem, quantity);
             toast.success("Added item to cart", { position: "top-center", autoClose: 2000 });
+            setQuantity(1);
             await fetchProductDetails();
         } catch (error) {
-            toast.error("Failed to add item to cart", { position: "top-center", autoClose: 2000 });
+            const errorMessage = error.response?.data || "Failed to add item to cart";
+            toast.error(errorMessage, { position: "top-center", autoClose: 2000 });
+            setQuantity(1);
         }
     };
 

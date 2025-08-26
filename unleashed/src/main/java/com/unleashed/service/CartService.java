@@ -84,7 +84,14 @@ public class CartService {
         return productList;
     }
 
+    @Transactional
     public void addToCart(String userId, Integer variationId, Integer quantity) {
+        Integer stockQuantity = stockVariationRepository.findStockProductByProductVariationId(variationId);
+
+        if (stockQuantity == null) {
+            throw new RuntimeException("Could not verify stock for this item.");
+        }
+
         UUID userUuid = UUID.fromString(userId);
         CartId cartId = CartId.builder()
                 .userId(userUuid)
@@ -92,6 +99,13 @@ public class CartService {
                 .build();
 
         Cart cart = cartRepository.findById(cartId).orElse(null);
+
+        int currentCartQuantity = (cart != null) ? cart.getCartQuantity() : 0;
+        int sumQuantity = currentCartQuantity + quantity;
+
+        if (sumQuantity > stockQuantity) {
+            throw new RuntimeException("Adding " + quantity + " would exceed available stock ("+ sumQuantity + "/ " +  stockQuantity+")." );
+        }
 
         if (cart == null) {
             User user = userRepository.findById(userUuid).orElseThrow(() -> new NullPointerException("User not found"));

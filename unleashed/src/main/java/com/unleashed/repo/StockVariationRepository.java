@@ -33,4 +33,6 @@ public interface StockVariationRepository extends JpaRepository<StockVariation, 
 
     List<StockVariation> findById_StockIdAndId_VariationIdIn(Integer stockId, List<Integer> variationIds);
 
+    List<StockVariation> findByVariationIdIn(List<Integer> variationIds);
+
 }

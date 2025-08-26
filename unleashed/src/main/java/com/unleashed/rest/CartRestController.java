@@ -1,6 +1,5 @@
 package com.unleashed.rest;
 
-
 import com.unleashed.service.CartService;
 import com.unleashed.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,9 +28,7 @@ public class CartRestController {
         if (authentication != null && authentication.getPrincipal() instanceof UserDetails userDetails) {
             String currentUsername = userDetails.getUsername();
             return userService.findByUsername(currentUsername).getUserId().toString();
-
         } else {
-            //System.out.println("Authentication failed or principal is not UserDetails.");
             return null;
         }
     }
@@ -44,7 +41,6 @@ public class CartRestController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Error fetching user cart");
         }
-
     }
 
     @PreAuthorize("hasAuthority('CUSTOMER')")
@@ -57,9 +53,8 @@ public class CartRestController {
                     Integer.parseInt(quantity.substring(0, quantity.length() - 1)));
             return ResponseEntity.ok("Successfully added item into the cart");
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Add item to cart fail");
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
-
     }
 
     @PreAuthorize("hasAuthority('CUSTOMER')")
@@ -67,9 +62,8 @@ public class CartRestController {
     public ResponseEntity<?> removeFromCart(@PathVariable("variationId") Integer variationId) {
         try {
             cartService.removeFromCart(getUserId(), variationId);
-            return ResponseEntity.ok("Success remove item from cart."); // Return 200 OK with
+            return ResponseEntity.ok("Success remove item from cart.");
         } catch (Exception e) {
-            // Log the exception
             return ResponseEntity.badRequest().body("Error removing item from cart.");
         }
     }
@@ -79,9 +73,8 @@ public class CartRestController {
     public ResponseEntity<?> removeAllFromCart() {
         try {
             cartService.removeAllFromCart(getUserId());
-            return ResponseEntity.ok("Success remove all item from cart."); // Return 200 OK
+            return ResponseEntity.ok("Success remove all item from cart.");
         } catch (Exception e) {
-            // Log the exception
             return ResponseEntity.badRequest().body("Error removing item from cart.");
         }
     }

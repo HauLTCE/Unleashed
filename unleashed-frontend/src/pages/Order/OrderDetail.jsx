@@ -395,16 +395,16 @@ function OrderDetail() {
                             Cancel Order
                         </Button>
                     )}
-                    {(orderStatus === 'SHIPPING' || orderStatus === 'COMPLETED') && (
-                        <Button
-                            variant="contained"
-                            color="warning"
-                            onClick={handleReturnOrder}
-                            sx={{ textTransform: 'none', borderRadius: 30, fontFamily: 'Poppins' }}
-                        >
-                            Return Order
-                        </Button>
-                    )}
+                    {/*{(orderStatus === 'SHIPPING' || orderStatus === 'COMPLETED') && (*/}
+                    {/*    <Button*/}
+                    {/*        variant="contained"*/}
+                    {/*        color="warning"*/}
+                    {/*        onClick={handleReturnOrder}*/}
+                    {/*        sx={{ textTransform: 'none', borderRadius: 30, fontFamily: 'Poppins' }}*/}
+                    {/*    >*/}
+                    {/*        Return Order*/}
+                    {/*    </Button>*/}
+                    {/*)}*/}
                 </Box>
             </div>
             <ReviewModal
