@@ -18,8 +18,8 @@ import { useNavigate } from 'react-router-dom';
 const DashboardOrders = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortOrder, setSortOrder] = useState('priority_desc');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
@@ -32,7 +32,7 @@ const DashboardOrders = () => {
         if (isInitialMount.current) {
             isInitialMount.current = false;
         } else {
-            setCurrentPage(1);
+            setCurrentPage(0);
         }
     }, [debouncedSearchTerm, sortOrder]);
 
@@ -46,7 +46,7 @@ const DashboardOrders = () => {
             .get('/api/orders', {
                 headers: { Authorization: varToken },
                 params: {
-                    page: currentPage - 1,
+                    page: currentPage,
                     size: 10,
                     search: debouncedSearchTerm,
                     sort: sortOrder,

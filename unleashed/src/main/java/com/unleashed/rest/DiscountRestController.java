@@ -212,4 +212,18 @@ public class DiscountRestController {
         boolean exists = discountService.isDiscountCodeExists(discountCode);
         return ResponseEntity.ok(exists);
     }
+
+
+    @PreAuthorize("hasAuthority('CUSTOMER')")
+    @GetMapping("/best-for-checkout")
+    public ResponseEntity<List<DiscountDTO>> getBestDiscountsForCheckout(@RequestParam("total") BigDecimal cartTotal) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String currentUsername = ((UserDetails) authentication.getPrincipal()).getUsername();
+        String userId = userService.getUserInfoByUsername(currentUsername).getUserId();
+
+        List<DiscountDTO> bestDiscounts = discountService.getBestDiscountsForCheckout(userId, cartTotal);
+        return ResponseEntity.ok(bestDiscounts);
+    }
+
+
 }

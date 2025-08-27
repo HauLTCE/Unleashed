@@ -459,4 +459,64 @@ public class DiscountService {
         discount.setDiscountUsageCount(discountDTO.getUsageCount());
         return discount;
     }
+
+    @Transactional(readOnly = true)
+    public List<DiscountDTO> getBestDiscountsForCheckout(String userId, BigDecimal cartTotal) {
+        // 1. Get all discount IDs assigned to the user
+        List<Integer> allUserDiscountIds = userDiscountRepository.findDiscountIdsByUserId(UUID.fromString(userId));
+        if (allUserDiscountIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 2. Get the usage status for all of the user's discounts
+        List<UserDiscount> userDiscounts = userDiscountRepository.findAllById_UserId(UUID.fromString(userId));
+        Set<Integer> usedDiscountIds = userDiscounts.stream()
+                .filter(UserDiscount::getIsDiscountUsed)
+                .map(ud -> ud.getId().getDiscountId())
+                .collect(Collectors.toSet());
+
+        // 3. Fetch all discount entities that the user has but has not yet used
+        List<Integer> unusedDiscountIds = allUserDiscountIds.stream()
+                .filter(id -> !usedDiscountIds.contains(id))
+                .collect(Collectors.toList());
+
+        if (unusedDiscountIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Discount> potentialDiscounts = discountRepository.findAllById(unusedDiscountIds);
+
+        // 4. Filter for ACTIVE discounts where the cart total meets the minimum order value
+        List<Discount> applicableDiscounts = potentialDiscounts.stream()
+                .filter(d -> "ACTIVE".equalsIgnoreCase(d.getDiscountStatus().getDiscountStatusName()))
+                .filter(d -> d.getDiscountMinimumOrderValue() == null || cartTotal.compareTo(d.getDiscountMinimumOrderValue()) >= 0)
+                .toList();
+
+        // 5. Calculate the actual saving for each discount and sort by the highest saving
+        return applicableDiscounts.stream()
+                .map(discount -> {
+                    BigDecimal savings = BigDecimal.ZERO;
+                    // Percentage-based discount
+                    if (discount.getDiscountType().getId() == 1) { // 1 = PERCENTAGE
+                        BigDecimal potentialSavings = cartTotal.multiply(discount.getDiscountValue().divide(BigDecimal.valueOf(100)));
+                        if (discount.getDiscountMaximumValue() != null && potentialSavings.compareTo(discount.getDiscountMaximumValue()) > 0) {
+                            savings = discount.getDiscountMaximumValue();
+                        } else {
+                            savings = potentialSavings;
+                        }
+                    }
+                    // Flat amount discount
+                    else if (discount.getDiscountType().getId() == 2) { // 2 = FLAT
+                        savings = discount.getDiscountValue();
+                    }
+                    // Return a pair of the discount and its calculated savings
+                    return new AbstractMap.SimpleEntry<>(discount, savings);
+                })
+                .sorted(Comparator.comparing(AbstractMap.SimpleEntry<Discount, BigDecimal>::getValue).reversed()) // Sort descending by savings
+                .limit(5) // Get the top 5
+                .map(entry -> convertToDTO(entry.getKey())) // Convert back to DTO
+                .collect(Collectors.toList());
+    }
+
+
 }
