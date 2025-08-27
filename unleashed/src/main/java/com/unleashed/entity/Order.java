@@ -91,6 +91,7 @@ public class Order {
 
     @JsonIgnore
     @OneToMany(mappedBy = "order")
+    @Builder.Default
     private Set<OrderVariationSingle> orderVariationSingles = new LinkedHashSet<>();
 
 

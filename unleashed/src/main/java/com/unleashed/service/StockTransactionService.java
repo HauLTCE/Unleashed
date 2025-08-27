@@ -1,17 +1,16 @@
 package com.unleashed.service;
 
-import com.unleashed.dto.SimplifiedTransactionCardDTO;
 import com.unleashed.dto.StockTransactionDTO;
 import com.unleashed.dto.TransactionCardDTO;
 import com.unleashed.entity.*;
 import com.unleashed.entity.composite.StockVariationId;
 import com.unleashed.repo.*;
+import com.unleashed.repo.specification.TransactionSpecification;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import com.unleashed.repo.specification.TransactionSpecification;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,58 +53,6 @@ public class StockTransactionService {
         this.providerRepository = providerRepository;
     }
 
-
-    @Transactional(readOnly = true)
-    public List<TransactionCardDTO> findAllTransactionCards() {
-
-        List<SimplifiedTransactionCardDTO> simpleDtos = transactionRepository.findSimplifiedTransactionCardDTOsOrderByIdDesc();
-
-        if (simpleDtos.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        Set<UUID> productIds = simpleDtos.stream()
-                .map(SimplifiedTransactionCardDTO::getProductId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
-        Map<UUID, List<String>> productCategoryMap = productRepository.findCategoryNamesMapByProductIds(productIds);
-
-        List<TransactionCardDTO> finalDtos = new ArrayList<>();
-        for (SimplifiedTransactionCardDTO simpleDto : simpleDtos) {
-            List<String> categoryNames = Collections.emptyList();
-            if (simpleDto.getProductId() != null) {
-                categoryNames = productCategoryMap.getOrDefault(simpleDto.getProductId(), Collections.emptyList());
-            }
-
-            String categoryNameString = String.join(", ", categoryNames);
-            if (categoryNameString.isEmpty()) {
-                categoryNameString = null;
-            }
-
-            TransactionCardDTO finalDto = new TransactionCardDTO(
-                    simpleDto.getTransactionId(),
-                    simpleDto.getVariationImage(),
-                    simpleDto.getProductName(),
-                    simpleDto.getStockName(),
-                    simpleDto.getTransactionTypeName(),
-                    categoryNameString,
-                    simpleDto.getBrandName(),
-                    simpleDto.getSizeName(),
-                    simpleDto.getColorName(),
-                    simpleDto.getColorHexCode(),
-                    simpleDto.getTransactionProductPrice(),
-                    simpleDto.getTransactionQuantity(),
-                    simpleDto.getTransactionDate(),
-                    simpleDto.getInchargeEmployeeUsername(),
-                    simpleDto.getProviderName()
-            );
-            finalDtos.add(finalDto);
-        }
-
-        return finalDtos;
-    }
-
     @Transactional
     public boolean createStockTransactions(StockTransactionDTO stockTransactionDTO) {
         try {
@@ -130,7 +77,6 @@ public class StockTransactionService {
                 Variation variation = variationRepository.findById(variationQuantity.getProductVariationId())
                         .orElseThrow(() -> new IllegalArgumentException("Product variation not found with ID: " + variationQuantity.getProductVariationId()));
 
-                // Create and save the audit transaction log first
                 Transaction transaction = new Transaction();
                 transaction.setStock(stock);
                 transaction.setVariation(variation);
@@ -138,7 +84,6 @@ public class StockTransactionService {
                 transaction.setInchargeEmployee(inchargeEmployee);
                 transaction.setTransactionType(transactionType);
                 transaction.setTransactionQuantity(variationQuantity.getQuantity());
-                // transaction.setTransactionProductPrice(variation.getVariationPrice());
                 transactionRepository.save(transaction);
 
                 StockVariationId stockVariationId = new StockVariationId(stock.getId(), variation.getId());
@@ -178,25 +123,21 @@ public class StockTransactionService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> getTransactions(String search, String dateFilter, String sort, int page, int size) {
-        // 1. Create the Specification for dynamic WHERE clause
         Specification<Transaction> spec = new TransactionSpecification(search, dateFilter);
 
-        // 2. Create Pageable with sorting logic from the request
-        Sort sortObj = sort.equals("oldest_first")
+        // This is the key logic. The sort parameter from the frontend directly controls the query's ORDER BY clause.
+        Sort sortObj = sort.equalsIgnoreCase("oldest_first")
                 ? Sort.by("transactionDate").ascending()
-                : Sort.by("transactionDate").descending(); // Default to newest first
+                : Sort.by("transactionDate").descending(); // Default is newest_first
 
         Pageable pageable = PageRequest.of(page, size, sortObj);
 
-        // 3. Fetch the paginated data from the repository using the specification
         Page<Transaction> transactionPage = transactionRepository.findAll(spec, pageable);
 
-        // 4. Map the fetched entities to the DTO you need for the frontend
         List<TransactionCardDTO> dtos = transactionPage.getContent().stream()
                 .map(this::mapEntityToCardDTO)
                 .collect(Collectors.toList());
 
-        // 5. Build the final response object for the frontend
         Map<String, Object> response = new HashMap<>();
         response.put("transactions", dtos);
         response.put("currentPage", transactionPage.getNumber());
@@ -206,7 +147,6 @@ public class StockTransactionService {
         return response;
     }
 
-    // Helper method to convert a Transaction entity into the complex DTO
     private TransactionCardDTO mapEntityToCardDTO(Transaction t) {
         if (t == null) return null;
 
@@ -239,82 +179,133 @@ public class StockTransactionService {
         );
     }
 
-    /**
-     * Creates "OUT" transactions for all items in an order when it is shipped.
-     * This method aggregates individual items (VariationSingle) into parent
-     * Variations with a total quantity.
-     *
-     * @param order The order that has been approved for shipping.
-     */
     @Transactional
     public void createShippingTransactionsForOrder(Order order) {
-        // 1. Retrieve the "OUT" transaction type (ID = 2)
         TransactionType outTransactionType = transactionTypeRepository.findById(2)
                 .orElseThrow(() -> new IllegalStateException("Transaction Type with ID 2 (OUT) not found."));
 
-        // 2. Aggregate quantities for each parent Variation in the order
-        Map<Variation, Integer> variationQuantities = new HashMap<>();
-        for (OrderVariationSingle ovs : order.getOrderVariationSingles()) {
-            Variation parentVariation = findParentVariationForSingle(ovs.getVariationSingle());
-            if (parentVariation != null) {
-                variationQuantities.put(parentVariation, variationQuantities.getOrDefault(parentVariation, 0) + 1);
-            }
-        }
+        Map<Variation, Long> variationQuantities = order.getOrderVariationSingles().stream()
+                .collect(Collectors.groupingBy(
+                        ovs -> ovs.getVariationSingle().getVariation(),
+                        Collectors.counting()
+                ));
 
-        // 3. Create and save a transaction for each aggregated variation
-        for (Map.Entry<Variation, Integer> entry : variationQuantities.entrySet()) {
+        for (Map.Entry<Variation, Long> entry : variationQuantities.entrySet()) {
             Variation variation = entry.getKey();
-            Integer quantity = entry.getValue();
+            Integer quantity = entry.getValue().intValue();
 
-            // Find the stock location. We'll use the first one found for this variation.
             List<StockVariation> stockLocations = stockVariationRepository.findByVariationId(variation.getId());
             if (stockLocations.isEmpty()) {
                 System.err.println("Warning: No stock location found for Variation ID: " + variation.getId() + ". Cannot create OUT transaction.");
-                continue; // Skip if no stock is associated
+                continue;
             }
             Stock stock = stockLocations.get(0).getStock();
 
-            // Build the new transaction
             Transaction transaction = new Transaction();
             transaction.setVariation(variation);
             transaction.setTransactionQuantity(quantity);
             transaction.setTransactionType(outTransactionType);
             transaction.setStock(stock);
-            transaction.setInchargeEmployee(order.getInchargeEmployee()); // Employee who approved shipping
-            transaction.setProvider(null); // This is a sale, not an import from a provider
+            transaction.setInchargeEmployee(order.getInchargeEmployee());
+            transaction.setProvider(null);
 
             transactionRepository.save(transaction);
         }
     }
 
-    /**
-     * Helper method to find the parent Variation based on a VariationSingle's code.
-     * This bridges the gap where VariationSingle has no direct foreign key to Variation.
-     *
-     * @param variationSingle The specific item instance.
-     * @return The parent Variation object, or null if not found.
-     */
-    private Variation findParentVariationForSingle(VariationSingle variationSingle) {
-        String code = variationSingle.getVariationSingleCode();
-        if (code == null) {
-            return null;
-        }
-        // Example code format: "PRODUCTCODE-COLOR-SIZE-RANDOM"
-        String[] parts = code.split("-");
-        if (parts.length < 4) {
-            System.err.println("Invalid variationSingleCode format: " + code);
-            return null;
-        }
 
-        String productCode = parts[0];
-        // Normalize color name (e.g., "BLACK" -> "Black") to match database records
-        String colorName = parts[1].substring(0, 1).toUpperCase() + parts[1].substring(1).toLowerCase();
-        String sizeName = parts[2];
+    @Transactional
+    public void createReservationTransactionsForOrder(Order order) {
+        TransactionType outTransactionType = transactionTypeRepository.findById(2)
+                .orElseThrow(() -> new IllegalStateException("Transaction Type with ID 2 (OUT) not found."));
 
-        return variationRepository.findByProduct_ProductCodeAndColor_ColorNameAndSize_SizeName(
-                productCode, colorName, sizeName
-        ).orElse(null);
+        Map<Variation, Long> variationQuantities = order.getOrderVariationSingles().stream()
+                .collect(Collectors.groupingBy(
+                        ovs -> ovs.getVariationSingle().getVariation(),
+                        Collectors.counting()
+                ));
+
+        for (Map.Entry<Variation, Long> entry : variationQuantities.entrySet()) {
+            Variation variation = entry.getKey();
+            Integer quantity = entry.getValue().intValue();
+
+            // Find a stock location to pull from
+            List<StockVariation> stockLocations = stockVariationRepository.findByVariationId(variation.getId());
+            if (stockLocations.isEmpty()) {
+                System.err.println("Warning: No stock location found for Variation ID: " + variation.getId() + ". Cannot create OUT transaction or reduce stock.");
+                continue;
+            }
+            Stock stock = stockLocations.get(0).getStock();
+            StockVariation stockToUpdate = stockLocations.get(0);
+
+            // 1. Create the audit transaction
+            Transaction transaction = new Transaction();
+            transaction.setVariation(variation);
+            transaction.setTransactionQuantity(quantity);
+            transaction.setTransactionType(outTransactionType);
+            transaction.setStock(stock);
+            // At creation, no staff is assigned yet. You could assign the user or leave null.
+            transaction.setInchargeEmployee(null);
+            transaction.setProvider(null);
+            transactionRepository.save(transaction);
+
+            // 2. Update the actual stock quantity
+            stockToUpdate.setStockQuantity(stockToUpdate.getStockQuantity() - quantity);
+            stockVariationRepository.save(stockToUpdate);
+        }
     }
+
+
+    @Transactional
+    public void createReturnTransactionsForOrder(Order order) {
+        TransactionType inTransactionType = transactionTypeRepository.findById(1)
+                .orElseThrow(() -> new IllegalStateException("Transaction Type with ID 1 (IN) not found."));
+
+        Map<Variation, Long> variationQuantities = order.getOrderVariationSingles().stream()
+                .collect(Collectors.groupingBy(
+                        ovs -> ovs.getVariationSingle().getVariation(),
+                        Collectors.counting()
+                ));
+
+        for (Map.Entry<Variation, Long> entry : variationQuantities.entrySet()) {
+            Variation variation = entry.getKey();
+            Integer quantity = entry.getValue().intValue();
+
+            List<StockVariation> stockLocations = stockVariationRepository.findByVariationId(variation.getId());
+            if (stockLocations.isEmpty()) {
+                System.err.println("Warning: No stock location found for Variation ID: " + variation.getId() + ". Cannot create IN transaction or return stock.");
+                continue;
+            }
+            Stock stock = stockLocations.get(0).getStock();
+            StockVariation stockToUpdate = stockLocations.get(0);
+
+            // 1. Create the audit transaction
+            Transaction transaction = new Transaction();
+            transaction.setVariation(variation);
+            transaction.setTransactionQuantity(quantity);
+            transaction.setTransactionType(inTransactionType);
+            transaction.setStock(stock);
+            // Assign the staff member who processed the order, if available
+            transaction.setInchargeEmployee(order.getInchargeEmployee());
+            transaction.setProvider(null); // Not a provider return
+            transactionRepository.save(transaction);
+
+            // 2. Update the actual stock quantity
+            stockToUpdate.setStockQuantity(stockToUpdate.getStockQuantity() + quantity);
+            stockVariationRepository.save(stockToUpdate);
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
 
 
 

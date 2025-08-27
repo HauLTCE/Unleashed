@@ -10,8 +10,8 @@ const DashboardStockTransactions = () => {
     // State management
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
     const [dateFilter, setDateFilter] = useState('all');
     const [sortOrder, setSortOrder] = useState('newest_first');
@@ -24,7 +24,7 @@ const DashboardStockTransactions = () => {
         if (isInitialMount.current) {
             isInitialMount.current = false;
         } else {
-            setCurrentPage(1);
+            setCurrentPage(0);
         }
     }, [debouncedSearchTerm, dateFilter, sortOrder]);
 
@@ -39,7 +39,7 @@ const DashboardStockTransactions = () => {
             .get("/api/stock-transactions", {
                 headers: { Authorization: varToken },
                 params: {
-                    page: currentPage - 1,
+                    page: currentPage,
                     size: 15,
                     search: debouncedSearchTerm,
                     dateFilter,

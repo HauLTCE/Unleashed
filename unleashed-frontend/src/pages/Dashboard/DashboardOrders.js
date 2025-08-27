@@ -11,23 +11,22 @@ import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlin
 import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader';
 import useAuthUser from 'react-auth-kit/hooks/useAuthUser';
 import { formatPrice } from '../../components/format/formats';
-import DashboardOrderDetailsDrawer from '../../components/drawer/DashboardOrderDetailsDrawer';
 import useDebounce from '../../components/hooks/useDebounce';
 import EnhancedPagination from '../../components/pagination/EnhancedPagination';
+import { useNavigate } from 'react-router-dom';
 
 const DashboardOrders = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const [selectedOrderId, setSelectedOrderId] = useState(null);
-    const [drawerOpen, setDrawerOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortOrder, setSortOrder] = useState('priority_desc');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
     const varToken = useAuthHeader();
     const authUser = useAuthUser();
     const isInitialMount = useRef(true);
+    const navigate = useNavigate();
 
     useEffect(() => {
         if (isInitialMount.current) {
@@ -89,14 +88,8 @@ const DashboardOrders = () => {
         handleAction(`/api/orders/${orderId}/returned`, {});
     };
 
-    const openDrawer = (orderId) => {
-        setSelectedOrderId(orderId);
-        setDrawerOpen(true);
-    };
-
-    const closeDrawer = () => {
-        setDrawerOpen(false);
-        setSelectedOrderId(null);
+    const viewOrderDetails = (orderId) => {
+        navigate(`/Dashboard/Orders/${orderId}`);
     };
 
     const getStatusChip = (status) => {
@@ -199,7 +192,7 @@ const DashboardOrders = () => {
                             <tr key={order.orderId} className='hover:bg-gray-50 align-middle'>
                                 <td
                                     className='px-4 py-3 text-sm font-medium text-blue-600 hover:text-blue-800 cursor-pointer whitespace-nowrap'
-                                    onClick={() => openDrawer(order.orderId)}
+                                    onClick={() => viewOrderDetails(order.orderId)}
                                 >
                                     {order.orderId}
                                 </td>
@@ -215,7 +208,7 @@ const DashboardOrders = () => {
                                 <td className='px-4 py-3'>
                                     <div className='flex items-center gap-2'>
                                         <IconButton
-                                            onClick={() => openDrawer(order.orderId)}
+                                            onClick={() => viewOrderDetails(order.orderId)}
                                             color='primary'
                                             size='small'
                                             title='View Details'
@@ -237,12 +230,6 @@ const DashboardOrders = () => {
                     </tbody>
                 </table>
             </div>
-
-            <DashboardOrderDetailsDrawer
-                open={drawerOpen}
-                onClose={closeDrawer}
-                orderId={selectedOrderId}
-            />
 
             <EnhancedPagination
                 currentPage={currentPage}

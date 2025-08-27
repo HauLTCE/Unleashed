@@ -7,7 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.OffsetDateTime;
 
 @Getter
 @Setter
@@ -51,7 +51,7 @@ public class Transaction {
 
     @Column(name = "transaction_date")
     @JsonView(Views.TransactionView.class)
-    private LocalDate transactionDate;
+    private OffsetDateTime transactionDate;
 
     @Column(name = "transaction_product_price", precision = 22, scale = 2)
     @JsonView(Views.TransactionView.class)
@@ -59,7 +59,9 @@ public class Transaction {
 
     @PrePersist
     public void prePersist() {
-        setTransactionDate(LocalDate.now());
-        setTransactionProductPrice(getVariation().getVariationPrice());
+        setTransactionDate(OffsetDateTime.now());
+        if (getVariation() != null) {
+            setTransactionProductPrice(getVariation().getVariationPrice());
+        }
     }
 }
