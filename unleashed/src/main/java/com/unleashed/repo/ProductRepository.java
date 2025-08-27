@@ -200,7 +200,9 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
             nativeQuery = true)
     List<UUID> findProductIdsToAgeFromNewToAvailable();
 
-
+    @Query("SELECT p FROM Product p WHERE p.productStatus.id IN :statusIds AND " +
+            "(SELECT SUM(sv.stockQuantity) FROM StockVariation sv WHERE sv.variation.product = p) BETWEEN :stockMin AND :stockMax")
+    List<Product> findProductsByStatusInAndStockBetween(List<Integer> statusIds, long stockMin, long stockMax);
 
 
 }

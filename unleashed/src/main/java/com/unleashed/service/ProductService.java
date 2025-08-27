@@ -152,114 +152,79 @@ public class ProductService {
 
     public ProductItemDTO findProductItemById(String idi) {
         UUID id = UUID.fromString(idi);
-        ProductItemDTO productItemDTO = new ProductItemDTO();
         Optional<Product> productOptional = productRepository.findById(id);
-        SaleProduct saleProduct = saleProductRepository.findSaleProductByProductId(id);
+        if (productOptional.isEmpty()) {
+            return null;
+        }
+        Product product = productOptional.get();
 
-        // --- THIS IS THE FIX ---
+        ProductItemDTO productItemDTO = new ProductItemDTO();
+        productItemDTO.setProductId(id.toString());
+        productItemDTO.setProductName(product.getProductName());
+        productItemDTO.setDescription(product.getProductDescription());
+        if (product.getBrand() != null) {
+            productItemDTO.setBrand(product.getBrand());
+        }
+        productItemDTO.setCategories(product.getCategories());
 
-        // 1. Define pagination for the initial load (fetch the first page of 10 reviews)
-        Pageable initialPage = PageRequest.of(0, 10);
+        Integer status = productStatusRepository.findStatusByProductId(id);
+        productItemDTO.setStatus(status != null ? status : 5);
 
-        // 2. Call the MODIFIED ReviewService method.
-        // We pass 'null' for the User because, at this stage, we don't need the
-        // "My Review First" logic. The frontend will handle that on its separate API call.
-        Page<ProductReviewDTO> reviewsPage = reviewService.getAllReviewsByProductId(id.toString(), initialPage, null);
+        List<Variation> allVariations = variationRepository.findProductVariationByProductId(id);
+        List<Variation> inStockVariations = allVariations.stream()
+                .filter(variation -> {
+                    Integer stock = stockVariationRepository.findStockProductByProductVariationId(variation.getId());
+                    return stock != null && stock > 0;
+                })
+                .toList();
 
-        // 3. Get the content from the returned Page object.
-        List<ProductReviewDTO> productReviewDTOList = reviewsPage.getContent();
+        Set<Size> availableSizes = new HashSet<>();
+        Set<Color> availableColors = new HashSet<>();
+        Map<String, Map<String, ProductVariationDTO>> variationsMap = new HashMap<>();
 
-        // --- END OF FIX ---
+        for (Variation variation : inStockVariations) {
+            availableColors.add(variation.getColor());
+            availableSizes.add(variation.getSize());
 
+            ProductVariationDTO variationDTO = new ProductVariationDTO();
+            variationDTO.setId(variation.getId());
+            variationDTO.setPrice(variation.getVariationPrice());
+            variationDTO.setImages(variation.getVariationImage());
+            variationDTO.setQuantity(stockVariationRepository.findStockProductByProductVariationId(variation.getId()));
 
-        // Lấy tổng rating và trung bình rating
-        List<Object[]> totalRating = reviewRepository.countAndAvgRatingByProductId(id);
-
-        // Lấy danh sách variation của sản phẩm
-        List<Variation> productVariations = variationRepository.findProductVariationByProductId(id);
-        List<ProductVariationDTO> productVariationDTOList = new ArrayList<>();
-        for (Variation variation : productVariations) {
-            ProductVariationDTO productVariationDTO = new ProductVariationDTO();
-            productVariationDTO.setId(variation.getId());
-            productVariationDTO.setPrice(variation.getVariationPrice());
-            productVariationDTO.setImages(variation.getVariationImage());
-            productVariationDTOList.add(productVariationDTO);
+            variationsMap
+                    .computeIfAbsent(variation.getColor().getColorName(), k -> new HashMap<>())
+                    .put(variation.getSize().getSizeName(), variationDTO);
         }
 
-        // Lấy danh sách size và color
-        List<Size> sizes = sizeRepository.findAllByProductId(id);
-        List<Color> colors = colorRepository.findAllByProductId(id);
+        productItemDTO.setSizes(new ArrayList<>(availableSizes));
+        productItemDTO.setColors(new ArrayList<>(availableColors));
+        productItemDTO.setVariations(variationsMap);
 
-        // Xây dựng map variations theo cấu trúc: {colorName -> {sizeName -> ProductVariationDTO}}
-        Map<String, Map<String, ProductVariationDTO>> variations = new HashMap<>();
-
-        if (productOptional.isPresent()) {
-            Product product = productOptional.get();
-
-            // Lấy status từ bảng product_status
-            Integer status = productStatusRepository.findStatusByProductId(id);
-            productItemDTO.setStatus(status != null ? status : 5); // Nếu không có thì mặc định là 5 (NEW)
-
-            // Xây dựng map variations
-            for (Color color : colors) {
-                Map<String, ProductVariationDTO> sizeMap = new HashMap<>();
-                for (Size size : sizes) {
-                    productVariations.stream()
-                            .filter(variation -> variation.getColor().equals(color) && variation.getSize().equals(size))
-                            .findFirst()
-                            .ifPresent(variation -> {
-                                ProductVariationDTO productVariationDTO = new ProductVariationDTO();
-                                productVariationDTO.setId(variation.getId());
-                                productVariationDTO.setPrice(variation.getVariationPrice());
-                                productVariationDTO.setImages(variation.getVariationImage());
-
-                                // Lấy số lượng stock cho variation, nếu null thì gán mặc định 0
-                                Integer stockProduct = stockVariationRepository.findStockProductByProductVariationId(variation.getId()); //THIS LINE
-                                productVariationDTO.setQuantity(stockProduct != null ? stockProduct : 0);
-
-                                sizeMap.put(size.getSizeName(), productVariationDTO);
-                            });
-                }
-                variations.put(color.getColorName(), sizeMap);
-            }
-
-            // Cập nhật thông tin sản phẩm
-            productItemDTO.setProductId(id.toString());
-            productItemDTO.setProductName(product.getProductName());
-            productItemDTO.setDescription(product.getProductDescription());
-
-            if (product.getBrand() != null) {
-                productItemDTO.setBrand(product.getBrand());
-            }
-
-            productItemDTO.setCategories(product.getCategories());
-
-            // Xử lý sale nếu có
-            if (saleProduct != null) {
-                Sale sale = saleRepository.findById(saleProduct.getId().getSaleId()).orElse(null);
-                if (sale != null && sale.getSaleType() != null) {
+        SaleProduct saleProduct = saleProductRepository.findSaleProductByProductId(id);
+        if (saleProduct != null) {
+            saleRepository.findById(saleProduct.getId().getSaleId()).ifPresent(sale -> {
+                if (sale.getSaleType() != null) {
                     productItemDTO.setSaleType(sale.getSaleType());
                     productItemDTO.setSaleValue(sale.getSaleValue());
                 }
-            }
-
-            productItemDTO.setReviews(productReviewDTOList);
-
-            // Thiết lập tổng rating và trung bình rating nếu có dữ liệu
-            if (totalRating != null && !totalRating.isEmpty()) {
-                for (Object[] result : totalRating) {
-                    productItemDTO.setTotalRating((long) result[0]);
-                    productItemDTO.setAvgRating((double) result[1]);
-                }
-            } else {
-                productItemDTO.setTotalRating(0L);
-                productItemDTO.setAvgRating(0.0);
-            }
-
-            productItemDTO.setSizes(sizes);
-            productItemDTO.setColors(colors);
-            productItemDTO.setVariations(variations);
+            });
         }
+
+        List<Object[]> totalRatingResult = reviewRepository.countAndAvgRatingByProductId(id);
+        if (totalRatingResult != null && !totalRatingResult.isEmpty()) {
+            Object[] result = totalRatingResult.get(0);
+            productItemDTO.setTotalRating((long) result[0]);
+            productItemDTO.setAvgRating((double) result[1]);
+        } else {
+            productItemDTO.setTotalRating(0L);
+            productItemDTO.setAvgRating(0.0);
+        }
+
+        Pageable initialPage = PageRequest.of(0, 10);
+        Page<ProductReviewDTO> reviewsPage = reviewService.getAllReviewsByProductId(id.toString(), initialPage, null);
+        productItemDTO.setReviews(reviewsPage.getContent());
+
         return productItemDTO;
     }
 

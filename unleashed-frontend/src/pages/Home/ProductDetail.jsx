@@ -36,7 +36,6 @@ const ProductDetailPage = () => {
     const authHeader = useAuthHeader();
     const authUser = useAuthUser();
 
-
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedColor, setSelectedColor] = useState(null);
@@ -69,10 +68,7 @@ const ProductDetailPage = () => {
         }
     }, [productId, navigate]);
 
-    // THE FIX IS APPLIED HERE
     const fetchReviews = useCallback(async (pageToFetch) => {
-        // This check can now use a state value that might be one render cycle old,
-        // which is acceptable for pagination control.
         if (!hasMoreReviews && pageToFetch > 0) return;
         setIsLoadingReviews(true);
         try {
@@ -85,7 +81,7 @@ const ProductDetailPage = () => {
         } finally {
             setIsLoadingReviews(false);
         }
-    }, [productId, authHeader]); // <-- 'hasMoreReviews' is removed from this array to break the loop.
+    }, [productId, authHeader]);
 
 
     useEffect(() => {
@@ -114,9 +110,6 @@ const ProductDetailPage = () => {
     const handleRefreshReviews = () => {
         setReviewsPage(0);
         setHasMoreReviews(true);
-        // We must fetch reviews *after* state is reset.
-        // We can leverage a useEffect for this or call it directly.
-        // Calling directly is fine here.
         fetchReviews(0);
         fetchProductDetails();
         setReviewBoxKey(prevKey => prevKey + 1);
@@ -135,37 +128,36 @@ const ProductDetailPage = () => {
     }, [productId, fetchProductDetails, fetchReviews]);
 
     useEffect(() => {
-        if (product && !selectedColor && product.colors?.length > 0) {
-            const firstAvailableColor = product.colors.find(c => {
-                const variations = product.variations?.[c.colorName];
-                return variations && Object.values(variations).some(v => v.quantity > 0);
-            });
-            if (firstAvailableColor) {
-                setSelectedColor(firstAvailableColor.colorName);
-            }
+        if (!product || !product.variations) {
+            return;
         }
-    }, [product, selectedColor]);
 
-    useEffect(() => {
-        if (product && selectedColor) {
-            const variationsForColor = product.variations?.[selectedColor];
-            if (variationsForColor) {
-                const firstAvailableSize = Object.keys(variationsForColor).find(
-                    size => variationsForColor[size]?.quantity > 0
-                );
-                setSelectedSize(firstAvailableSize || null);
-            } else {
-                setSelectedSize(null);
-            }
+        const firstAvailableColor = product.colors?.find(c => {
+            const variationsForColor = product.variations[c.colorName];
+            return variationsForColor && Object.values(variationsForColor).some(v => v.quantity > 0);
+        });
+
+        if (firstAvailableColor) {
+            const colorName = firstAvailableColor.colorName;
+            const variationsForColor = product.variations[colorName];
+            const firstAvailableSize = Object.keys(variationsForColor).find(
+                size => variationsForColor[size]?.quantity > 0
+            );
+
+            setSelectedColor(colorName);
+            setSelectedSize(firstAvailableSize || null);
+        } else {
+            setSelectedColor(null);
+            setSelectedSize(null);
         }
-    }, [product, selectedColor]);
+    }, [product]);
 
     useEffect(() => {
         const fetchRecommendations = async () => {
             if (product?.productId) {
                 setLoadingRecommendations(true);
                 try {
-                    const recommendations = await getProductRecommendations(product.productId, authUser?.name || '');
+                    const recommendations = await getProductRecommendations(product.productId, authUser?.username || '');
                     setRecommendedProducts(recommendations);
                 } catch (error) {
                     console.error('Error fetching recommendations:', error);
@@ -441,7 +433,7 @@ const ProductDetailPage = () => {
                     <h2 className='text-3xl font-semibold mb-4'>Recommended Products</h2>
                     <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-1 py-5'>
                         {loadingRecommendations ? <CircularProgress /> : recommendedProducts.map((item) => (
-                            <ProductRecommend key={item.productId} product={item} username={authUser?.name} />
+                            <ProductRecommend key={item.productId} product={item} username={authUser?.username} />
                         ))}
                     </div>
                 </div>

@@ -149,7 +149,7 @@ export const UserProfile = () => {
                     userPhone: userInfo.userPhone || "",
                     userImage: userInfo.userImage || userDefault,
                 };
-                formik.setValues(initialData);
+                formik.resetForm({ values: initialData });
                 setProfileImage(initialData.userImage);
             } catch (error) {
                 toast.error("Failed to load user data.");

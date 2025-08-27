@@ -8,6 +8,8 @@ import com.unleashed.dto.ScoredProductDTO;
 import com.unleashed.entity.*;
 import com.unleashed.repo.*;
 import com.unleashed.util.StringSimilarityUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -36,6 +38,9 @@ public class ProductRecommendationService {
     private final VariationRepository variationRepository;
     private final CartRepository cartRepository;
     private final SaleRepository saleRepository;
+
+    private static final Logger logger = LoggerFactory.getLogger(ProductRecommendationService.class);
+
 
     @Autowired
     public ProductRecommendationService(
@@ -385,8 +390,7 @@ public class ProductRecommendationService {
 
             String status = product.getProductStatus() != null ? product.getProductStatus().getProductStatusName() : "a";
             score = switch (status) {
-                case "OUT OF STOCK" -> 0.0;
-                case "IMPORTING" -> score + RecommendationConfig.PRODUCT_STATUS_SCORE_IMPORTING;
+                case "OUT OF STOCK", "IMPORTING" -> 0.0;
                 case "AVAILABLE" -> score + RecommendationConfig.PRODUCT_STATUS_SCORE_AVAILABLE;
                 case "RUNNING OUT" -> score + RecommendationConfig.PRODUCT_STATUS_SCORE_RUNNING_OUT;
                 case "NEW" -> score + RecommendationConfig.PRODUCT_STATUS_SCORE_NEW;

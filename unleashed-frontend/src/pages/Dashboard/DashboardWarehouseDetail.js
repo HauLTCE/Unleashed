@@ -17,8 +17,8 @@ const DashboardWarehouseDetail = () => {
     const [categories, setCategories] = useState([]);
 
     // State for pagination and filters
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedBrandId, setSelectedBrandId] = useState("");
     const [selectedCategoryId, setSelectedCategoryId] = useState("");
@@ -48,7 +48,7 @@ const DashboardWarehouseDetail = () => {
         if (isInitialMount.current) {
             isInitialMount.current = false;
         } else {
-            setCurrentPage(1);
+            setCurrentPage(0);
         }
     }, [debouncedSearchTerm, selectedBrandId, selectedCategoryId, showOnlyLowStock]);
 
@@ -58,7 +58,7 @@ const DashboardWarehouseDetail = () => {
         apiClient.get(`/api/stocks/${stockId}`, {
             headers: { Authorization: varToken },
             params: {
-                page: currentPage - 1,
+                page: currentPage,
                 size: 10,
                 search: debouncedSearchTerm,
                 brandId: selectedBrandId || null,

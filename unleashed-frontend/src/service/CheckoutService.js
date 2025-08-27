@@ -137,3 +137,10 @@ export const checkStock = async (checkoutItem, authHeader) => {
         throw error;
     }
 };
+
+export const getBestDiscounts = async (authHeader, cartTotal) => {
+    return apiClient.get("/api/discounts/best-for-checkout", {
+        headers: { Authorization: authHeader },
+        params: { total: cartTotal }
+    });
+};

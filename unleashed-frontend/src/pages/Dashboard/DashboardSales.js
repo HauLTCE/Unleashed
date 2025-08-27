@@ -18,8 +18,8 @@ const DashboardSales = () => {
     const [isLoading, setIsLoading] = useState(true);
 
     // State for pagination, search, and filter
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
@@ -34,7 +34,7 @@ const DashboardSales = () => {
         if (isInitialMount.current) {
             isInitialMount.current = false;
         } else {
-            setCurrentPage(1);
+            setCurrentPage(0);
         }
     }, [debouncedSearchTerm, statusFilter]);
 
@@ -48,7 +48,7 @@ const DashboardSales = () => {
         apiClient.get('/api/sales', {
             headers: { Authorization: varToken },
             params: {
-                page: currentPage - 1,
+                page: currentPage ,
                 size: 10,
                 search: debouncedSearchTerm,
                 status: statusFilter,

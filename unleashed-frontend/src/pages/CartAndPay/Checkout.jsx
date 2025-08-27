@@ -1,16 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    Badge,
-    Box,
-    Button,
-    Divider,
-    InputAdornment,
-    List,
-    ListItem,
-    ListItemIcon,
-    ListItemText,
-    TextField,
-    Typography,
+    Badge, Box, Button, Divider, InputAdornment, List, ListItem, ListItemIcon, ListItemText, TextField,
+    Typography, Modal, Paper, CircularProgress, IconButton,
 } from "@mui/material";
 import { useCart } from "react-use-cart";
 import { useNavigate } from "react-router-dom";
@@ -19,16 +10,23 @@ import { formatPrice } from "../../components/format/formats";
 import ShipmentSelector from "../../service/ShipmentService";
 import { CommonRadioCard } from "../../components/inputs/Radio";
 import useAuthUser from "react-auth-kit/hooks/useAuthUser";
-import {
-    checkDiscount,
-    checkoutOrder,
-    checkStock,
-    getPaymentMethod,
-    getShippingMethod
-} from "../../service/CheckoutService";
+import { checkDiscount, checkoutOrder, checkStock, getPaymentMethod, getShippingMethod, getBestDiscounts } from "../../service/CheckoutService";
 import useAuthHeader from "react-auth-kit/hooks/useAuthHeader";
 import { toast } from "react-toastify";
 import { fetchMembership, GetUserInfo } from "../../service/UserService";
+import CloseIcon from '@mui/icons-material/Close';
+
+const modalStyle = {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: { xs: '90%', sm: 500 },
+    bgcolor: 'background.paper',
+    boxShadow: 24,
+    p: 4,
+    borderRadius: 2,
+};
 
 const style = {
     py: 0,
@@ -61,6 +59,10 @@ const CheckoutPage = () => {
     const [rank, setRank] = useState();
     const [rankDiscount, setRankDiscount] = useState(0);
 
+    const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
+    const [suggestedDiscounts, setSuggestedDiscounts] = useState([]);
+    const [loadingDiscounts, setLoadingDiscounts] = useState(false);
+
     const calculateFinalCheckoutPrice = useCallback(() => {
         const shippingCost = shippingMethod ? (shippingMethod.id === 1 ? 20000 : 10000) : 0;
         const totalBeforeDiscount = cartTotal + shippingCost;
@@ -77,20 +79,16 @@ const CheckoutPage = () => {
     useEffect(() => {
         const fetchInitialData = async () => {
             if (!authHeader) return;
-
             try {
                 const [methodsResponse, userInfoResponse] = await Promise.all([
                     Promise.all([getPaymentMethod(authHeader), getShippingMethod(authHeader)]),
                     GetUserInfo(authHeader)
                 ]);
-
                 const [paymentRes, shippingRes] = methodsResponse;
                 const userInfo = userInfoResponse.data;
-
                 const availablePaymentMethods = paymentRes.data || [];
                 setPaymentMethods(availablePaymentMethods);
                 setShippingMethods(shippingRes.data || []);
-
                 setUserData({
                     userId: userInfo.userId || "",
                     email: userInfo.userEmail || "",
@@ -99,7 +97,6 @@ const CheckoutPage = () => {
                     userAddress: userInfo.userAddress === "Address not provided" ? "" : userInfo.userAddress,
                     currentPaymentMethod: userInfo.userCurrentPaymentMethod || null,
                 });
-
                 const fullAddress = userInfo.userAddress;
                 if (fullAddress && fullAddress !== "Address not provided") {
                     const addressParts = fullAddress.split(',').map(part => part.trim());
@@ -110,22 +107,15 @@ const CheckoutPage = () => {
                         setHouseNumber(fullAddress);
                     }
                 }
-
                 const savedMethodName = userInfo.userCurrentPaymentMethod;
                 if (savedMethodName && availablePaymentMethods.length > 0) {
-                    const defaultMethod = availablePaymentMethods.find(
-                        (pm) => pm.paymentMethodName === savedMethodName
-                    );
-                    if (defaultMethod) {
-                        setPaymentMethod(defaultMethod);
-                    }
+                    const defaultMethod = availablePaymentMethods.find((pm) => pm.paymentMethodName === savedMethodName);
+                    if (defaultMethod) setPaymentMethod(defaultMethod);
                 }
-
             } catch (e) {
                 toast.error("Failed to load checkout information. Please refresh the page.", { position: "top-center", autoClose: 2000 });
             }
         };
-
         fetchInitialData();
     }, [authHeader, navigate]);
 
@@ -148,6 +138,23 @@ const CheckoutPage = () => {
             setRankDiscount(0);
         }
     }, [cartTotal, rank]);
+
+    useEffect(() => {
+        const fetchSuggestedDiscounts = async () => {
+            if (cartTotal > 0 && authHeader) {
+                setLoadingDiscounts(true);
+                try {
+                    const response = await getBestDiscounts(authHeader, cartTotal);
+                    setSuggestedDiscounts(response.data || []);
+                } catch (error) {
+                    console.error("Failed to fetch suggested discounts:", error);
+                } finally {
+                    setLoadingDiscounts(false);
+                }
+            }
+        };
+        fetchSuggestedDiscounts();
+    }, [cartTotal, authHeader]);
 
     useEffect(() => {
         setFinalTotal(calculateFinalCheckoutPrice());
@@ -179,11 +186,14 @@ const CheckoutPage = () => {
         setShippingMethod(selectedShipping);
     }, [shippingMethods]);
 
-    const handleDiscountCheck = async () => {
+    const handleDiscountCheck = async (code) => {
+        const codeToApply = code || discountCode;
+        if (!codeToApply) return;
         try {
-            const response = await checkDiscount(discountCode, authHeader, cartTotal);
+            const response = await checkDiscount(codeToApply, authHeader, cartTotal);
             if (response?.data) {
                 const discount = response.data;
+                setDiscountCode(codeToApply);
                 setDiscountApply(discount);
                 setDiscountMinus(calculateDiscount(cartTotal, discount));
                 toast.success("Discount applied successfully!", { position: "top-center", autoClose: 2000 });
@@ -198,6 +208,11 @@ const CheckoutPage = () => {
             setDiscountMinus(0);
             setDiscountCode("");
         }
+    };
+
+    const handleSelectDiscount = (selectedCode) => {
+        setIsDiscountModalOpen(false);
+        handleDiscountCheck(selectedCode);
     };
 
     const calculateDiscount = (originalPrice, discount) => {
@@ -236,7 +251,6 @@ const CheckoutPage = () => {
             unitPrice: item.price,
             discountAmount: (item.price / cartTotal) * discountMinus,
         }));
-
         return {
             notes: note,
             discountCode: discountCode || null,
@@ -268,7 +282,6 @@ const CheckoutPage = () => {
         }
         try {
             await checkStock(checkoutData, authHeader);
-
             const response = await checkoutOrder(checkoutData, authHeader);
             if (response?.data) {
                 localStorage.setItem("orderId", response.data.orderId);
@@ -315,7 +328,7 @@ const CheckoutPage = () => {
                                 <ListItem>
                                     <ListItemIcon>
                                         <Badge badgeContent={item.quantity} color="primary">
-                                            <img src={item.image} alt={item.name} className="max-w-24 max-h-24 rounded-lg"/>
+                                            <img src={item.image} alt={item.name} className="max-w-24 max-h-24 rounded-lg" />
                                         </Badge>
                                     </ListItemIcon>
                                     <ListItemText sx={{ px: "10px" }}>
@@ -336,18 +349,28 @@ const CheckoutPage = () => {
                     <TextField
                         variant="outlined"
                         fullWidth
+                        placeholder="Enter discount code"
+                        value={discountCode}
+                        onChange={(e) => setDiscountCode(e.target.value)}
                         disabled={!!discountApply.discountType}
-                        onBlur={(e) => setDiscountCode(e.target.value)}
                         InputProps={{
                             endAdornment: (
                                 <InputAdornment position="end">
-                                    <Button onClick={handleDiscountCheck} disabled={!!discountApply.discountType}>
+                                    <Button onClick={() => handleDiscountCheck()} disabled={!!discountApply.discountType}>
                                         {discountApply.discountType ? "Applied" : "Apply"}
                                     </Button>
                                 </InputAdornment>
                             ),
                         }}
                     />
+                    <Button
+                        variant="text"
+                        onClick={() => setIsDiscountModalOpen(true)}
+                        sx={{ mt: 1 }}
+                        disabled={loadingDiscounts || suggestedDiscounts.length === 0}
+                    >
+                        {loadingDiscounts ? "Finding Vouchers..." : "Choose Available Voucher"}
+                    </Button>
                     <Divider sx={{ py: '15px' }} />
                     <Box sx={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: 1, p: 3 }}>
                         <Typography variant="h6" sx={{ fontWeight: '600', mb: 2 }}>Order Summary</Typography>
@@ -448,6 +471,49 @@ const CheckoutPage = () => {
                     </Button>
                 </div>
             </div>
+            <Modal
+                open={isDiscountModalOpen}
+                onClose={() => setIsDiscountModalOpen(false)}
+            >
+                <Paper sx={modalStyle}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6" component="h2">Select a Voucher</Typography>
+                        <IconButton onClick={() => setIsDiscountModalOpen(false)}><CloseIcon /></IconButton>
+                    </Box>
+                    <Divider />
+                    <List sx={{ maxHeight: 400, overflow: 'auto' }}>
+                        {loadingDiscounts ? <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}><CircularProgress /></Box> :
+                            suggestedDiscounts.length > 0 ? (
+                                suggestedDiscounts.map(d => (
+                                    <ListItem
+                                        key={d.discountId}
+                                        secondaryAction={
+                                            <Button edge="end" onClick={() => handleSelectDiscount(d.discountCode)}>
+                                                Apply
+                                            </Button>
+                                        }
+                                        sx={{ my: 1, border: '1px solid #ddd', borderRadius: 1 }}
+                                    >
+                                        <ListItemText
+                                            primary={d.discountTypeName === 'PERCENTAGE' ? `${d.discountValue}% OFF` : `${formatPrice(d.discountValue)} OFF`}
+                                            secondary={
+                                                <React.Fragment>
+                                                    <Typography component="span" variant="body2" color="text.primary">
+                                                        {`Code: ${d.discountCode}`}
+                                                    </Typography>
+                                                    {` — Min. spend ${formatPrice(d.minimumOrderValue)}`}
+                                                </React.Fragment>
+                                            }
+                                        />
+                                    </ListItem>
+                                ))
+                            ) : (
+                                <Typography sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>No applicable vouchers found.</Typography>
+                            )
+                        }
+                    </List>
+                </Paper>
+            </Modal>
         </div>
     );
 };
