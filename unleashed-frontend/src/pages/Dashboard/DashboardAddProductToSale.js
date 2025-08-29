@@ -16,8 +16,8 @@ const DashboardAddProductToSale = () => {
     const [products, setProducts] = useState([]);
     const [selectionList, setSelectionList] = useState({});
     const [loading, setLoading] = useState(true);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
     const isInitialMount = useRef(true);
@@ -26,7 +26,7 @@ const DashboardAddProductToSale = () => {
         if (isInitialMount.current) {
             isInitialMount.current = false;
         } else {
-            setCurrentPage(1);
+            setCurrentPage(0);
         }
     }, [debouncedSearchTerm]);
 
@@ -39,7 +39,7 @@ const DashboardAddProductToSale = () => {
         apiClient.get(`/api/sales/${saleId}/products/available`, {
             headers: { Authorization: varToken },
             params: {
-                page: currentPage - 1,
+                page: currentPage,
                 size: 8,
                 search: debouncedSearchTerm,
             },

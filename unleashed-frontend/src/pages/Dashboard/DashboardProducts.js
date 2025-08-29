@@ -1,21 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
+    Typography,
     TextField,
-    Pagination,
-    CircularProgress,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Paper,
+    Button,
     IconButton,
-    Box,
-    Tooltip
+    Tooltip,
+    Skeleton,
 } from '@mui/material';
-import { FaEdit, FaPlus, FaTrash } from 'react-icons/fa';
+import { Edit, Add, Delete } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader';
 import { formatPrice } from '../../components/format/formats';
@@ -24,6 +17,7 @@ import DeleteConfirmationModal from '../../components/modals/DeleteConfirmationM
 import { getProductList } from '../../service/ShopService';
 import useDebounce from '../../components/hooks/useDebounce';
 import { apiClient } from '../../core/api';
+import EnhancedPagination from '../../components/pagination/EnhancedPagination';
 
 const DashboardProducts = () => {
     const [products, setProducts] = useState([]);
@@ -37,6 +31,7 @@ const DashboardProducts = () => {
 
     const role = useAuthUser()?.role;
     const varToken = useAuthHeader();
+    const navigate = useNavigate();
     const itemsPerPage = 10;
 
     const fetchProducts = useCallback(async () => {
@@ -61,10 +56,6 @@ const DashboardProducts = () => {
     const handleSearchChange = (event) => {
         setSearchTerm(event.target.value);
         setPage(1);
-    };
-
-    const handlePageChange = (event, value) => {
-        setPage(value);
     };
 
     const handleDeleteProduct = async (productId) => {
@@ -97,115 +88,126 @@ const DashboardProducts = () => {
         setSelectedProduct(null);
     };
 
+    const TableSkeleton = () => (
+        <>
+            {[...Array(5)].map((_, index) => (
+                <tr key={index}>
+                    <td className='px-4 py-3'><Skeleton variant="rectangular" width={60} height={60} /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                </tr>
+            ))}
+        </>
+    );
+
     return (
-        <div>
-            <div className='flex items-center justify-between mb-6'>
-                <h1 className='text-4xl font-bold'>Products</h1>
+        <div className='p-4'>
+            <div className='flex items-center justify-between mb-4'>
+                <Typography variant='h4' className='text-3xl font-bold'>
+                    Products Management
+                </Typography>
                 {role !== 'STAFF' && (
-                    <Link to='/Dashboard/Products/Add'>
-                        <button className='text-blue-600 border border-blue-500 px-4 py-2 rounded-lg flex items-center'>
-                            <FaPlus className='mr-2' /> Add New Product
-                        </button>
-                    </Link>
+                    <Button
+                        variant="contained"
+                        startIcon={<Add />}
+                        component={Link}
+                        to='/Dashboard/Products/Add'
+                    >
+                        Add New Product
+                    </Button>
                 )}
             </div>
 
-            <TextField
-                label='Search Products by Name'
-                variant='outlined'
-                value={searchTerm}
-                onChange={handleSearchChange}
-                fullWidth
-                margin='normal'
-            />
+            <div className='flex justify-between items-center mb-4 bg-white p-3 rounded-lg shadow'>
+                <TextField
+                    label="Search Products by Name..."
+                    variant="outlined"
+                    size="small"
+                    value={searchTerm}
+                    onChange={handleSearchChange}
+                    className="w-full"
+                />
+            </div>
 
-            {loading ? (
-                <div className="flex justify-center items-center h-64">
-                    <CircularProgress />
-                </div>
-            ) : (
-                <>
-                    <TableContainer component={Paper}>
-                        <Table sx={{ minWidth: 650 }} aria-label="products table">
-                            <TableHead>
-                                <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>Image</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>Product Name</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>Brand</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>Price</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold' }} align="center">Stock</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>Rating</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold' }} align="center">Actions</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {products.length > 0 ? (
-                                    products.map((product) => (
-                                        <TableRow key={product.productId} hover>
-                                            <TableCell>
-                                                <img
-                                                    src={product.productVariationImage || 'https://placehold.co/60x60'}
-                                                    alt={product.productName}
-                                                    style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: '4px' }}
-                                                />
-                                            </TableCell>
-                                            <TableCell component="th" scope="row">
-                                                <Link to={`/Dashboard/Products/${product.productId}`} className="hover:underline text-blue-600">
-                                                    {product.productName}
-                                                </Link>
-
-                                            </TableCell>
-                                            <TableCell>{product.brandName || 'N/A'}</TableCell>
-                                            <TableCell>{product.productPrice ? formatPrice(product.productPrice) : 'N/A'}</TableCell>
-                                            <TableCell align="center">{product.quantity ?? 0}</TableCell>
-                                            <TableCell>
-                                                {product.averageRating.toFixed(1)} ({product.totalRatings})
-                                            </TableCell>
-                                            <TableCell align="center">
-                                                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
-                                                    {role !== 'STAFF' && (
-                                                        <>
-                                                            <Tooltip title="Edit">
-                                                                <IconButton component={Link} to={`/Dashboard/Products/Edit/${product.productId}`} color="primary" size="small">
-                                                                    <FaEdit />
-                                                                </IconButton>
-                                                            </Tooltip>
-                                                            <Tooltip title="Delete">
-                                                                <IconButton onClick={() => handleOpenModal(product)} color="error" size="small">
-                                                                    <FaTrash />
-                                                                </IconButton>
-                                                            </Tooltip>
-                                                        </>
-                                                    )}
-                                                </Box>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={7} align="center">
-                                            No products found.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-
-                    {pageCount > 1 && (
-                        <div className='flex justify-center mt-8'>
-                            <Pagination
-                                count={pageCount}
-                                page={page}
-                                onChange={handlePageChange}
-                                color="primary"
-                                showFirstButton
-                                showLastButton
-                            />
-                        </div>
+            <div className='overflow-x-auto bg-white rounded-lg shadow'>
+                <table className='min-w-full table-auto'>
+                    <thead className='bg-gray-100'>
+                    <tr>
+                        <th style={{ width: '10%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Image</th>
+                        <th style={{ width: '30%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Product Name</th>
+                        <th style={{ width: '15%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Brand</th>
+                        <th style={{ width: '10%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Price</th>
+                        <th style={{ width: '10%' }} className='px-4 py-3 text-center text-sm font-semibold text-gray-600'>Stock</th>
+                        <th style={{ width: '10%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Rating</th>
+                        <th style={{ width: '15%' }} className='px-4 py-3 text-center text-sm font-semibold text-gray-600'>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody className='divide-y divide-gray-200'>
+                    {loading ? (
+                        <TableSkeleton />
+                    ) : products.length > 0 ? (
+                        products.map((product) => (
+                            <tr key={product.productId} className='hover:bg-gray-50 align-middle'>
+                                <td className='px-4 py-2'>
+                                    <img
+                                        src={product.productVariationImage || 'https://placehold.co/60x60'}
+                                        alt={product.productName}
+                                        style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: '4px' }}
+                                    />
+                                </td>
+                                <td className='px-4 py-3 text-sm font-medium text-blue-600 hover:text-blue-800 cursor-pointer whitespace-nowrap'
+                                    onClick={() => navigate(`/Dashboard/Products/${product.productId}`)}>
+                                    {product.productName}
+                                </td>
+                                <td className='px-4 py-3 text-sm text-gray-700'>{product.brandName || 'N/A'}</td>
+                                <td className='px-4 py-3 text-sm font-medium text-gray-900'>
+                                    {product.productPrice ? formatPrice(product.productPrice) : 'N/A'}
+                                </td>
+                                <td className='px-4 py-3 text-sm text-gray-700 text-center'>{product.quantity ?? 0}</td>
+                                <td className='px-4 py-3 text-sm text-gray-700'>
+                                    {product.averageRating.toFixed(1)} ({product.totalRatings})
+                                </td>
+                                <td className='px-4 py-3'>
+                                    <div className='flex items-center justify-center gap-2'>
+                                        {role !== 'STAFF' && (
+                                            <>
+                                                <Tooltip title="Edit">
+                                                    <IconButton component={Link} to={`/Dashboard/Products/Edit/${product.productId}`} color="primary" size="small">
+                                                        <Edit />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Delete">
+                                                    <IconButton onClick={() => handleOpenModal(product)} color="error" size="small">
+                                                        <Delete />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </>
+                                        )}
+                                    </div>
+                                </td>
+                            </tr>
+                        ))
+                    ) : (
+                        <tr>
+                            <td colSpan="7" className="text-center py-10 text-gray-500">
+                                No products found.
+                            </td>
+                        </tr>
                     )}
-                </>
-            )}
+                    </tbody>
+                </table>
+            </div>
+
+            <EnhancedPagination
+                currentPage={page - 1}
+                totalPages={pageCount}
+                onPageChange={(newPage) => setPage(newPage + 1)}
+                isLoading={loading}
+            />
 
             <DeleteConfirmationModal
                 isOpen={isModalOpen}

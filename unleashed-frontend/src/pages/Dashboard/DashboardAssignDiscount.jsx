@@ -22,8 +22,8 @@ const DashboardAssignDiscount = () => {
 
     const [loading, setLoading] = useState(true);
     const [users, setUsers] = useState([]);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
 
     const [assignedUserIds, setAssignedUserIds] = useState(new Set());
     const [selectedUserIds, setSelectedUserIds] = useState(new Set());
@@ -55,7 +55,7 @@ const DashboardAssignDiscount = () => {
         apiClient.get('/api/users/search', {
             headers: { Authorization: varToken },
             params: {
-                page: currentPage - 1,
+                page: currentPage,
                 size: 10,
                 searchTerm: debouncedSearchTerm,
             }

@@ -23,7 +23,6 @@ public class ProductSpecification {
         };
     }
 
-    // --- THIS METHOD IS NOW FIXED ---
     public static Specification<Product> notInProductIds(List<String> productIds) {
         return (root, query, cb) -> {
             if (productIds == null || productIds.isEmpty()) {

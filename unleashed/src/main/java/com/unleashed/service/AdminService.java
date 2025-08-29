@@ -1,6 +1,7 @@
 package com.unleashed.service;
 
 import com.unleashed.dto.UserDTO;
+import com.unleashed.dto.UserPageDTO;
 import com.unleashed.entity.User;
 import com.unleashed.repo.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,13 +24,15 @@ public class AdminService {
     }
 
 
-    public List<UserDTO> searchUsers(String searchTerm, int page, int size) {
+    public UserPageDTO searchUsers(String searchTerm, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<User> users = userRepository.findByUserUsernameContainingOrUserEmailContaining(searchTerm, searchTerm, pageable);
+        Page<User> userPage = userRepository.findByUserUsernameContainingOrUserEmailContaining(searchTerm, searchTerm, pageable);
 
-        return users.getContent().stream()
-                .map(this::convertToUserDTO) // Chuyển Entity -> DTO
+        List<UserDTO> userDTOs = userPage.getContent().stream()
+                .map(this::convertToUserDTO)
                 .collect(Collectors.toList());
+
+        return new UserPageDTO(userDTOs, userPage.getTotalPages());
     }
 
 

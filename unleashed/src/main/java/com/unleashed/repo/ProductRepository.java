@@ -112,7 +112,10 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
     @Query(value = """
         SELECT p, v,
                COALESCE(AVG(r.reviewRating), 0.0) AS averageRating,
-               COUNT(r.id) AS totalRatings
+               COUNT(r.reviewRating) AS totalRatings,
+               (SELECT s.id FROM Sale s JOIN SaleProduct sp ON s.id = sp.sale.id
+                WHERE sp.product.productId = p.productId
+                AND s.saleStatus.saleStatusName = 'ACTIVE') as saleId
         FROM Product p
         JOIN p.brand b
         JOIN p.categories cat

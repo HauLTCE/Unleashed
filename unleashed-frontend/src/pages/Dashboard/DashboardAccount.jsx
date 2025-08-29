@@ -1,206 +1,230 @@
-import React, { useState, useEffect } from "react";
-import { FaPlus, FaEdit, FaEye } from "react-icons/fa";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import useAuthUser from "react-auth-kit/hooks/useAuthUser";
 import useAuthHeader from "react-auth-kit/hooks/useAuthHeader";
 import DeleteConfirmationModal from "../../components/modals/DeleteConfirmationModal";
-import { toast, Zoom } from "react-toastify";
+import { toast } from "react-toastify";
 import { apiClient } from "../../core/api";
+import {
+    Typography,
+    Button,
+    TextField,
+    Chip,
+    IconButton,
+    Tooltip,
+    Skeleton,
+    Avatar,
+} from "@mui/material";
+import { Add, Edit, Visibility, Delete } from "@mui/icons-material";
+import useDebounce from "../../components/hooks/useDebounce";
+import EnhancedPagination from "../../components/pagination/EnhancedPagination";
 
 const DashboardAccounts = () => {
     const [users, setUsers] = useState([]);
-    const [totalPages, setTotalPages] = useState(0);
+    const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(0);
-    const [pageSize, setPageSize] = useState(10);
+    const [totalPages, setTotalPages] = useState(0);
     const [searchTerm, setSearchTerm] = useState("");
     const [userToDelete, setUserToDelete] = useState(null);
-    const [isOpen, setIsOpen] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
     const navigate = useNavigate();
-    const authUser = useAuthUser();
-    const currentUser = authUser.username;
     const varToken = useAuthHeader();
+    const isInitialMount = useRef(true);
+    const pageSize = 10;
 
-    useEffect(() => {
-        fetchUsers(currentPage, pageSize, searchTerm);
-    }, [currentPage, searchTerm, pageSize]);
-
-    const fetchUsers = async (page, size, search = "") => {
+    const fetchUsers = useCallback(async (page, search = "") => {
+        setLoading(true);
         try {
             const response = await apiClient.get("/api/admin/searchUsers", {
-                params: { searchTerm: search, page, size },
+                params: { searchTerm: search, page, size: pageSize },
                 headers: { Authorization: varToken },
             });
-            setUsers(response.data);
-            setTotalPages(Math.ceil(response.data.length / size));
+            setUsers(response.data.users || []);
+            setTotalPages(response.data.totalPages || 0);
         } catch (error) {
-            console.error(" Error fetching users:", error.response?.data || error.message);
+            console.error("Error fetching users:", error.response?.data || error.message);
             toast.error("Error fetching users.");
+        } finally {
+            setLoading(false);
         }
-    };
+    }, [varToken, pageSize]);
+
+    useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+        } else {
+            setCurrentPage(0);
+        }
+    }, [debouncedSearchTerm]);
+
+    useEffect(() => {
+        fetchUsers(currentPage, debouncedSearchTerm);
+    }, [currentPage, debouncedSearchTerm, fetchUsers]);
 
     const handleSearchChange = (e) => {
         setSearchTerm(e.target.value);
-        setCurrentPage(0);
     };
 
-    const handlePageChange = (page) => {
-        setCurrentPage(page);
+    const openDeleteModal = (user) => {
+        setUserToDelete(user);
+        setIsModalOpen(true);
     };
 
-    const handleNextPage = () => {
-        if (currentPage < totalPages - 1) {
-            setCurrentPage(currentPage + 1);
-        }
-    };
-
-    const handlePreviousPage = () => {
-        if (currentPage > 0) {
-            setCurrentPage(currentPage - 1);
-        }
-    };
-
-    const handleViewUser = (userId) => {
-        navigate(`/Dashboard/Accounts/${userId}`);
-    };
-
-    const getRoleStyle = (role) => {
-        switch (role) {
-            case "ADMIN":
-                return "text-red-600 bg-red-100 px-4 py-2 rounded-md inline-block font-bold text-center w-32";
-            case "STAFF":
-                return "text-yellow-600 bg-yellow-100 px-4 py-2 rounded-md inline-block font-bold text-center w-32";
-            case "CUSTOMER":
-                return "text-teal-600 bg-teal-100 px-4 py-2 rounded-md inline-block font-bold text-center w-32";
-            default:
-                return "";
-        }
-    };
-
-    const openDeleteModal = (userToDelete) => {
-        setUserToDelete(userToDelete);
-        setIsOpen(true);
-    };
-
-    const handleClose = () => {
-        setIsOpen(false);
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setUserToDelete(null);
     };
 
     const handleDelete = () => {
+        if (!userToDelete) return;
         apiClient
-            .delete(`/api/admin/${userToDelete.userId}`, {
-                headers: { Authorization: varToken },
-            })
+            .delete(`/api/admin/${userToDelete.userId}`, { headers: { Authorization: varToken } })
             .then((response) => {
-                fetchUsers(currentPage, pageSize, searchTerm);
-                handleClose();
-                toast.success(response.data, { position: "bottom-right", transition: Zoom });
+                toast.success(response.data || "User deleted successfully.");
+                fetchUsers(currentPage, debouncedSearchTerm);
             })
             .catch(() => {
-                toast.error("Delete user failed", { position: "bottom-right", transition: Zoom });
+                toast.error("Failed to delete user.");
+            })
+            .finally(() => {
+                handleCloseModal();
             });
     };
 
-    const renderPageNumbers = () => {
-        const pages = [];
-        for (let i = 0; i < totalPages; i++) {
-            pages.push(
-                <button
-                    key={i}
-                    onClick={() => handlePageChange(i)}
-                    className={`px-4 py-2 mx-1 border border-gray-300 rounded-lg ${currentPage === i ? "bg-blue-500 text-white" : ""
-                    }`}
-                >
-                    {i + 1}
-                </button>
-            );
+    const getRoleChip = (role) => {
+        switch (role) {
+            case "ADMIN": return <Chip label="Admin" color="error" size="small" />;
+            case "STAFF": return <Chip label="Staff" color="warning" size="small" />;
+            case "CUSTOMER": return <Chip label="Customer" color="info" size="small" />;
+            default: return <Chip label="Unknown" size="small" />;
         }
-        return pages;
     };
 
-    return (
+    const getStatusChip = (isEnable) => {
+        return isEnable
+            ? <Chip label="Enabled" color="success" variant="outlined" size="small" />
+            : <Chip label="Disabled" color="error" variant="outlined" size="small" />;
+    };
+
+    const TableSkeleton = () => (
         <>
-            <div className="flex items-center justify-between">
-                <h1 className="text-4xl font-bold mb-6">Accounts</h1>
-                <Link to="/Dashboard/Accounts/Create">
-                    <button className="text-blue-600 border border-blue-500 px-4 py-2 rounded-lg flex items-center">
-                        <FaPlus className="mr-2" /> Create A New Staff Account
-                    </button>
-                </Link>
+            {[...Array(pageSize)].map((_, index) => (
+                <tr key={index}>
+                    <td className="px-4 py-2"><Skeleton variant="circular" width={40} height={40} /></td>
+                    <td className="px-4 py-3"><Skeleton variant="text" /></td>
+                    <td className="px-4 py-3"><Skeleton variant="text" /></td>
+                    <td className="px-4 py-3"><Skeleton variant="text" /></td>
+                    <td className="px-4 py-3"><Skeleton variant="text" /></td>
+                    <td className="px-4 py-3"><Skeleton variant="text" /></td>
+                </tr>
+            ))}
+        </>
+    );
+
+    return (
+        <div className="p-4">
+            <div className="flex items-center justify-between mb-4">
+                <Typography variant="h4" className="text-3xl font-bold">
+                    Accounts Management
+                </Typography>
+                <Button
+                    variant="contained"
+                    startIcon={<Add />}
+                    component={Link}
+                    to="/Dashboard/Accounts/Create"
+                >
+                    Create Staff Account
+                </Button>
             </div>
-            <div className="mb-2">
-                <input
-                    type="text"
-                    placeholder="Search by username or email"
+
+            <div className="flex justify-between items-center mb-4 bg-white p-3 rounded-lg shadow">
+                <TextField
+                    label="Search by username or email..."
+                    variant="outlined"
+                    size="small"
                     value={searchTerm}
                     onChange={handleSearchChange}
-                    className="border border-gray-300 px-4 py-2  w-80 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full"
                 />
             </div>
 
-            <div className="overflow-x-auto">
-                <table className="table-auto w-full border-collapse">
-                    <thead className="border border-gray-300">
+            <div className="overflow-x-auto bg-white rounded-lg shadow">
+                <table className="min-w-full table-auto">
+                    <thead className="bg-gray-100">
                     <tr>
-                        <th className="px-4 py-2 text-left">Username</th>
-                        <th className="px-4 py-2 text-left">Email</th>
-                        <th className="px-4 py-2 text-left">Role</th>
-                        <th className="px-4 py-2 text-left">Status</th>
-                        <th className="px-4 py-2 text-left">Actions</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 w-16">Avatar</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Username</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Email</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Role</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Status</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Actions</th>
                     </tr>
                     </thead>
-                    <tbody>
-                    {users.map((user) => (
-                        <tr key={user.username} className="hover:bg-gray-50 space-y-2">
-                            <td className="px-4 py-2">{user.username}</td>
-                            <td className="px-4 py-2">{user.userEmail}</td>
-                            <td className={`px-4 py-2 font-bold ${getRoleStyle(user.role.roleName)}`}>
-                                {user.role.roleName}
-                            </td>
-                            {user.enable ? (
-                                <td className="px-4 py-2 text-emerald-600 font-bold">Enable</td>
-                            ) : (
-                                <td className="px-4 py-2 text-rose-600 font-bold">Disable</td>
-                            )}
-                            <td className="px-4 py-2 flex space-x-2">
-                                <button onClick={() => handleViewUser(user.userId)}>
-                                    <FaEye className="cursor-pointer text-green-500" />
-                                </button>
-                                <Link to={`/Dashboard/Accounts/Edit/${user.userId}`}>
-                                    <FaEdit className="text-blue-500 cursor-pointer" />
-                                </Link>
+                    <tbody className="divide-y divide-gray-200">
+                    {loading ? (
+                        <TableSkeleton />
+                    ) : users.length > 0 ? (
+                        users.map((user) => (
+                            <tr key={user.userId} className="hover:bg-gray-50 align-middle">
+                                <td className="px-4 py-2">
+                                    <Avatar
+                                        src={user.userImage}
+                                        alt={user.username}
+                                        sx={{ width: 40, height: 40 }}
+                                    />
+                                </td>
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900">{user.username}</td>
+                                <td className="px-4 py-3 text-sm text-gray-700">{user.userEmail}</td>
+                                <td className="px-4 py-3 text-sm">{getRoleChip(user.role.roleName)}</td>
+                                <td className="px-4 py-3 text-sm">{getStatusChip(user.enable)}</td>
+                                <td className="px-4 py-3">
+                                    <div className="flex items-center justify-center gap-2">
+                                        <Tooltip title="View Details">
+                                            <IconButton onClick={() => navigate(`/Dashboard/Accounts/${user.userId}`)} color="success" size="small">
+                                                <Visibility />
+                                            </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title="Edit">
+                                            <IconButton component={Link} to={`/Dashboard/Accounts/Edit/${user.userId}`} color="primary" size="small">
+                                                <Edit />
+                                            </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title="Delete">
+                                            <IconButton onClick={() => openDeleteModal(user)} color="error" size="small">
+                                                <Delete />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))
+                    ) : (
+                        <tr>
+                            <td colSpan="6" className="text-center py-10 text-gray-500">
+                                No accounts found.
                             </td>
                         </tr>
-                    ))}
+                    )}
                     </tbody>
                 </table>
             </div>
 
-            <div className="flex justify-center mt-4">
-                <button
-                    onClick={handlePreviousPage}
-                    disabled={currentPage === 0}
-                    className="px-4 py-2 mx-1 border border-gray-300 rounded-lg disabled:opacity-50"
-                >
-                    Previous
-                </button>
-                {renderPageNumbers()}
-                <button
-                    onClick={handleNextPage}
-                    disabled={currentPage === totalPages - 1}
-                    className="px-4 py-2 mx-1 border border-gray-300 rounded-lg disabled:opacity-50"
-                >
-                    Next
-                </button>
-            </div>
+            <EnhancedPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                isLoading={loading}
+            />
 
             <DeleteConfirmationModal
-                isOpen={isOpen}
-                onClose={handleClose}
+                isOpen={isModalOpen}
+                onClose={handleCloseModal}
                 onConfirm={handleDelete}
                 name={userToDelete?.username}
             />
-        </>
+        </div>
     );
 };
 

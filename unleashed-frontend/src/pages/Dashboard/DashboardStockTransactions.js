@@ -2,12 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { apiClient } from '../../core/api';
 import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader';
 import { formatPrice } from '../../components/format/formats';
-import { Typography, Button, Skeleton, TextField, Select, MenuItem, FormControl, InputLabel, Chip } from '@mui/material';
+import { Typography, Skeleton, TextField, Select, MenuItem, FormControl, InputLabel, Chip, Avatar } from '@mui/material';
 import useDebounce from '../../components/hooks/useDebounce';
 import EnhancedPagination from '../../components/pagination/EnhancedPagination';
 
 const DashboardStockTransactions = () => {
-    // State management
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(0);
@@ -19,7 +18,6 @@ const DashboardStockTransactions = () => {
     const varToken = useAuthHeader();
     const isInitialMount = useRef(true);
 
-    // Effect to reset to page 1 when filters change
     useEffect(() => {
         if (isInitialMount.current) {
             isInitialMount.current = false;
@@ -28,7 +26,6 @@ const DashboardStockTransactions = () => {
         }
     }, [debouncedSearchTerm, dateFilter, sortOrder]);
 
-    // Effect to fetch data when any filter or page changes
     useEffect(() => {
         fetchTransactions();
     }, [currentPage, debouncedSearchTerm, dateFilter, sortOrder]);
@@ -55,22 +52,33 @@ const DashboardStockTransactions = () => {
     };
 
     const getTypeChip = (type) => {
-        const isOut = type.toUpperCase() === 'OUT';
-        return <Chip label={type} color={isOut ? 'success' : 'info'} size="small" />;
+        let color = 'default';
+        if (type) {
+            switch (type.toUpperCase()) {
+                case 'IN': color = 'success'; break;
+                case 'OUT': color = 'secondary'; break;
+                case 'RETURN': color = 'info'; break;
+                case 'RESERVED': color = 'warning'; break;
+                default: color = 'primary';
+            }
+        }
+        return <Chip label={type || 'N/A'} color={color} size="small" />;
     };
 
     const TableSkeleton = () => (
-        [...Array(10)].map((_, index) => (
-            <tr key={index}>
-                <td className='px-4 py-2'><Skeleton variant="text" /></td>
-                <td className='px-4 py-2'><Skeleton variant="text" /></td>
-                <td className='px-4 py-2'><Skeleton variant="text" /></td>
-                <td className='px-4 py-2'><Skeleton variant="text" /></td>
-                <td className='px-4 py-2'><Skeleton variant="text" /></td>
-                <td className='px-4 py-2'><Skeleton variant="text" /></td>
-                <td className='px-4 py-2'><Skeleton variant="text" /></td>
-            </tr>
-        ))
+        <>
+            {[...Array(5)].map((_, index) => (
+                <tr key={index}>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                    <td className='px-4 py-3'><Skeleton variant="text" /></td>
+                </tr>
+            ))}
+        </>
     );
 
     return (
@@ -79,57 +87,53 @@ const DashboardStockTransactions = () => {
                 Stock Transaction History
             </Typography>
 
-            {/* Filter and Search Bar */}
-            <div className='flex flex-col md:flex-row justify-between items-center mb-4 bg-white p-3 rounded-lg shadow gap-4'>
+            <div className='flex justify-between items-center mb-4 bg-white p-3 rounded-lg shadow gap-4'>
                 <TextField
                     label="Search by Product, Staff, etc..."
                     variant="outlined"
                     size="small"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full md:w-1/3"
+                    className="w-1/2"
                 />
-                <div className="flex w-full md:w-auto gap-4">
-                    <FormControl variant="outlined" size="small" className="flex-grow">
-                        <InputLabel>Date Range</InputLabel>
-                        <Select
-                            value={dateFilter}
-                            onChange={(e) => setDateFilter(e.target.value)}
-                            label="Date Range"
-                        >
-                            <MenuItem value="all">All Time</MenuItem>
-                            <MenuItem value="today">Today</MenuItem>
-                            <MenuItem value="week">This Week</MenuItem>
-                            <MenuItem value="month">This Month</MenuItem>
-                            <MenuItem value="6months">Last 6 Months</MenuItem>
-                        </Select>
-                    </FormControl>
-                    <FormControl variant="outlined" size="small" className="flex-grow">
-                        <InputLabel>Sort By</InputLabel>
-                        <Select
-                            value={sortOrder}
-                            onChange={(e) => setSortOrder(e.target.value)}
-                            label="Sort By"
-                        >
-                            <MenuItem value="newest_first">Date: Newest First</MenuItem>
-                            <MenuItem value="oldest_first">Date: Oldest First</MenuItem>
-                        </Select>
-                    </FormControl>
-                </div>
+                <FormControl variant="outlined" size="small" className="w-1/4">
+                    <InputLabel>Date Range</InputLabel>
+                    <Select
+                        value={dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value)}
+                        label="Date Range"
+                    >
+                        <MenuItem value="all">All Time</MenuItem>
+                        <MenuItem value="today">Today</MenuItem>
+                        <MenuItem value="week">This Week</MenuItem>
+                        <MenuItem value="month">This Month</MenuItem>
+                        <MenuItem value="6months">Last 6 Months</MenuItem>
+                    </Select>
+                </FormControl>
+                <FormControl variant="outlined" size="small" className="w-1/4">
+                    <InputLabel>Sort By</InputLabel>
+                    <Select
+                        value={sortOrder}
+                        onChange={(e) => setSortOrder(e.target.value)}
+                        label="Sort By"
+                    >
+                        <MenuItem value="newest_first">Date: Newest First</MenuItem>
+                        <MenuItem value="oldest_first">Date: Oldest First</MenuItem>
+                    </Select>
+                </FormControl>
             </div>
 
-            {/* Transactions Table */}
             <div className='overflow-x-auto bg-white rounded-lg shadow'>
-                <table className='min-w-full table-fixed'>
+                <table className='min-w-full table-auto'>
                     <thead className='bg-gray-100'>
                     <tr>
-                        <th style={{ width: '25%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Product</th>
-                        <th style={{ width: '10%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Type</th>
-                        <th style={{ width: '10%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600 text-center'>Quantity</th>
-                        <th style={{ width: '15%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Price/Unit</th>
-                        <th style={{ width: '15%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Staff</th>
-                        <th style={{ width: '15%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Provider</th>
-                        <th style={{ width: '10%' }} className='px-4 py-3 text-left text-sm font-semibold text-gray-600'>Date</th>
+                        <th className='px-4 py-3 text-left text-sm font-semibold text-gray-600' style={{ width: '25%' }}>Product</th>
+                        <th className='px-4 py-3 text-left text-sm font-semibold text-gray-600' style={{ width: '10%' }}>Type</th>
+                        <th className='px-4 py-3 text-center text-sm font-semibold text-gray-600' style={{ width: '10%' }}>Quantity</th>
+                        <th className='px-4 py-3 text-left text-sm font-semibold text-gray-600' style={{ width: '15%' }}>Price/Unit</th>
+                        <th className='px-4 py-3 text-left text-sm font-semibold text-gray-600' style={{ width: '15%' }}>Staff</th>
+                        <th className='px-4 py-3 text-left text-sm font-semibold text-gray-600' style={{ width: '15%' }}>Provider</th>
+                        <th className='px-4 py-3 text-left text-sm font-semibold text-gray-600' style={{ width: '10%' }}>Date</th>
                     </tr>
                     </thead>
                     <tbody className='divide-y divide-gray-200'>
@@ -138,21 +142,26 @@ const DashboardStockTransactions = () => {
                     ) : transactions.length > 0 ? (
                         transactions.map((t) => (
                             <tr key={t.id} className='hover:bg-gray-50 align-middle'>
-                                <td className='px-4 py-2 text-sm text-gray-800'>
+                                <td className='px-4 py-2'>
                                     <div className="flex items-center gap-3">
-                                        <img src={t.variationImage || '/images/placeholder.png'} alt={t.productName} className="h-12 w-12 object-cover rounded-md" />
+                                        <Avatar
+                                            src={t.variationImage}
+                                            alt={t.productName}
+                                            variant="rounded"
+                                            sx={{ width: 48, height: 48 }}
+                                        />
                                         <div>
-                                            <div className="font-semibold">{t.productName || 'N/A'}</div>
+                                            <div className="font-semibold text-sm text-gray-800">{t.productName || 'N/A'}</div>
                                             <div className="text-xs text-gray-500">{t.colorName || 'N/A'} / {t.sizeName || 'N/A'}</div>
                                         </div>
                                     </div>
                                 </td>
-                                <td className='px-4 py-2 text-sm'>{getTypeChip(t.transactionTypeName)}</td>
-                                <td className='px-4 py-2 text-sm text-center font-semibold'>{t.transactionQuantity}</td>
-                                <td className='px-4 py-2 text-sm'>{formatPrice(t.transactionProductPrice || 0)}</td>
-                                <td className='px-4 py-2 text-sm'>{t.inchargeEmployeeUsername || 'N/A'}</td>
-                                <td className='px-4 py-2 text-sm'>{t.providerName || 'N/A'}</td>
-                                <td className='px-4 py-2 text-sm'>{new Date(t.transactionDate).toLocaleDateString()}</td>
+                                <td className='px-4 py-3 text-sm'>{getTypeChip(t.transactionTypeName)}</td>
+                                <td className='px-4 py-3 text-sm text-center font-semibold'>{t.transactionQuantity}</td>
+                                <td className='px-4 py-3 text-sm'>{formatPrice(t.transactionProductPrice || 0)}</td>
+                                <td className='px-4 py-3 text-sm text-gray-700'>{t.inchargeEmployeeUsername || 'N/A'}</td>
+                                <td className='px-4 py-3 text-sm text-gray-700'>{t.providerName || 'N/A'}</td>
+                                <td className='px-4 py-3 text-sm text-gray-700'>{new Date(t.transactionDate).toLocaleDateString()}</td>
                             </tr>
                         ))
                     ) : (

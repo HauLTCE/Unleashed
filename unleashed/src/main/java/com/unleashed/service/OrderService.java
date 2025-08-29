@@ -302,8 +302,8 @@ public class OrderService {
 
 
     @Transactional
-    public Map<String, Object> getOrders(String search, String sort, int page, int size) {
-        Specification<Order> spec = new OrderSpecification(search);
+    public Map<String, Object> getOrders(String search, String sort, Integer statusId, int page, int size) {
+        Specification<Order> spec = new OrderSpecification(search, statusId);
 
         Pageable pageable;
         if ("totalPrice_asc".equals(sort)) {
@@ -311,13 +311,9 @@ public class OrderService {
         } else if ("totalPrice_desc".equals(sort)) {
             pageable = PageRequest.of(page, size, Sort.by("orderTotalAmount").descending());
         } else {
-            // Default sort is priority. We must check if a search is active.
-            if (StringUtils.hasText(search)) {
-                // When searching, a simple date sort is a good fallback.
+            if (StringUtils.hasText(search) || statusId != null) {
                 pageable = PageRequest.of(page, size, Sort.by("orderUpdatedAt").descending());
             } else {
-                // If NOT searching and using default sort, use the special priority query.
-                // This bypasses the specification, which is fine since the search term is empty.
                 Page<Order> ordersPage = orderRepository.findAllWithPriority(PageRequest.of(page, size));
                 return mapOrderPageToResponse(ordersPage);
             }
@@ -325,6 +321,10 @@ public class OrderService {
 
         Page<Order> ordersPage = orderRepository.findAll(spec, pageable);
         return mapOrderPageToResponse(ordersPage);
+    }
+
+    public List<OrderStatus> getAllOrderStatuses() {
+        return orderStatusRepository.findAll(Sort.by(Sort.Direction.ASC, "id"));
     }
 
     // Helper method to map the Page<Order> to the response structure.
