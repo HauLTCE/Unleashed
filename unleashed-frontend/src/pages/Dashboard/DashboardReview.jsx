@@ -26,8 +26,8 @@ import EnhancedPagination from '../../components/pagination/EnhancedPagination';
 
 const DashboardReview = () => {
     const [dashboardReviews, setDashboardReviews] = useState([]);
-    const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+    const [page, setPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
     const [openDialog, setOpenDialog] = useState(false);
     const [newComment, setNewComment] = useState('');
     const [commentParentId, setCommentParentId] = useState(null);
@@ -57,7 +57,7 @@ const DashboardReview = () => {
         if (!authHeader) return;
         setLoading(true);
         try {
-            const data = await getDashboardReviews(page - 1, 10, authHeader, debouncedSearchTerm, sortOrder);
+            const data = await getDashboardReviews(page, 10, authHeader, debouncedSearchTerm, sortOrder);
             setDashboardReviews(data.content);
             setTotalPages(data.totalPages);
         } catch (error) {
@@ -71,7 +71,7 @@ const DashboardReview = () => {
         if (isInitialMount.current) {
             isInitialMount.current = false;
         } else {
-            setPage(1);
+            setPage(0);
         }
     }, [debouncedSearchTerm, sortOrder]);
 

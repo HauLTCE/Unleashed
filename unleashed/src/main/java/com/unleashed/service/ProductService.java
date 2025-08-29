@@ -472,14 +472,28 @@ public class ProductService {
 
         Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
 
-        // Pass the flag to the repository method
         Page<Object[]> productPageResult = productRepository.findProductsWithFilters(query, category, brand, rating, inStockOnly, sortedPageable);
+
+        List<Integer> saleIds = productPageResult.getContent().stream()
+                .map(result -> (Integer) result[4])
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<Integer, Sale> saleMap;
+        if (!saleIds.isEmpty()) {
+            List<Sale> sales = saleRepository.findAllById(saleIds);
+            saleMap = sales.stream().collect(Collectors.toMap(Sale::getId, sale -> sale));
+        } else {
+            saleMap = Collections.emptyMap();
+        }
 
         return productPageResult.map(result -> {
             Product product = (Product) result[0];
             Variation firstVariation = (Variation) result[1];
             Double averageRating = (Double) result[2];
             Long totalRatings = (Long) result[3];
+            Integer saleId = (Integer) result[4];
 
             ProductListDTO dto = new ProductListDTO();
             dto.setProductId(product.getProductId().toString());
@@ -495,13 +509,20 @@ public class ProductService {
             dto.setAverageRating(averageRating != null ? averageRating : 0.0);
             dto.setTotalRatings(totalRatings != null ? totalRatings : 0L);
 
+            if (saleId != null) {
+                Sale sale = saleMap.get(saleId);
+                dto.setSale(sale);
+                if (sale != null) {
+                    dto.setSaleValue(sale.getSaleValue());
+                }
+            }
+
             Integer totalQuantity = stockVariationRepository.getTotalStockQuantityForProduct(product.getProductId());
             dto.setQuantity(totalQuantity != null ? totalQuantity : 0);
 
             return dto;
         });
     }
-
 
     @Transactional(readOnly = true)
     public ProductDetailDTO getProductDetailById(String productId) {

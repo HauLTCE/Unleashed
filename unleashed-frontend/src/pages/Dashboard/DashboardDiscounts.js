@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../../core/api";
-import useAuthUser from "react-auth-kit/hooks/useAuthUser";
-import { toast, Zoom } from "react-toastify";
 import useAuthHeader from "react-auth-kit/hooks/useAuthHeader";
+import { toast } from "react-toastify";
 import { formatPrice } from "../../components/format/formats";
 import DeleteConfirmationModal from "../../components/modals/DeleteConfirmationModal";
 import useDebounce from '../../components/hooks/useDebounce';
 import {
-    Typography, Paper, TextField, Select, MenuItem, FormControl, InputLabel,
+    Typography, TextField, Select, MenuItem, FormControl, InputLabel,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Skeleton, Tooltip, IconButton, Button, Chip
 } from "@mui/material";
@@ -28,7 +27,6 @@ const DashboardDiscounts = () => {
     const [selectedStatus, setSelectedStatus] = useState("");
     const [selectedType, setSelectedType] = useState("");
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
-    const authUser = useAuthUser();
     const varToken = useAuthHeader();
     const isInitialMount = useRef(true);
 
@@ -80,10 +78,10 @@ const DashboardDiscounts = () => {
         apiClient.delete(`/api/discounts/${discountToDelete.discountId}`, { headers: { Authorization: varToken } })
             .then(() => {
                 fetchDiscounts();
-                handleClose();
-                toast.success("Discount deleted successfully", { position: "bottom-right", transition: Zoom });
+                toast.success("Discount deleted successfully");
             })
-            .catch(() => toast.error("Failed to delete discount", { position: "bottom-right", transition: Zoom }));
+            .catch(() => toast.error("Failed to delete discount"))
+            .finally(() => handleClose());
     };
 
     const getStatusChipColor = (statusName) => {
@@ -97,77 +95,90 @@ const DashboardDiscounts = () => {
     };
 
     const TableSkeleton = () => (
-        [...Array(10)].map((_, index) => (
-            <TableRow key={index}>
-                {[...Array(7)].map((_, cellIndex) => <TableCell key={cellIndex}><Skeleton /></TableCell>)}
-            </TableRow>
-        ))
+        <>
+            {[...Array(5)].map((_, index) => (
+                <tr key={index}>
+                    <td className="px-4 py-3"><Skeleton variant="text" /></td>
+                    <td className="px-4 py-3"><Skeleton variant="text" /></td>
+                    <td className="px-4 py-3"><Skeleton variant="text" /></td>
+                    <td className="px-4 py-3"><Skeleton variant="text" /></td>
+                    <td className="px-4 py-3"><Skeleton variant="text" /></td>
+                    <td className="px-4 py-3"><Skeleton variant="text" /></td>
+                </tr>
+            ))}
+        </>
     );
 
     return (
         <div className="p-4">
             <div className="flex items-center justify-between mb-4">
-                <Typography variant="h4" component="h1" className="font-bold">Discount Management</Typography>
-                <Link to="/Dashboard/Discounts/Create">
-                    <Button variant="contained" startIcon={<Add />}>Create Discount</Button>
-                </Link>
+                <Typography variant="h4" className="text-3xl font-bold">Discount Management</Typography>
+                <Button component={Link} to="/Dashboard/Discounts/Create" variant="contained" startIcon={<Add />}>
+                    Create Discount
+                </Button>
             </div>
 
-            <Paper elevation={2} className="p-4 mb-6 flex flex-col md:flex-row gap-4 items-center">
-                <TextField label="Search by Code or Description..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} variant="outlined" size="small" className="flex-grow" />
-                <FormControl size="small" sx={{ minWidth: 150 }}>
+            <div className="flex justify-between items-center mb-4 bg-white p-3 rounded-lg shadow gap-4">
+                <TextField label="Search by Code or Description..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} variant="outlined" size="small" className="w-1/2" />
+                <FormControl size="small" className="w-1/4">
                     <InputLabel>Status</InputLabel>
                     <Select value={selectedStatus} label="Status" onChange={(e) => setSelectedStatus(e.target.value)}>
                         <MenuItem value=""><em>All Statuses</em></MenuItem>
                         {statuses.map((s) => <MenuItem key={s.id} value={s.id}>{s.discountStatusName}</MenuItem>)}
                     </Select>
                 </FormControl>
-                <FormControl size="small" sx={{ minWidth: 150 }}>
+                <FormControl size="small" className="w-1/4">
                     <InputLabel>Type</InputLabel>
                     <Select value={selectedType} label="Type" onChange={(e) => setSelectedType(e.target.value)}>
                         <MenuItem value=""><em>All Types</em></MenuItem>
                         {types.map((t) => <MenuItem key={t.id} value={t.id}>{t.discountTypeName}</MenuItem>)}
                     </Select>
                 </FormControl>
-            </Paper>
+            </div>
 
-            <TableContainer component={Paper} elevation={3}>
-                <Table sx={{ minWidth: 650 }}>
-                    <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
-                        <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold' }}>Code</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>Type</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>Value</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>Usage</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', textAlign: 'right' }}>Actions</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {loading ? <TableSkeleton /> : discounts.map((d) => (
-                            <TableRow key={d.discountId} hover>
-                                <TableCell sx={{ fontWeight: 'medium' }}>{d.discountCode}</TableCell>
-                                <TableCell>{d.discountTypeName}</TableCell>
-                                <TableCell>{d.discountTypeName === 'PERCENTAGE' ? `${d.discountValue}%` : formatPrice(d.discountValue)}</TableCell>
-                                <TableCell>
-                                    <Chip label={d.discountStatusName} color={getStatusChipColor(d.discountStatusName)} size="small" />
-                                </TableCell>
-                                <TableCell>{`${d.usageCount} / ${d.usageLimit}`}</TableCell>
-                                <TableCell align="right">
-                                    <Tooltip title="View Details"><Link to={`/Dashboard/Discounts/${d.discountId}`}><IconButton color="default"><Visibility /></IconButton></Link></Tooltip>
-                                    <Tooltip title="Edit Discount"><Link to={`/Dashboard/Discounts/Edit/${d.discountId}`}><IconButton color="secondary"><Edit /></IconButton></Link></Tooltip>
-                                    <Tooltip title="Assign to Users"><Link to={`/Dashboard/Discounts/${d.discountId}/Assign`}><IconButton color="primary"><PersonAdd /></IconButton></Link></Tooltip>
-                                    <Tooltip title="Delete"><IconButton color="error" onClick={() => openDeleteModal(d)}><Delete /></IconButton></Tooltip>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+            <div className="overflow-x-auto bg-white rounded-lg shadow">
+                <table className="min-w-full table-auto">
+                    <thead className="bg-gray-100">
+                    <tr>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Code</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Type</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Value</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Status</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Usage</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                    {loading ? <TableSkeleton /> : discounts.length > 0 ? (discounts.map((d) => (
+                        <tr key={d.discountId} className="hover:bg-gray-50 align-middle">
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{d.discountCode}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{d.discountTypeName}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{d.discountTypeName === 'PERCENTAGE' ? `${d.discountValue}%` : formatPrice(d.discountValue)}</td>
+                            <td className="px-4 py-3 text-sm">
+                                <Chip label={d.discountStatusName} color={getStatusChipColor(d.discountStatusName)} size="small" />
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{`${d.usageCount} / ${d.usageLimit}`}</td>
+                            <td className="px-4 py-3">
+                                <div className="flex items-center justify-center gap-2">
+                                    <Tooltip title="View Details"><IconButton component={Link} to={`/Dashboard/Discounts/${d.discountId}`} color="success" size="small"><Visibility /></IconButton></Tooltip>
+                                    <Tooltip title="Edit Discount"><IconButton component={Link} to={`/Dashboard/Discounts/Edit/${d.discountId}`} color="primary" size="small"><Edit /></IconButton></Tooltip>
+                                    <Tooltip title="Assign to Users"><IconButton component={Link} to={`/Dashboard/Discounts/${d.discountId}/Assign`} color="secondary" size="small"><PersonAdd /></IconButton></Tooltip>
+                                    <Tooltip title="Delete"><IconButton color="error" size="small" onClick={() => openDeleteModal(d)}><Delete /></IconButton></Tooltip>
+                                </div>
+                            </td>
+                        </tr>
+                    ))) : (
+                        <tr>
+                            <td colSpan="6" className="text-center py-10 text-gray-500">
+                                No discounts found.
+                            </td>
+                        </tr>
+                    )}
+                    </tbody>
+                </table>
+            </div>
 
-            {totalPages > 1 && (
-                <EnhancedPagination currentPage={currentPage} totalPages={totalPages} onPageChange={(page) => setCurrentPage(page)} isLoading={loading} />
-            )}
+            <EnhancedPagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} isLoading={loading} />
 
             <DeleteConfirmationModal isOpen={isOpen} onClose={handleClose} onConfirm={handleDelete} name={discountToDelete?.discountCode || ""} />
         </div>

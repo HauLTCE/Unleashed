@@ -1,5 +1,6 @@
 package com.unleashed.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -22,6 +23,7 @@ public class OrderStatus {
     @Column(name = "order_status_name")
     private String orderStatusName;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "orderStatus")
     private Set<Order> orders = new LinkedHashSet<>();
 

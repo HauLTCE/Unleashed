@@ -22,11 +22,20 @@ const DashboardOrders = () => {
     const [totalPages, setTotalPages] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortOrder, setSortOrder] = useState('priority_desc');
+    const [statusFilter, setStatusFilter] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
     const varToken = useAuthHeader();
     const authUser = useAuthUser();
     const isInitialMount = useRef(true);
     const navigate = useNavigate();
+
+    const statusOptions = [
+        { id: 1, name: 'Pending' },
+        { id: 2, name: 'Processing' },
+        { id: 3, name: 'Shipping' },
+        { id: 4, name: 'Completed' },
+        { id: 5, name: 'Cancelled' },
+    ];
 
     useEffect(() => {
         if (isInitialMount.current) {
@@ -34,23 +43,27 @@ const DashboardOrders = () => {
         } else {
             setCurrentPage(0);
         }
-    }, [debouncedSearchTerm, sortOrder]);
+    }, [debouncedSearchTerm, sortOrder, statusFilter]);
 
     useEffect(() => {
         fetchOrders();
-    }, [currentPage, debouncedSearchTerm, sortOrder]);
+    }, [currentPage, debouncedSearchTerm, sortOrder, statusFilter]);
 
     const fetchOrders = () => {
         setLoading(true);
+        const params = {
+            page: currentPage,
+            size: 10,
+            search: debouncedSearchTerm,
+            sort: sortOrder,
+        };
+        if (statusFilter) {
+            params.statusId = statusFilter;
+        }
         apiClient
             .get('/api/orders', {
                 headers: { Authorization: varToken },
-                params: {
-                    page: currentPage,
-                    size: 10,
-                    search: debouncedSearchTerm,
-                    sort: sortOrder,
-                },
+                params: params,
             })
             .then((response) => {
                 setOrders(response.data.orders);
@@ -148,7 +161,7 @@ const DashboardOrders = () => {
                 Orders Management
             </Typography>
 
-            <div className='flex justify-between items-center mb-4 bg-white p-3 rounded-lg shadow'>
+            <div className='flex justify-between items-center mb-4 bg-white p-3 rounded-lg shadow gap-4'>
                 <TextField
                     label="Search Orders..."
                     variant="outlined"
@@ -157,6 +170,23 @@ const DashboardOrders = () => {
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-1/3"
                 />
+                <FormControl variant="outlined" size="small" className="w-1/4">
+                    <InputLabel>Status</InputLabel>
+                    <Select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        label="Status"
+                    >
+                        <MenuItem value="">
+                            <em>All Statuses</em>
+                        </MenuItem>
+                        {statusOptions.map((status) => (
+                            <MenuItem key={status.id} value={status.id}>
+                                {status.name}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
                 <FormControl variant="outlined" size="small" className="w-1/4">
                     <InputLabel>Sort By</InputLabel>
                     <Select
@@ -206,7 +236,7 @@ const DashboardOrders = () => {
                                 <td className='px-4 py-3 text-sm'>{getStatusChip(order.orderStatus)}</td>
                                 <td className='px-4 py-3 text-sm text-gray-700'>{order.staffUsername || 'N/A'}</td>
                                 <td className='px-4 py-3'>
-                                    <div className='flex items-center gap-2'>
+                                    <div className='flex items-center gap-2 min-h-[40px]'>
                                         <IconButton
                                             onClick={() => viewOrderDetails(order.orderId)}
                                             color='primary'

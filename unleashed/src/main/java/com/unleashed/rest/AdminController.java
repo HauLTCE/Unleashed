@@ -1,6 +1,7 @@
 package com.unleashed.rest;
 
 import com.unleashed.dto.UserDTO;
+import com.unleashed.dto.UserPageDTO;
 import com.unleashed.service.AdminService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -24,11 +25,11 @@ public class AdminController {
 
 
     @GetMapping("/searchUsers")
-    public ResponseEntity<List<UserDTO>> searchUsers(
-            @RequestParam String searchTerm,
+    public ResponseEntity<UserPageDTO> searchUsers(
+            @RequestParam(defaultValue = "") String searchTerm,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        List<UserDTO> users = adminService.searchUsers(searchTerm, page, size);
-        return ResponseEntity.ok(users);
+        UserPageDTO userPage = adminService.searchUsers(searchTerm, page, size);
+        return ResponseEntity.ok(userPage);
     }
 }

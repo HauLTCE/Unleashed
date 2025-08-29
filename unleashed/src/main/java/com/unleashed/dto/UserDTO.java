@@ -20,7 +20,7 @@ public class UserDTO {
     private String userImage;
     private String userPhone;
     private Boolean enable;
-    private Role role; // You may want to keep this as a simple String or create a RoleDTO
+    private Role role;
     private String currentPaymentMethod;
     private String userAddress;
     private OffsetDateTime userCreatedAt;

@@ -2,6 +2,7 @@ package com.unleashed.rest;
 
 import com.unleashed.dto.OrderDTO;
 import com.unleashed.dto.ResponseDTO;
+import com.unleashed.entity.OrderStatus;
 import com.unleashed.entity.User;
 import com.unleashed.service.OrderService;
 import com.unleashed.service.UserService;
@@ -18,6 +19,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -36,13 +38,20 @@ public class OrderRestController {
     public ResponseEntity<Map<String, Object>> getOrders(
             @RequestParam(required = false) String search,
             @RequestParam(required = false, defaultValue = "priority_desc") String sort,
+            @RequestParam(required = false) Integer statusId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
-        Map<String, Object> ordersResponse = orderService.getOrders(search, sort, page, size);
+        Map<String, Object> ordersResponse = orderService.getOrders(search, sort, statusId, page, size);
         return ResponseEntity.ok(ordersResponse);
     }
 
+    @PreAuthorize("hasAnyAuthority('STAFF', 'ADMIN')")
+    @GetMapping("/statuses")
+    public ResponseEntity<List<OrderStatus>> getAllOrderStatuses() {
+        List<OrderStatus> statuses = orderService.getAllOrderStatuses();
+        return ResponseEntity.ok(statuses);
+    }
 
     @PreAuthorize("hasAnyAuthority('STAFF', 'ADMIN')")
     @GetMapping("/{id}")

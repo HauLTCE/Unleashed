@@ -1,16 +1,24 @@
 import React, { useState, useEffect } from "react";
-import { FaPlus, FaEdit, FaTrash, FaEye } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { apiClient } from "../../core/api";
 import useAuthUser from "react-auth-kit/hooks/useAuthUser";
-import { toast, Zoom } from "react-toastify";
+import { toast } from "react-toastify";
 import useAuthHeader from "react-auth-kit/hooks/useAuthHeader";
 import DeleteConfirmationModal from "../../components/modals/DeleteConfirmationModal";
+import {
+    Typography,
+    Button,
+    IconButton,
+    Tooltip,
+    Skeleton,
+    Avatar,
+} from "@mui/material";
+import { Add, Edit, Delete, Visibility } from "@mui/icons-material";
 
 const DashboardCategories = () => {
     const [categories, setCategories] = useState([]);
     const [categoryToDelete, setCategoryToDelete] = useState(null);
-    const [isOpen, setIsOpen] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const navigate = useNavigate();
 
@@ -25,129 +33,153 @@ const DashboardCategories = () => {
     const fetchCategories = () => {
         setIsLoading(true);
         apiClient
-            .get("/api/categories", {
-                headers: {
-                    Authorization: varToken,
-                },
-            })
+            .get("/api/categories", { headers: { Authorization: varToken } })
             .then((response) => {
                 setCategories(response.data.sort((a, b) => a.id - b.id));
-                setIsLoading(false);
             })
             .catch((error) => {
                 console.error("Error fetching categories:", error);
                 toast.error("Failed to fetch categories.");
-                setIsLoading(false);
-            });
-    }
+            })
+            .finally(() => setIsLoading(false));
+    };
 
     const openDeleteModal = (category) => {
         setCategoryToDelete(category);
-        setIsOpen(true);
+        setIsModalOpen(true);
     };
 
-    const handleClose = () => {
-        setIsOpen(false);
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setCategoryToDelete(null);
     };
 
-    const handleDelete = (categoryToDelete) => {
-        if (categoryToDelete) {
-            apiClient
-                .delete(`/api/categories/${categoryToDelete.id}`, {
-                    headers: {
-                        Authorization: varToken,
-                    },
-                })
-                .then((response) => {
-                    setCategories(categories.filter((c) => c.id !== categoryToDelete.id));
-                    setIsOpen(false);
-                    toast.success(response.data.message, {
-                        position: "bottom-right",
-                        transition: Zoom,
-                    });
-                })
-                .catch((error) =>
-                    toast.error(error.response?.data?.message || "Error deleting category", {
-                        position: "bottom-right",
-                        transition: Zoom,
-                    })
-                );
-        }
+    const handleDelete = () => {
+        if (!categoryToDelete) return;
+        apiClient
+            .delete(`/api/categories/${categoryToDelete.id}`, { headers: { Authorization: varToken } })
+            .then(() => {
+                toast.success("Category deleted successfully.");
+                fetchCategories(); // Refetch the list
+            })
+            .catch((error) =>
+                toast.error(error.response?.data?.message || "Error deleting category.")
+            )
+            .finally(() => {
+                handleCloseModal();
+            });
     };
 
     const handleViewCategory = (category) => {
         navigate(`/Dashboard/Categories/${category.id}`, { state: { category } });
     };
 
-    return (
+    const TableSkeleton = () => (
         <>
-            <div className="flex items-center justify-between">
-                <h1 className="text-4xl font-bold mb-6">Categories</h1>
+            {[...Array(5)].map((_, index) => (
+                <tr key={index}>
+                    <td className="px-4 py-3"><Skeleton variant="text" width={20} /></td>
+                    <td className="px-4 py-2"><Skeleton variant="circular" width={48} height={48} /></td>
+                    <td className="px-4 py-3"><Skeleton variant="text" /></td>
+                    <td className="px-4 py-3"><Skeleton variant="text" /></td>
+                    <td className="px-4 py-3"><Skeleton variant="text" width={40} /></td>
+                    <td className="px-4 py-3"><Skeleton variant="text" /></td>
+                </tr>
+            ))}
+        </>
+    );
+
+    return (
+        <div className="p-4">
+            <div className="flex items-center justify-between mb-4">
+                <Typography variant="h4" className="text-3xl font-bold">
+                    Categories Management
+                </Typography>
                 {userRole === "ADMIN" && (
-                    <Link to="/Dashboard/Categories/Create" className="text-blue-600 border border-blue-500 px-4 py-2 rounded-lg flex items-center">
-                        <FaPlus className="mr-2" /> New category
-                    </Link>
+                    <Button
+                        variant="contained"
+                        startIcon={<Add />}
+                        component={Link}
+                        to="/Dashboard/Categories/Create"
+                    >
+                        New Category
+                    </Button>
                 )}
             </div>
 
-            <div className="overflow-x-auto">
-                {isLoading ? (
-                    <div className="text-center text-gray-500">Loading...</div>
-                ) : (
-                    <table className="table-auto w-full border-collapse">
-                        <thead className="border border-gray-300">
-                        <tr>
-                            <th className="px-4 py-2 text-left">ID</th>
-                            <th className="px-4 py-2 text-left">Image</th>
-                            <th className="px-4 py-2 text-left">Category Name</th>
-                            <th className="px-4 py-2 text-left">Description</th>
-                            <th className="px-4 py-2 text-left">Total Quantity</th>
-                            <th className="px-4 py-2 text-left">Action</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {categories.length > 0 ? (
-                            categories.map((category) => (
-                                <tr key={category.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-2">{category.id}</td>
-                                    <td className="px-4 py-2">
-                                        <img src={category.categoryImageUrl} alt={category.categoryName} className="h-12 w-12 object-cover" />
-                                    </td>
-                                    <td className="px-4 py-2 max-w-[250px] truncate">{category.categoryName}</td>
-                                    <td className="px-4 py-2 max-w-[350px] truncate">{category.categoryDescription}</td>
-                                    <td className="px-4 py-2">{category.totalQuantity}</td>
-                                    <td className="px-4 py-2">
-                                        <div className="flex justify-left space-x-2">
-                                            <button onClick={() => handleViewCategory(category)} className="text-green-500 cursor-pointer">
-                                                <FaEye />
-                                            </button>
-                                            {userRole === "ADMIN" && (
-                                                <Link to={`/Dashboard/Categories/Edit/${category.id}`}>
-                                                    <FaEdit className="text-blue-500 cursor-pointer" />
-                                                </Link>
-                                            )}
-                                            {userRole === "ADMIN" && (
-                                                <button onClick={() => openDeleteModal(category)} className="text-red-500 cursor-pointer">
-                                                    <FaTrash />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
-                        ) : (
-                            <tr>
-                                <td colSpan="6" className="text-center text-red-500 py-4">
-                                    No categories found.
+            <div className="overflow-x-auto bg-white rounded-lg shadow">
+                <table className="min-w-full table-auto">
+                    <thead className="bg-gray-100">
+                    <tr>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">ID</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Image</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Category Name</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Description</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Products</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Action</th>
+                    </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                    {isLoading ? (
+                        <TableSkeleton />
+                    ) : categories.length > 0 ? (
+                        categories.map((category) => (
+                            <tr key={category.id} className="hover:bg-gray-50 align-middle">
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900">{category.id}</td>
+                                <td className="px-4 py-2">
+                                    <Avatar
+                                        src={category.categoryImageUrl}
+                                        alt={category.categoryName}
+                                        variant="rounded"
+                                        sx={{ width: 48, height: 48 }}
+                                    />
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-700 max-w-[250px] truncate">{category.categoryName}</td>
+                                <td className="px-4 py-3 text-sm text-gray-700 max-w-[350px] truncate">{category.categoryDescription}</td>
+                                <td className="px-4 py-3 text-sm text-gray-700">{category.totalQuantity}</td>
+                                <td className="px-4 py-3">
+                                    <div className="flex items-center justify-center gap-2">
+                                        <Tooltip title="View Details">
+                                            <IconButton onClick={() => handleViewCategory(category)} color="success" size="small">
+                                                <Visibility />
+                                            </IconButton>
+                                        </Tooltip>
+                                        {userRole === "ADMIN" && (
+                                            <>
+                                                <Tooltip title="Edit">
+                                                    <IconButton component={Link} to={`/Dashboard/Categories/Edit/${category.id}`} color="primary" size="small">
+                                                        <Edit />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Delete">
+                                                    <IconButton onClick={() => openDeleteModal(category)} color="error" size="small">
+                                                        <Delete />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </>
+                                        )}
+                                    </div>
                                 </td>
                             </tr>
-                        )}
-                        </tbody>
-                    </table>
-                )}
+                        ))
+                    ) : (
+                        <tr>
+                            <td colSpan="6" className="text-center py-10 text-gray-500">
+                                No categories found.
+                            </td>
+                        </tr>
+                    )}
+                    </tbody>
+                </table>
             </div>
-            <DeleteConfirmationModal isOpen={isOpen} onClose={handleClose} onConfirm={() => handleDelete(categoryToDelete)} name={categoryToDelete?.categoryName || ""} />
-        </>
+
+            <DeleteConfirmationModal
+                isOpen={isModalOpen}
+                onClose={handleCloseModal}
+                onConfirm={handleDelete}
+                name={categoryToDelete?.categoryName || ""}
+            />
+        </div>
     );
 };
 export default DashboardCategories;

@@ -2,12 +2,18 @@ package com.unleashed.dto;
 
 import com.unleashed.entity.Category;
 import com.unleashed.entity.Sale;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
 public class ProductListDTO {
     private String productId;
     private String productName;

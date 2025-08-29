@@ -46,7 +46,7 @@ public class ProductRestController {
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "12") int size) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<ProductListDTO> productPage = productService.findProductsWithFilters(query, category, brand, rating, priceOrder, inStockOnly, pageable); // <-- UPDATE THIS LINE
+        Page<ProductListDTO> productPage = productService.findProductsWithFilters(query, category, brand, rating, priceOrder, inStockOnly, pageable);
         return ResponseEntity.ok(productPage);
     }
 
