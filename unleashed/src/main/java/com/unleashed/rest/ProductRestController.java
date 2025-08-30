@@ -101,9 +101,9 @@ public class ProductRestController {
     @PostMapping("/{productId}/product-variations")
     public ResponseEntity<Product> addProductVariations(
             @PathVariable("productId") String productId,
-            @RequestBody ProductDTO productDTO) {
+            @RequestBody List<ProductDTO.ProductVariationDTO> variationDTOs) {
 
-        Product product = productService.addVariationsToExistingProduct(productId, productDTO.getVariations());
+        Product product = productService.addVariationsToExistingProduct(productId, variationDTOs);
         //System.out.println(product);
         return ResponseEntity.ok(product);
     }

@@ -16,8 +16,9 @@ import {
     Grid,
     Avatar,
     Skeleton,
+    InputAdornment,
 } from '@mui/material';
-import { ArrowBack } from '@mui/icons-material';
+import { ArrowBack, AddPhotoAlternate } from '@mui/icons-material';
 import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader';
 
 const EditVariationSkeleton = () => (
@@ -54,6 +55,7 @@ const DashboardEditProductVariation = () => {
     const [sizes, setSizes] = useState([]);
     const [colors, setColors] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -73,12 +75,13 @@ const DashboardEditProductVariation = () => {
                 setColors(colorsRes.data);
             } catch (error) {
                 toast.error("Failed to fetch variation data.");
+                navigate(-1);
             } finally {
                 setLoading(false);
             }
         };
         fetchData();
-    }, [productVariationId, varToken]);
+    }, [productVariationId, varToken, navigate]);
 
     const handleImageChange = (e) => {
         const file = e.target.files[0];
@@ -88,21 +91,27 @@ const DashboardEditProductVariation = () => {
         }
     };
 
+    const uploadImage = (file) => {
+        const formData = new FormData();
+        formData.append('image', file);
+        return toast.promise(
+            fetch('https://api.imgbb.com/1/upload?key=37a8229aac308c0f3568b5163a7104f8', {
+                method: 'POST', body: formData,
+            }).then(res => res.json()).then(data => {
+                if (data.success) return data.data.display_url;
+                throw new Error('Image upload failed');
+            }),
+            { pending: 'Uploading new image...', success: 'Image uploaded!', error: 'Upload failed.' }
+        );
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
+        setIsSubmitting(true);
         try {
             let imageUrl = currentImageUrl;
             if (variationImageFile) {
-                const formData = new FormData();
-                formData.append('image', variationImageFile);
-                const uploadResponse = await fetch('https://api.imgbb.com/1/upload?key=37a8229aac308c0f3568b5163a7104f8', { method: 'POST', body: formData });
-                const uploadData = await uploadResponse.json();
-                if (uploadData.success) {
-                    imageUrl = uploadData.data.display_url;
-                } else {
-                    throw new Error('Image upload failed');
-                }
+                imageUrl = await uploadImage(variationImageFile);
             }
             await apiClient.put(
                 `/api/product-variations/${productVariationId}`,
@@ -110,15 +119,15 @@ const DashboardEditProductVariation = () => {
                 { headers: { Authorization: varToken } }
             );
             toast.success('Product Variation updated successfully');
-            navigate(`/Dashboard/Products`);
+            navigate(`/Dashboard/Products/edit/${productId}`);
         } catch (error) {
-            toast.error('Update failed');
+            toast.error(error.message || 'Update failed');
         } finally {
-            setLoading(false);
+            setIsSubmitting(false);
         }
     };
 
-    if (loading && !sizes.length) {
+    if (loading) {
         return <EditVariationSkeleton />;
     }
 
@@ -128,18 +137,18 @@ const DashboardEditProductVariation = () => {
                 <Typography variant="h4" className="text-3xl font-bold">
                     Edit Product Variation
                 </Typography>
-                <Button startIcon={<ArrowBack />} onClick={() => navigate("/Dashboard/Products")} variant="outlined">
-                    Back to Products
+                <Button startIcon={<ArrowBack />} onClick={() => navigate(-1)} variant="outlined">
+                    Back
                 </Button>
             </Box>
 
             <form onSubmit={handleSubmit}>
                 <Paper sx={{ p: 4 }} className="bg-white rounded-lg shadow">
-                    <Grid container spacing={3}>
+                    <Grid container spacing={3} alignItems="center">
                         <Grid item xs={12} sm={6}>
                             <FormControl fullWidth required>
                                 <InputLabel>Size</InputLabel>
-                                <Select value={sizeId} onChange={(e) => setSizeId(e.target.value)} label='Size'>
+                                <Select value={sizeId} onChange={(e) => setSizeId(e.target.value)} label='Size' disabled={isSubmitting}>
                                     {sizes.map((size) => <MenuItem key={size.id} value={size.id}>{size.sizeName}</MenuItem>)}
                                 </Select>
                             </FormControl>
@@ -147,37 +156,65 @@ const DashboardEditProductVariation = () => {
                         <Grid item xs={12} sm={6}>
                             <FormControl fullWidth required>
                                 <InputLabel>Color</InputLabel>
-                                <Select value={colorId} onChange={(e) => setColorId(e.target.value)} label='Color'>
-                                    {colors.map((color) => <MenuItem key={color.id} value={color.id}>{color.colorName}</MenuItem>)}
+                                <Select
+                                    value={colorId}
+                                    onChange={(e) => setColorId(e.target.value)}
+                                    label='Color'
+                                    disabled={isSubmitting}
+                                    renderValue={(selected) => {
+                                        const selectedColor = colors.find((c) => c.id === selected);
+                                        if (!selectedColor) return null;
+                                        return (
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <Box component="span" sx={{ width: 16, height: 16, borderRadius: '50%', backgroundColor: selectedColor.colorHexCode, border: '1px solid #ccc' }} />
+                                                {selectedColor.colorName}
+                                            </Box>
+                                        );
+                                    }}
+                                >
+                                    {colors.map((color) => <MenuItem key={color.id} value={color.id}>
+                                        <Box component="span" sx={{ width: 16, height: 16, borderRadius: '50%', backgroundColor: color.colorHexCode, mr: 1.5, border: '1px solid #ccc' }} />
+                                        {color.colorName}
+                                    </MenuItem>)}
                                 </Select>
                             </FormControl>
                         </Grid>
                         <Grid item xs={12}>
-                            <TextField label='Variation Price' type='number' fullWidth required value={variationPrice} onChange={(e) => setVariationPrice(e.target.value)} inputProps={{ min: 0 }}/>
+                            <TextField
+                                label='Variation Price'
+                                type='number'
+                                fullWidth
+                                required
+                                value={variationPrice}
+                                onChange={(e) => setVariationPrice(e.target.value)}
+                                inputProps={{ min: 0 }}
+                                disabled={isSubmitting}
+                                InputProps={{ startAdornment: <InputAdornment position="start">VND</InputAdornment> }}
+                            />
                         </Grid>
-                        <Grid item xs={12}>
-                            <Button variant='outlined' component='label'>
+                        <Grid item xs={12} sx={{ display: 'flex', gap: 4, mt: 2, alignItems: 'center' }}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1}}>
+                                <Typography variant="caption">Current Image</Typography>
+                                <Avatar src={currentImageUrl} alt='Current' variant="rounded" sx={{ width: 120, height: 120 }}>
+                                    <AddPhotoAlternate />
+                                </Avatar>
+                            </Box>
+                            {newImagePreview && (
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1}}>
+                                    <Typography variant="caption">New Preview</Typography>
+                                    <Avatar src={newImagePreview} alt='New Preview' variant="rounded" sx={{ width: 120, height: 120 }}>
+                                        <AddPhotoAlternate />
+                                    </Avatar>
+                                </Box>
+                            )}
+                            <Button variant='outlined' component='label' startIcon={<AddPhotoAlternate />} disabled={isSubmitting}>
                                 Upload New Image
                                 <input type='file' accept='image/*' onChange={handleImageChange} hidden />
                             </Button>
                         </Grid>
-                        <Grid item xs={12} sx={{ display: 'flex', gap: 4, mt: 2 }}>
-                            {currentImageUrl && (
-                                <Box textAlign="center">
-                                    <Typography variant="caption" display="block" gutterBottom>Current Image</Typography>
-                                    <Avatar src={currentImageUrl} alt='Current' variant="rounded" sx={{ width: 120, height: 120 }} />
-                                </Box>
-                            )}
-                            {newImagePreview && (
-                                <Box textAlign="center">
-                                    <Typography variant="caption" display="block" gutterBottom>New Preview</Typography>
-                                    <Avatar src={newImagePreview} alt='New Preview' variant="rounded" sx={{ width: 120, height: 120 }} />
-                                </Box>
-                            )}
-                        </Grid>
                         <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-                            <Button type='submit' variant='contained' color='primary' size="large" disabled={loading}>
-                                {loading ? <CircularProgress size={24} color='inherit' /> : 'Update Variation'}
+                            <Button type='submit' variant='contained' color='primary' size="large" disabled={isSubmitting}>
+                                {isSubmitting ? <CircularProgress size={24} color='inherit' /> : 'Update Variation'}
                             </Button>
                         </Grid>
                     </Grid>
