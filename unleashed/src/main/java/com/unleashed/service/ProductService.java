@@ -3,6 +3,7 @@ package com.unleashed.service;
 import com.unleashed.dto.*;
 import com.unleashed.dto.mapper.ProductMapper;
 import com.unleashed.entity.*;
+import com.unleashed.entity.composite.StockVariationId;
 import com.unleashed.repo.*;
 import com.unleashed.repo.specification.VariationSpecification;
 import jakarta.persistence.EntityNotFoundException;
@@ -110,8 +111,10 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public Page<VariationImportDTO> findAllVariationsForImport(String search, Integer stockId, Pageable pageable) {
-        Specification<Variation> spec = new VariationSpecification(search);
+        Specification<Variation> spec = new VariationSpecification(search, stockId);
+
         Page<Variation> variationPage = variationRepository.findAll(spec, pageable);
+
         Page<VariationImportDTO> dtoPage = variationPage.map(VariationImportDTO::fromEntity);
 
         if (stockId != null && dtoPage.hasContent()) {
@@ -128,6 +131,7 @@ public class ProductService {
                 dto.setCurrentStock(stockMap.getOrDefault(dto.getId(), 0));
             });
         }
+
         return dtoPage;
     }
 

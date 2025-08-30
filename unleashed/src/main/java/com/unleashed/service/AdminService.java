@@ -26,7 +26,10 @@ public class AdminService {
 
     public UserPageDTO searchUsers(String searchTerm, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<User> userPage = userRepository.findByUserUsernameContainingOrUserEmailContaining(searchTerm, searchTerm, pageable);
+
+        String excludedUsername = "System-chan";
+
+        Page<User> userPage = userRepository.searchByTermExcludingUsername(searchTerm, excludedUsername, pageable);
 
         List<UserDTO> userDTOs = userPage.getContent().stream()
                 .map(this::convertToUserDTO)

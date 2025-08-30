@@ -14,7 +14,6 @@ import {
     Grid,
     InputAdornment,
     Avatar,
-    Divider,
 } from '@mui/material';
 import { Delete, ArrowBack, AddPhotoAlternate } from '@mui/icons-material';
 import useAuthHeader from 'react-auth-kit/hooks/useAuthHeader';
@@ -22,7 +21,6 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 const DashboardAddProducts = () => {
-    // State Management
     const [productName, setProductName] = useState('');
     const [productDescription, setProductDescription] = useState('');
     const [categoryIdList, setCategoryIdList] = useState([]);
@@ -38,7 +36,6 @@ const DashboardAddProducts = () => {
     const navigate = useNavigate();
     const varToken = useAuthHeader();
 
-    // Data Fetching
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -59,7 +56,6 @@ const DashboardAddProducts = () => {
         fetchData();
     }, [varToken]);
 
-    // Variation Handlers
     const handleVariationChange = (index, field, value) => {
         const newVariations = [...variations];
         newVariations[index][field] = value;
@@ -91,7 +87,6 @@ const DashboardAddProducts = () => {
         }
     };
 
-    // Image Upload Service
     const uploadImage = (file) => {
         const formData = new FormData();
         formData.append('image', file);
@@ -106,7 +101,6 @@ const DashboardAddProducts = () => {
         );
     };
 
-    // Form Submission
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (variations.some(v => !v.productVariationImage)) {
@@ -172,7 +166,6 @@ const DashboardAddProducts = () => {
 
                 <Paper sx={{ p: 4 }} className="bg-white rounded-lg shadow">
                     <Typography variant="h6" className="font-semibold mb-4">Product Variations</Typography>
-                    {/* Headers for the variation table */}
                     <Grid container spacing={2} sx={{ pb: 1, borderBottom: 1, borderColor: 'divider', display: { xs: 'none', md: 'flex' } }}>
                         <Grid item md={2}><Typography variant="subtitle2" color="text.secondary">Size</Typography></Grid>
                         <Grid item md={2}><Typography variant="subtitle2" color="text.secondary">Color</Typography></Grid>
@@ -185,16 +178,35 @@ const DashboardAddProducts = () => {
                         <Grid container key={index} spacing={2} sx={{ py: 2, alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
                             <Grid item xs={12} md={2}>
                                 <FormControl fullWidth required>
-                                    <InputLabel sx={{ display: { md: 'none' } }}>Size</InputLabel>
-                                    <Select value={variation.sizeId} onChange={(e) => handleVariationChange(index, 'sizeId', e.target.value)} disabled={isSubmitting} label="Size" size="small">
+                                    <Select value={variation.sizeId} onChange={(e) => handleVariationChange(index, 'sizeId', e.target.value)} disabled={isSubmitting} size="small" displayEmpty>
+                                        <MenuItem value="" disabled><em>Size</em></MenuItem>
                                         {sizes.map((size) => <MenuItem key={size.id} value={size.id}>{size.sizeName}</MenuItem>)}
                                     </Select>
                                 </FormControl>
                             </Grid>
                             <Grid item xs={12} md={2}>
                                 <FormControl fullWidth required>
-                                    <InputLabel sx={{ display: { md: 'none' } }}>Color</InputLabel>
-                                    <Select value={variation.colorId} onChange={(e) => handleVariationChange(index, 'colorId', e.target.value)} disabled={isSubmitting} label="Color" size="small">
+                                    <Select
+                                        value={variation.colorId}
+                                        onChange={(e) => handleVariationChange(index, 'colorId', e.target.value)}
+                                        disabled={isSubmitting}
+                                        size="small"
+                                        displayEmpty
+                                        renderValue={(selected) => {
+                                            if (!selected) {
+                                                return <em>Color</em>;
+                                            }
+                                            const selectedColor = colors.find((c) => c.id === selected);
+                                            if (!selectedColor) return null;
+                                            return (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <Box component="span" sx={{ width: 16, height: 16, borderRadius: '50%', backgroundColor: selectedColor.colorHexCode, border: '1px solid #ccc' }} />
+                                                    {selectedColor.colorName}
+                                                </Box>
+                                            );
+                                        }}
+                                    >
+                                        <MenuItem value="" disabled><em>Color</em></MenuItem>
                                         {colors.map((color) => <MenuItem key={color.id} value={color.id}>
                                             <Box component="span" sx={{ width: 16, height: 16, borderRadius: '50%', backgroundColor: color.colorHexCode, mr: 1.5, border: '1px solid #ccc' }} />
                                             {color.colorName}
@@ -203,7 +215,7 @@ const DashboardAddProducts = () => {
                                 </FormControl>
                             </Grid>
                             <Grid item xs={12} md={3}>
-                                <TextField label="Price" type='number' fullWidth value={variation.productPrice} onChange={(e) => handleVariationChange(index, 'productPrice', e.target.value)} required inputProps={{ min: 0 }} disabled={isSubmitting} size="small"
+                                <TextField placeholder="Price" type='number' fullWidth value={variation.productPrice} onChange={(e) => handleVariationChange(index, 'productPrice', e.target.value)} required inputProps={{ min: 0 }} disabled={isSubmitting} size="small"
                                            InputProps={{ startAdornment: <InputAdornment position="start">VND</InputAdornment> }} />
                             </Grid>
                             <Grid item xs={12} md={4} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -211,7 +223,9 @@ const DashboardAddProducts = () => {
                                     Upload
                                     <input type='file' accept="image/*" hidden onChange={(e) => handleImageChange(index, e)} />
                                 </Button>
-                                <Avatar src={variation.previewUrl} alt='Preview' variant="rounded" sx={{ width: 60, height: 60 }} />
+                                <Avatar src={variation.previewUrl} alt='Preview' variant="rounded" sx={{ width: 60, height: 60 }}>
+                                    <AddPhotoAlternate />
+                                </Avatar>
                             </Grid>
                             <Grid item xs={12} md={1} sx={{ textAlign: 'right' }}>
                                 <IconButton onClick={() => handleRemoveVariation(index)} color="error" disabled={isSubmitting || variations.length <= 1}>

@@ -11,35 +11,63 @@ import java.util.List;
 public class VariationSpecification implements Specification<Variation> {
 
     private final String searchTerm;
+    private final Integer stockId;
 
-    public VariationSpecification(String searchTerm) {
+    public VariationSpecification(String searchTerm, Integer stockId) {
         this.searchTerm = searchTerm;
+        this.stockId = stockId;
     }
 
     @Override
     public Predicate toPredicate(Root<Variation> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
-        if (!StringUtils.hasText(searchTerm)) {
-            return cb.conjunction();
+        Join<Variation, Product> productJoin = root.join("product", JoinType.LEFT);
+
+        List<Predicate> mainPredicates = new ArrayList<>();
+
+        mainPredicates.add(cb.isNotNull(productJoin.get("productStatus")));
+
+        if (StringUtils.hasText(searchTerm)) {
+            String likePattern = "%" + searchTerm.toLowerCase() + "%";
+            Join<Product, Brand> brandJoin = productJoin.join("brand", JoinType.LEFT);
+            Join<Variation, Size> sizeJoin = root.join("size", JoinType.LEFT);
+            Join<Variation, Color> colorJoin = root.join("color", JoinType.LEFT);
+
+            List<Predicate> searchPredicates = new ArrayList<>();
+            searchPredicates.add(cb.like(cb.lower(productJoin.get("productName")), likePattern));
+            searchPredicates.add(cb.like(cb.lower(brandJoin.get("brandName")), likePattern));
+            searchPredicates.add(cb.like(cb.lower(sizeJoin.get("sizeName")), likePattern));
+            searchPredicates.add(cb.like(cb.lower(colorJoin.get("colorName")), likePattern));
+
+            mainPredicates.add(cb.or(searchPredicates.toArray(new Predicate[0])));
         }
 
-        String likePattern = "%" + searchTerm.toLowerCase() + "%";
+        if (stockId != null) {
+            Subquery<Integer> subquery = query.subquery(Integer.class);
+            Root<StockVariation> subRoot = subquery.from(StockVariation.class);
+            subquery.select(cb.literal(1));
+            subquery.where(
+                    cb.and(
+                            cb.equal(subRoot.get("id").get("variationId"), root.get("id")),
+                            cb.equal(subRoot.get("id").get("stockId"), stockId),
+                            cb.equal(subRoot.get("stockQuantity"), -1)
+                    )
+            );
 
-        // Join to related entities
-        Join<Variation, Product> productJoin = root.join("product", JoinType.LEFT);
-        Join<Product, Brand> brandJoin = productJoin.join("brand", JoinType.LEFT);
-        Join<Variation, Size> sizeJoin = root.join("size", JoinType.LEFT);
-        Join<Variation, Color> colorJoin = root.join("color", JoinType.LEFT);
+            mainPredicates.add(cb.not(cb.exists(subquery)));
+        }
 
-        // Create a list of potential matches
-        List<Predicate> predicates = new ArrayList<>();
-        predicates.add(cb.like(cb.lower(productJoin.get("productName")), likePattern));
-        predicates.add(cb.like(cb.lower(brandJoin.get("brandName")), likePattern));
-        predicates.add(cb.like(cb.lower(sizeJoin.get("sizeName")), likePattern));
-        predicates.add(cb.like(cb.lower(colorJoin.get("colorName")), likePattern));
+        if (query.getResultType() != Long.class && query.getResultType() != long.class) {
+            query.groupBy(
+                    root.get("id"),
+                    root.get("product"),
+                    root.get("size"),
+                    root.get("color"),
+                    root.get("variationImage"),
+                    root.get("variationPrice"),
+                    productJoin.get("productName")
+            );
+        }
 
-//        query.distinct(true);
-
-        // Combine the conditions with OR
-        return cb.or(predicates.toArray(new Predicate[0]));
+        return cb.and(mainPredicates.toArray(new Predicate[0]));
     }
 }
