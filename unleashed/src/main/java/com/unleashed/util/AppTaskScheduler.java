@@ -48,6 +48,10 @@ public class AppTaskScheduler {
         logger.info("Checking for 'System' user on application startup...");
         try {
             userService.findOrCreateSystemUser();
+            productService.performScheduledAgingUpdate();
+            saleService.performScheduledStatusUpdates();
+            discountService.performScheduledStatusUpdates();
+            productService.performScheduledStockUpdates();
             logger.info("'System' user initialized successfully.");
         } catch (Exception e) {
             logger.error("Failed to initialize 'System' user.", e);
